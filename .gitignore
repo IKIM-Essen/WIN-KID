@@ -1,3 +1,9 @@
 #Input Files
 *.fasta
 *.fastq
+
+#Notebooks
+*.ipynb
+
+#Output
+/output/*
