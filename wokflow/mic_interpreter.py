@@ -34,7 +34,6 @@ def get_mic_interpretation(columns_vitek, rows_eucast, antibiotic_name_vitek, df
         data = data.replace(">", "").replace("=", "").replace(",", ".")
         if "<" in data:
             interpretation = EucastInterpretation(1).name
-            print("HI")
         elif float(data) <= float(rows_eucast["S <="].iloc[0]):
             interpretation = EucastInterpretation(1).name
         elif float(data) <= float(rows_eucast["R >"].iloc[0]):
