@@ -31,11 +31,13 @@ def get_mic_interpretation(columns_vitek, rows_eucast, antibiotic_name_vitek, df
     index = 0
     for data in columns_vitek:
         interpretation = ""
-        data = data.replace(">", "").replace("<", "").replace("=", "").replace(",", ".")
-        data = float(data)
-        if data <= float(rows_eucast["S <="].iloc[0]):
+        data = data.replace(">", "").replace("=", "").replace(",", ".")
+        if "<" in data:
             interpretation = EucastInterpretation(1).name
-        elif data <= float(rows_eucast["R >"].iloc[0]):
+            print("HI")
+        elif float(data) <= float(rows_eucast["S <="].iloc[0]):
+            interpretation = EucastInterpretation(1).name
+        elif float(data) <= float(rows_eucast["R >"].iloc[0]):
             interpretation = EucastInterpretation(2).name
         else:
             interpretation = EucastInterpretation(3).name
