@@ -1,0 +1,29 @@
+##gff-version 3
+##sequence-region 1 1 2409317
+##sequence-region 2 1 533242
+##sequence-region 3 1 482284
+##sequence-region 4 1 426978
+##sequence-region 5 1 189566
+##sequence-region 6 1 137637
+##sequence-region 7 1 62220
+##sequence-region 8 1 7540
+##sequence-region 9 1 6592
+##sequence-region 10 1 5500
+##sequence-region 11 1 2679
+##sequence-region 12 1 1952
+##sequence-region 13 1 1850
+##sequence-region 14 1 1776
+##sequence-region 15 1 1280
+##sequence-region 16 1 1274
+##sequence-region 17 1 1250
+##sequence-region 18 1 1152
+##sequence-region 19 1 1049
+1	Prodigal:002006	CDS	163	591	.	+	0	ID=GAEGPKOF_00001;Name=aqpZ2;gene=aqpZ2;inference=ab initio prediction:Prodigal:002006,similar to AA sequence:UniProtKB:Q8UJW4;locus_tag=GAEGPKOF_00001;product=Aquaporin Z 2
+1	Prodigal:002006	CDS	630	938	.	-	0	ID=GAEGPKOF_00002;inference=ab initio prediction:Prodigal:002006;locus_tag=GAEGPKOF_00002;product=hypothetical protein
+1	Prodigal:002006	CDS	1145	1648	.	-	0	ID=GAEGPKOF_00003;inference=ab initio prediction:Prodigal:002006;locus_tag=GAEGPKOF_00003;product=hypothetical protein
+1	Prodigal:002006	CDS	1749	2852	.	-	0	ID=GAEGPKOF_00004;inference=ab initio prediction:Prodigal:002006;locus_tag=GAEGPKOF_00004;product=hypothetical protein
+1	Prodigal:002006	CDS	3084	3527	.	+	0	ID=GAEGPKOF_00005;inference=ab initio prediction:Prodigal:002006;locus_tag=GAEGPKOF_00005;product=hypothetical protein
+1	Prodigal:002006	CDS	3583	5460	.	-	0	ID=GAEGPKOF_00006;Name=kup;gene=kup;inference=ab initio prediction:Prodigal:002006,protein motif:HAMAP:MF_01522;locus_tag=GAEGPKOF_00006;product=Low affinity potassium transport system protein kup
+1	Aragorn:001002	tRNA	5577	5666	.	+	.	ID=GAEGPKOF_00007;inference=COORDINATES:profile:Aragorn:001002;locus_tag=GAEGPKOF_00007;product=tRNA-Ser(gga)
+1	Prodigal:002006	CDS	5887	6741	.	-	0	ID=GAEGPKOF_00008;inference=ab initio prediction:Prodigal:002006,similar to AA sequence:ISfinder:ISAba22;locus_tag=GAEGPKOF_00008;product=IS3 family transposase ISAba22
+1	Prodigal:002006	CDS	6753	7052	.	-	0	ID=GAEGPKOF_00009;inference=ab initio prediction:Prodigal:002006,similar to AA sequence:ISfinder:ISAba22;locus_tag=GAEGPKOF_00009;product=IS3 family transposase ISAba22

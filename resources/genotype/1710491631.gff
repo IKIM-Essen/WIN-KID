@@ -1,0 +1,31 @@
+##gff-version 3
+##sequence-region 1 1 2409317
+##sequence-region 2 1 533242
+##sequence-region 3 1 482284
+##sequence-region 4 1 426978
+##sequence-region 5 1 189566
+##sequence-region 6 1 137637
+##sequence-region 7 1 62220
+##sequence-region 8 1 7540
+##sequence-region 9 1 6592
+##sequence-region 10 1 5500
+##sequence-region 11 1 2679
+##sequence-region 12 1 1952
+##sequence-region 13 1 1850
+##sequence-region 14 1 1776
+##sequence-region 15 1 1280
+##sequence-region 16 1 1274
+##sequence-region 17 1 1250
+##sequence-region 18 1 1152
+##sequence-region 19 1 1049
+1	Prodigal:002006	CDS	29627	31171	.	+	0	ID=GAEGPKOF_00040;Name=gabR_1;db_xref=COG:COG1167;gene=gabR_1;inference=ab initio prediction:Prodigal:002006,similar to AA sequence:UniProtKB:P94426;locus_tag=GAEGPKOF_00040;product=HTH-type transcriptional regulatory protein GabR
+1	Prodigal:002006	CDS	31236	32678	.	-	0	ID=GAEGPKOF_00041;Name=gabP_1;db_xref=COG:COG1113;gene=gabP_1;inference=ab initio prediction:Prodigal:002006,similar to AA sequence:UniProtKB:P25527;locus_tag=GAEGPKOF_00041;product=GABA permease
+1	Prodigal:002006	CDS	32984	33532	.	-	0	ID=GAEGPKOF_00042;Name=sutR_1;db_xref=COG:COG1396;gene=sutR_1;inference=ab initio prediction:Prodigal:002006,similar to AA sequence:UniProtKB:P77626;locus_tag=GAEGPKOF_00042;product=HTH-type transcriptional regulator SutR
+1	Prodigal:002006	CDS	33599	34294	.	+	0	ID=GAEGPKOF_00043;inference=ab initio prediction:Prodigal:002006;locus_tag=GAEGPKOF_00043;product=hypothetical protein
+1	Prodigal:002006	CDS	34291	34614	.	+	0	ID=GAEGPKOF_00044;inference=ab initio prediction:Prodigal:002006;locus_tag=GAEGPKOF_00044;product=hypothetical protein
+1	Prodigal:002006	CDS	34655	35236	.	-	0	ID=GAEGPKOF_00045;inference=ab initio prediction:Prodigal:002006,protein motif:HAMAP:MF_00984;locus_tag=GAEGPKOF_00045;product=Single-stranded DNA-binding protein
+1	Prodigal:002006	CDS	35288	35581	.	-	0	ID=GAEGPKOF_00046;inference=ab initio prediction:Prodigal:002006;locus_tag=GAEGPKOF_00046;product=hypothetical protein
+1	Prodigal:002006	CDS	35596	36651	.	-	0	ID=GAEGPKOF_00047;Name=yajR;db_xref=COG:COG0477;gene=yajR;inference=ab initio prediction:Prodigal:002006,similar to AA sequence:UniProtKB:P77726;locus_tag=GAEGPKOF_00047;product=Inner membrane transport protein YajR
+1	Prodigal:002006	CDS	36797	37879	.	-	0	ID=GAEGPKOF_00048;inference=ab initio prediction:Prodigal:002006;locus_tag=GAEGPKOF_00048;product=hypothetical protein
+1	Prodigal:002006	CDS	38142	38816	.	+	0	ID=GAEGPKOF_00049;eC_number=3.5.99.2;Name=tenA;db_xref=COG:COG0819;gene=tenA;inference=ab initio prediction:Prodigal:002006,similar to AA sequence:UniProtKB:A8KRL3;locus_tag=GAEGPKOF_00049;product=Aminopyrimidine aminohydrolase
+1	Prodigal:002006	CDS	38866	39207	.	-	0	ID=GAEGPKOF_00050;Name=ydgC;db_xref=COG:COG3136;gene=ydgC;inference=ab initio prediction:Prodigal:002006,similar to AA sequence:UniProtKB:P0ACX0;locus_tag=GAEGPKOF_00050;product=Inner membrane protein YdgC
