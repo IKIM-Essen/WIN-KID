@@ -1,5 +1,6 @@
 import os
 import re
+from dataclasses import dataclass
 import pandas as pd
 
 # Constants
@@ -73,5 +74,17 @@ class DataLoader:
 
         return pd.merge(input_phenotype, input_genotype, on=ID_COLUMN, how="inner")
 
-    def get_merged_data(self):
-        return self.merged_input
+    def get_preprocessed_data(self):
+        preprocessed_data = PreprocessedDataDTO(
+            self.merged_input,
+            self.merged_input.columns[3:17],
+            self.merged_input.columns[17:],
+        )
+        return preprocessed_data
+
+
+@dataclass
+class PreprocessedDataDTO:
+    merged_input: pd.DataFrame
+    target_cols: list
+    feature_cols: list
