@@ -19,21 +19,27 @@ GFF_COLUMNS = [
 ID_COLUMN = "Sample_ID_IfH "
 
 
-def extract_gene_id(attribute_string):
-    match = re.search(r"ID=([^;]+)", attribute_string)
+def extract_gene_attribute(attribute_string, key):
+    pattern = rf"{key}=([^;]+)"  # Dynamic regex pattern
+    match = re.search(pattern, attribute_string)
     return match.group(1) if match else None
 
 
-def extract_gene_names(gff_file_path):
+def extract_gene_ids(gff_file_path):
     gff_data = pd.read_csv(
         gff_file_path, sep="\t", comment="#", names=GFF_COLUMNS, dtype=str
     )
-    return gff_data["attributes"].apply(extract_gene_id).dropna().tolist()
+    return (
+        gff_data["attributes"]
+        .apply(lambda attr: extract_gene_attribute(attr, "ID"))
+        .dropna()
+        .tolist()
+    )
 
 
 def load_genotypes(directory):
     bacteria_genes = {
-        gff_file.replace(".gff", ""): extract_gene_names(
+        gff_file.replace(".gff", ""): extract_gene_ids(
             os.path.join(directory, gff_file)
         )
         for gff_file in os.listdir(directory)
