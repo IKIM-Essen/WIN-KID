@@ -5,7 +5,7 @@ import re
 def clean_dataframe(input_df, bacteria):
     bakterien = ""
     # Filter Zeilen mit token_set_ratio damit nach stichwörtern gesucht wird
-    input_df = input_df[input_df['ERREGERLANG'].apply(lambda x: fuzz.token_set_ratio(str(x).lower(), bacteria.lower()) >= 50 if pd.notna(x) else False)]
+    input_df = input_df[input_df['ERREGERLANG'].apply(lambda x: fuzz.token_set_ratio(str(x).lower(), bacteria.lower()) >= 52 if pd.notna(x) else False)]
     # Leeres Dataframe nur mit spalte 'LABORNR' erzeugen
     df = pd.DataFrame(columns=['LABORNR'])
     # Alle Rows durchgehen
@@ -41,13 +41,14 @@ def clean_text(text):
         return ""
     return re.sub(r"[^a-zA-Z\s]", "", text).lower()
 
-
 # Paths
 INPUT_PATH = "resources/UKM_vitek_daten_2.csv"
 OUTPUT_PATH = "output/vitek_parsed_ecoli.csv"
 
 # Load
 input_df = pd.read_csv(INPUT_PATH, sep=",")
+
+check_similarity(input_df, "Escherichia coli")
 
 # Clean
 cleaned_df = clean_dataframe(input_df, "Escherichia coli")
