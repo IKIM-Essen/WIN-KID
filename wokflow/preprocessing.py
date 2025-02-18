@@ -24,16 +24,18 @@ def extract_gene_attribute(attribute_string, key):
     return match.group(1) if match else None
 
 
-def extract_gene_ids(gff_df):
-    gff_df["Gene_ID"] = (
-        gff_df["attributes"]
-        .apply(lambda attr: extract_gene_attribute(attr, "ID"))
-        .dropna()
-    )
+def extract_features(gff_df, features):
+    for feature in features:
+        # Extract features before grouping
+        gff_df[feature] = (
+            gff_df["attributes"]
+            .apply(lambda attr: extract_gene_attribute(attr, feature))
+            .dropna()
+        )
 
-    grouped = gff_df.groupby(ID_COLUMN)["Gene_ID"].apply(list).reset_index()
+    grouped_df = gff_df.groupby(ID_COLUMN)[features].agg(list).reset_index()
 
-    return grouped.rename(columns={"Gene_ID": "Resistance Genes"})
+    return grouped_df
 
 
 def load_genotypes(directory):
@@ -53,17 +55,20 @@ def load_genotypes(directory):
     return pd.concat(data, ignore_index=True) if data else pd.DataFrame()
 
 
-def encode_one_hot(genotype_df):
-    all_genes = set(
-        gene for gene_list in genotype_df["Resistance Genes"] for gene in gene_list
-    )
-
-    for gene in all_genes:
-        genotype_df[gene] = genotype_df["Resistance Genes"].apply(
-            lambda genes, g=gene: int(g in genes)
+def encode_one_hot(genotype_df, features):
+    for feature in features:
+        all_genes = set(
+            gene for gene_list in genotype_df[feature] for gene in gene_list
         )
 
-    return genotype_df.drop(columns=["Resistance Genes"])
+        for gene in all_genes:
+            genotype_df[gene] = genotype_df[feature].apply(
+                lambda genes, g=gene: int(g in genes)
+            )
+
+        genotype_df = genotype_df.drop(columns=[feature])
+
+    return genotype_df
 
 
 class DataLoader:
@@ -77,9 +82,10 @@ class DataLoader:
     def _load_and_merge_data(self):
         input_phenotype = pd.read_csv(self.phenotype_path)
 
+        attribute_features = ["Name", "ResistanceMechanism"]
         raw_gff_df = load_genotypes(self.genotype_dir)
-        raw_genotype = extract_gene_ids(raw_gff_df)
-        input_genotype = encode_one_hot(raw_genotype).copy()
+        raw_genotype = extract_features(raw_gff_df, attribute_features)
+        input_genotype = encode_one_hot(raw_genotype, attribute_features).copy()
 
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].str.strip()
