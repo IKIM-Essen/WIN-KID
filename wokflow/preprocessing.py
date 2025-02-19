@@ -25,37 +25,58 @@ def extract_gene_attribute(attribute_string, key):
 
 
 def extract_single_features(gff_df, features):
+    # Extract specified features
     for feature in features:
         gff_df[feature] = (
             gff_df["attributes"]
             .apply(lambda attr: extract_gene_attribute(attr, feature))
             .dropna()
         )
-    grouped_df = gff_df.groupby(ID_COLUMN, as_index=False).agg(
-        {
-            **{feature: list for feature in features},
-            "attributes": "first",
-        }
-    )
+    # Group only the feature columns, keeping "attributes" and all other columns
+    grouped_features = gff_df.groupby(ID_COLUMN, as_index=False)[features].agg(list)
 
-    return encode_one_hot(grouped_df, features)
+    # Drop duplicate rows (but keep all non-feature columns)
+    gff_df = gff_df.drop_duplicates(subset=[ID_COLUMN])
+
+    # Merge back to restore all original columns, but avoid '_x' issues
+    grouped_df = pd.merge(
+        gff_df.drop(columns=features),
+        grouped_features,
+        on=ID_COLUMN,
+        how="left",
+    )
+    # Apply one-hot encoding while keeping all other columns
+    encoded_df = encode_one_hot(grouped_df, features)
+
+    return encoded_df
 
 
 def extract_list_features(gff_df, features):
+    # Extract specified features from attributes
     for feature in features:
-        gff_df[feature] = (
-            gff_df["attributes"]
-            .apply(lambda attr: extract_gene_attribute(attr, feature))
-            .dropna()
+        gff_df[feature] = gff_df["attributes"].apply(
+            lambda attr: (
+                extract_gene_attribute(attr, feature) if pd.notna(attr) else None
+            )
         )
 
-    grouped_df = gff_df.groupby(ID_COLUMN, as_index=False).agg(
-        {
-            **{feature: list for feature in features},
-            "attributes": "first",
-        }
+    # Group only the feature columns, keeping "attributes" and all other columns intact
+    grouped_features = gff_df.groupby(ID_COLUMN, as_index=False)[features].agg(
+        lambda x: list(filter(pd.notna, x))
     )
 
+    # Drop duplicates (but keep all non-feature columns)
+    gff_df = gff_df.drop_duplicates(subset=[ID_COLUMN])
+
+    # Merge back to restore all original columns while avoiding "_x" issues
+    grouped_df = pd.merge(
+        gff_df.drop(columns=features),
+        grouped_features,
+        on=ID_COLUMN,
+        how="left",
+    )
+
+    # Apply one-hot encoding for each feature column
     for feature in features:
         grouped_df = one_hot_encode_column(grouped_df, feature)
 
@@ -86,7 +107,7 @@ def one_hot_encode_column(df, column):
 
     # Drop original column
     df.drop(columns=[column], inplace=True)
-    # Todo: Drop
+    # TODO: Drop?
     # print(df.columns)
     # df.drop(columns=["nan"], inplace=True)
 
@@ -139,19 +160,26 @@ class DataLoader:
 
         raw_gff_df = load_genotypes(self.genotype_dir)
 
-        print(raw_gff_df["attributes"].iloc[2])
         attribute_single_features = ["Name", "ResistanceMechanism"]
-        raw_genotype = extract_single_features(raw_gff_df, attribute_single_features)
-        print(raw_genotype["attributes"].iloc[2])
+        extracted_single_pd = extract_single_features(
+            raw_gff_df, attribute_single_features
+        )
 
-        # TODO: Fix missing values
-        # TODO: Fix overwritten values
         attribute_list_features = ["Antibiotic"]
-        raw_genotype = extract_list_features(raw_genotype, attribute_list_features)
+        extracted_list_pd = extract_list_features(raw_gff_df, attribute_list_features)
 
-        raw_genotype.drop(columns=["attributes"], inplace=True)
-        print(raw_genotype)
-        input_genotype = raw_genotype
+        for i in extracted_list_pd.columns:
+            print(i)
+        extracted_single_pd.drop(columns=GFF_COLUMNS, inplace=True)
+        extracted_list_pd.drop(columns=GFF_COLUMNS, inplace=True)
+        merged_feature_df = pd.merge(
+            extracted_single_pd,
+            extracted_list_pd,
+            on=ID_COLUMN,
+            how="inner",
+        )
+
+        input_genotype = merged_feature_df
 
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].str.strip()
