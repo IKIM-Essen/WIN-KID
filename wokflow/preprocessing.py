@@ -144,7 +144,8 @@ class DataLoader:
         raw_genotype = extract_single_features(raw_gff_df, attribute_single_features)
         print(raw_genotype["attributes"].iloc[2])
 
-        # ToDo: Fix missing values
+        # TODO: Fix missing values
+        # TODO: Fix overwritten values
         attribute_list_features = ["Antibiotic"]
         raw_genotype = extract_list_features(raw_genotype, attribute_list_features)
 
