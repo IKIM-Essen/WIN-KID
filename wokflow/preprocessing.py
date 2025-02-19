@@ -24,7 +24,8 @@ def extract_gene_attribute(attribute_string, key):
     return match.group(1) if match else None
 
 
-def extract_single_features(gff_df, features):
+def extract_single_features(gff_df_input, features):
+    gff_df = gff_df_input.copy()
     # Extract specified features
     for feature in features:
         gff_df[feature] = (
@@ -51,7 +52,8 @@ def extract_single_features(gff_df, features):
     return encoded_df
 
 
-def extract_list_features(gff_df, features):
+def extract_list_features(gff_df_input, features):
+    gff_df = gff_df_input.copy()
     # Extract specified features from attributes
     for feature in features:
         gff_df[feature] = gff_df["attributes"].apply(
@@ -75,7 +77,6 @@ def extract_list_features(gff_df, features):
         on=ID_COLUMN,
         how="left",
     )
-
     # Apply one-hot encoding for each feature column
     for feature in features:
         grouped_df = one_hot_encode_column(grouped_df, feature)
@@ -107,9 +108,6 @@ def one_hot_encode_column(df, column):
 
     # Drop original column
     df.drop(columns=[column], inplace=True)
-    # TODO: Drop?
-    # print(df.columns)
-    # df.drop(columns=["nan"], inplace=True)
 
     return df
 
@@ -168,8 +166,6 @@ class DataLoader:
         attribute_list_features = ["Antibiotic"]
         extracted_list_pd = extract_list_features(raw_gff_df, attribute_list_features)
 
-        for i in extracted_list_pd.columns:
-            print(i)
         extracted_single_pd.drop(columns=GFF_COLUMNS, inplace=True)
         extracted_list_pd.drop(columns=GFF_COLUMNS, inplace=True)
         merged_feature_df = pd.merge(
