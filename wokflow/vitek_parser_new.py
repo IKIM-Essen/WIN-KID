@@ -77,7 +77,6 @@ def combine(input_folder):
             file_path = os.path.join(input_folder, file)
             df = pd.read_csv(file_path)
             combined_df = pd.concat([combined_df, df], ignore_index=True).fillna("NA")
-    #combined_df.fillna("NA").replace("", "NA")
 
     return combined_df
 
@@ -85,9 +84,6 @@ def translate(input_df, translations_df):
     for old in translations_df['Old']:
         input_df = input_df.rename(columns=lambda col: col.replace(old, translations_df.loc[translations_df['Old'] == old, 'New'].values[0]))
     return input_df
-
-BACTERIA = ["Escherichia Coli", "Klebsiella Pneumoniae", "Acinetobacter Baumannii", "Pseudomonas Aeruginosa", "Enterobacter Cloacae"]
-CODES = ["ECO", "EKPN", "PTX", "PPA", "EECG"]
 
 # Paths
 INPUT_PATH = "resources/UKM_vitek_daten_2.csv"
@@ -111,11 +107,6 @@ if assignments:
         cleaned_df = translate(cleaned_df, translations_df)
         cleaned_df.to_csv(OUTPUT_FOLDER + f"{name.lower().replace(" ", "_")}.csv", index=False)
         print(f"All {name} saved to {OUTPUT_FOLDER + f"{name.lower().replace(" ", "_")}.csv"}")
-
-'''
-combined_df = combine(OUTPUT_FOLDER)
-combined_df.to_csv(OUTPUT_PATH, index=False)
-'''
 
 # Escherichia Coli (ECO) = Enterobacterales.json
 # Klebsiella Pneumoniae (EKPN) = Enterobacterales.json

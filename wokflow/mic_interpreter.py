@@ -76,7 +76,6 @@ def interpret_vitek(input_vitek, input_eucast):
     for column_vitek in input_vitek.columns[2:]:
         # Adapt VITEK name to EUCAST
         #column_name_vitek = column_vitek.split("-", 1)[1]
-
         column_name_vitek = column_vitek.split("(", 1)[0].replace("/", "-").replace("+", "-").replace(" ", "")
         
         matching_rows_eucast = input_eucast.loc[
