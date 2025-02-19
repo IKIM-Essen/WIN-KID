@@ -24,18 +24,73 @@ def extract_gene_attribute(attribute_string, key):
     return match.group(1) if match else None
 
 
-def extract_features(gff_df, features):
+def extract_single_features(gff_df, features):
     for feature in features:
-        # Extract features before grouping
+        gff_df[feature] = (
+            gff_df["attributes"]
+            .apply(lambda attr: extract_gene_attribute(attr, feature))
+            .dropna()
+        )
+    grouped_df = gff_df.groupby(ID_COLUMN, as_index=False).agg(
+        {
+            **{feature: list for feature in features},
+            "attributes": "first",
+        }
+    )
+
+    return encode_one_hot(grouped_df, features)
+
+
+def extract_list_features(gff_df, features):
+    for feature in features:
         gff_df[feature] = (
             gff_df["attributes"]
             .apply(lambda attr: extract_gene_attribute(attr, feature))
             .dropna()
         )
 
-    grouped_df = gff_df.groupby(ID_COLUMN)[features].agg(list).reset_index()
+    grouped_df = gff_df.groupby(ID_COLUMN, as_index=False).agg(
+        {
+            **{feature: list for feature in features},
+            "attributes": "first",
+        }
+    )
+
+    for feature in features:
+        grouped_df = one_hot_encode_column(grouped_df, feature)
 
     return grouped_df
+
+
+def clean_and_split(value):
+    if pd.isna(value):  # Handle NaN values
+        return []
+
+    # Remove brackets and single quotes, then split on commas
+    cleaned_values = value.strip("[]").replace("'", "").replace('"', "").split(",")
+
+    # Strip spaces around each value
+    return [v.strip() for v in cleaned_values if v.strip()]
+
+
+def one_hot_encode_column(df, column):
+    # Convert comma-separated values into lists
+    df[column] = df[column].astype(str).apply(clean_and_split)
+
+    # Extract all unique values across all rows
+    all_values = set(value for values in df[column] for value in values)
+
+    # Create binary columns for each unique value
+    for value in all_values:
+        df[value] = df[column].apply(lambda x: int(value in x))
+
+    # Drop original column
+    df.drop(columns=[column], inplace=True)
+    # Todo: Drop
+    # print(df.columns)
+    # df.drop(columns=["nan"], inplace=True)
+
+    return df
 
 
 def load_genotypes(directory):
@@ -82,10 +137,20 @@ class DataLoader:
     def _load_and_merge_data(self):
         input_phenotype = pd.read_csv(self.phenotype_path)
 
-        attribute_features = ["Name", "ResistanceMechanism"]
         raw_gff_df = load_genotypes(self.genotype_dir)
-        raw_genotype = extract_features(raw_gff_df, attribute_features)
-        input_genotype = encode_one_hot(raw_genotype, attribute_features).copy()
+
+        print(raw_gff_df["attributes"].iloc[2])
+        attribute_single_features = ["Name", "ResistanceMechanism"]
+        raw_genotype = extract_single_features(raw_gff_df, attribute_single_features)
+        print(raw_genotype["attributes"].iloc[2])
+
+        # ToDo: Fix missing values
+        attribute_list_features = ["Antibiotic"]
+        raw_genotype = extract_list_features(raw_genotype, attribute_list_features)
+
+        raw_genotype.drop(columns=["attributes"], inplace=True)
+        print(raw_genotype)
+        input_genotype = raw_genotype
 
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].str.strip()
