@@ -5,7 +5,10 @@ from sklearn.metrics import accuracy_score
 import preprocessing
 
 data_loader = preprocessing.DataLoader()
-preprocessed_data = data_loader.get_preprocessed_data()
+# TODO: Paths shall be set via terminal
+preprocessed_data = data_loader.get_preprocessed_data(
+    "output/mic_interpretation.csv", "resources/genotype"
+)
 
 X = preprocessed_data.merged_input[preprocessed_data.feature_cols]
 y = preprocessed_data.merged_input[preprocessed_data.target_cols]

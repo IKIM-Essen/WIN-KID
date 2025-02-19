@@ -125,17 +125,13 @@ def one_hot_encode_list(df, feature):
 
 
 class DataLoader:
-    def __init__(
-        self, phenotype_path="output/mic_interpretation.csv", genotype_dir=GFF_DIR
-    ):
-        self.phenotype_path = phenotype_path
-        self.genotype_dir = genotype_dir
-        self.merged_input = self.load_and_merge_data()
+    def __init__(self):
+        self.merged_input = None
 
-    def load_and_merge_data(self):
-        input_phenotype = pd.read_csv(self.phenotype_path)
+    def get_preprocessed_data(self, phenotype_file_path, genotype_dir_path):
+        input_phenotype = pd.read_csv(phenotype_file_path)
 
-        raw_gff_df = load_genotypes(self.genotype_dir)
+        raw_gff_df = load_genotypes(genotype_dir_path)
 
         attribute_single_features = ["Name", "ResistanceMechanism"]
         extracted_single_pd = extract_single_features(
@@ -157,14 +153,17 @@ class DataLoader:
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].str.strip()
 
-        return pd.merge(input_phenotype, input_genotype, on=ID_COLUMN, how="inner")
+        self.merged_input = pd.merge(
+            input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
+        )
 
-    def get_preprocessed_data(self):
-        return PreprocessedDataDTO(
+        preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
             self.merged_input.columns[3:17],
             self.merged_input.columns[17:],
         )
+
+        return preprocessed_data
 
 
 @dataclass
