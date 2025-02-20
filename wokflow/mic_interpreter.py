@@ -7,10 +7,12 @@ import pandas as pd
 from fuzzywuzzy import fuzz
 import os
 
+
 class EucastInterpretation(Enum):
     S = 1
     I = 2
     R = 3
+
 
 def is_float(value):
     try:
@@ -18,6 +20,7 @@ def is_float(value):
         return True
     except ValueError:
         return False
+
 
 def confirm(question):
     while True:
@@ -29,10 +32,11 @@ def confirm(question):
         else:
             print("Invalid Input")
 
+
 # get best option from eucast matches
 def get_most_similar_name(input_df, target_name, cut_off):
     input_df = input_df.copy()
-    input_df['Name'] = input_df['Name'].str.split("(", n=1).str[0].str.strip()
+    input_df["Name"] = input_df["Name"].str.split("(", n=1).str[0].str.strip()
     input_df["similarity_score"] = input_df["Name"].apply(
         lambda name: fuzz.ratio(target_name, name)
     )
@@ -40,27 +44,32 @@ def get_most_similar_name(input_df, target_name, cut_off):
     best_match = input_df.loc[[best_match_index]].copy()
     if best_match["similarity_score"].iloc[0] < cut_off:
         # only give console output if target_name isn't ignored
-        if not target_name in ignore_df['Ignorelist'].tolist():
+        if not target_name in ignore_df["Ignorelist"].tolist():
             print(f"No EUCAST Match with Score >= {cut_off}: {target_name}")
         return pd.DataFrame()
 
     return best_match
 
-# handle no eucast match (translate or ignore) 
+
+# handle no eucast match (translate or ignore)
 def handle_no_match(input, eucast, ignore_df, translations_df):
     print(f"Handling no match for {input}...")
     best_match = get_most_similar_name(eucast, input, 0)
     print(f"Best match: {best_match['Name'].iloc[0]}")
     use_match = confirm("Do you want to use it in the future?")
     if use_match:
-        if not input in translations_df['Old'].tolist():
-            translations_df.loc[len(translations_df)] = [input, best_match['Name'].iloc[0]]
+        if not input in translations_df["Old"].tolist():
+            translations_df.loc[len(translations_df)] = [
+                input,
+                best_match["Name"].iloc[0],
+            ]
         else:
             print(f"{input} already translated, run the parser again.")
     else:
         ignore = confirm(f"Do you want to ignore {input}?")
         if ignore:
-            ignore_df.loc[len(ignore_df), 'Ignorelist'] = input
+            ignore_df.loc[len(ignore_df), "Ignorelist"] = input
+
 
 # interpret vitek value with eucast
 def get_mic_interpretation(columns_vitek, rows_eucast, antibiotic_name_vitek, df):
@@ -86,8 +95,11 @@ def get_mic_interpretation(columns_vitek, rows_eucast, antibiotic_name_vitek, df
         index += 1
     return df
 
+
 # interpret whole vitek table
-def interpret_vitek(input_vitek, input_eucast, handle_no_matches, ignore_df, translations_df):
+def interpret_vitek(
+    input_vitek, input_eucast, handle_no_matches, ignore_df, translations_df
+):
     output_df = input_vitek[["LABORNR", "Organism_Code"]].copy()
     # Clean VITEK data
     input_vitek.columns = input_vitek.columns.str.strip()
@@ -96,7 +108,12 @@ def interpret_vitek(input_vitek, input_eucast, handle_no_matches, ignore_df, tra
     # Process each antibiotic column
     for column_vitek in input_vitek.columns[2:]:
         # Adapt VITEK name to EUCAST
-        column_name_vitek = column_vitek.split("(", 1)[0].replace("/", "-").replace("+", "-").replace(" ", "")
+        column_name_vitek = (
+            column_vitek.split("(", 1)[0]
+            .replace("/", "-")
+            .replace("+", "-")
+            .replace(" ", "")
+        )
 
         matching_rows_eucast = input_eucast.loc[
             input_eucast["Name"].str.contains(column_name_vitek, case=False, na=False)
@@ -116,12 +133,19 @@ def interpret_vitek(input_vitek, input_eucast, handle_no_matches, ignore_df, tra
             )
             # if no match is above 70% cutoff
             if matching_rows_eucast.empty and handle_no_matches:
-                handle_no_match(column_name_vitek, input_eucast, ignore_df, translations_df)
+                handle_no_match(
+                    column_name_vitek, input_eucast, ignore_df, translations_df
+                )
         # if no match was found and vitek name isnt in ignorelist
-        elif not removed_match and not column_name_vitek in ignore_df['Ignorelist'].tolist():
+        elif (
+            not removed_match
+            and not column_name_vitek in ignore_df["Ignorelist"].tolist()
+        ):
             print(f"No EUCAST Match: {column_name_vitek}")
             if handle_no_matches:
-                handle_no_match(column_name_vitek, input_eucast, ignore_df, translations_df)
+                handle_no_match(
+                    column_name_vitek, input_eucast, ignore_df, translations_df
+                )
         if matching_rows_eucast.empty:
             continue
 
@@ -132,6 +156,7 @@ def interpret_vitek(input_vitek, input_eucast, handle_no_matches, ignore_df, tra
         )
 
     return output_df
+
 
 # Paths
 INPUT_VITEK_PATH = "output/vitek_parsed/"
@@ -149,11 +174,15 @@ HANDLE_NO_MATCHES = False
 
 # Interpret & Save
 for vitek_file_name in os.listdir(INPUT_VITEK_PATH):
-    if vitek_file_name.endswith('.csv'):
+    if vitek_file_name.endswith(".csv"):
         input_vitek = pd.read_csv(INPUT_VITEK_PATH + vitek_file_name)
-        eucast_file_name = names_df.loc[names_df['Code'] == input_vitek['Organism_Code'].iloc[0], 'Eucast_File_Name'].values[0]
+        eucast_file_name = names_df.loc[
+            names_df["Code"] == input_vitek["Organism_Code"].iloc[0], "Eucast_File_Name"
+        ].values[0]
         input_eucast = pd.read_json(f"resources/{eucast_file_name}")
-        output_df = interpret_vitek(input_vitek, input_eucast, HANDLE_NO_MATCHES, ignore_df, translations_df)
+        output_df = interpret_vitek(
+            input_vitek, input_eucast, HANDLE_NO_MATCHES, ignore_df, translations_df
+        )
         output_df.to_csv(f"output/interpreted/{vitek_file_name}", index=False)
         print(f"Cleaned file saved to: output/interpreted/{vitek_file_name}")
 
