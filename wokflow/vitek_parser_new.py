@@ -114,8 +114,8 @@ if assignments:
         )
         cleaned_df = translate(cleaned_df, translations_df)
         cleaned_df.to_csv(
-            OUTPUT_FOLDER + f"{name.lower().replace(" ", "_")}.csv", index=False
+            OUTPUT_FOLDER + f"{name.lower().replace(' ', '_')}.csv", index=False
         )
         print(
-            f"All {name} saved to {OUTPUT_FOLDER + f"{name.lower().replace(" ", "_")}.csv"}"
+            f"All {name} saved to {OUTPUT_FOLDER + f"{name.lower().replace(' ', '_')}.csv"}"
         )
