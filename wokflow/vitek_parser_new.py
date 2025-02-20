@@ -1,55 +1,70 @@
+"""
+Parse raw data
+"""
+
+# Copyright 2025 by Miriam Balzer & Julian Welling, University of Duisburg-Essen
+# Licensed under the MIT License
+# This file may be copied, modified, and distributed under the terms of the MIT License.
+import re
+import os
+from pprint import pprint
 import pandas as pd
 from fuzzywuzzy import fuzz
-import re
-from pprint import pprint
-import os
 
 
 def clean_text(text):
+    """Remove special characters"""
     if pd.isna(text):
         return ""
     return re.sub(r"[^a-zA-Z\s]", "", text).lower()
 
 
 def confirm(question):
+    """Ask user to confirm something"""
     while True:
         answer = input(f"{question} (y/n): ").strip().lower()
-        if answer == "y":
-            return True
-        elif answer == "n":
-            return False
-        else:
-            print("Invalid Input")
+        if answer in ["y", "n"]:
+            return answer == "y"
+        print("Invalid Input")
 
 
-# clean input dataframe
 def clean_dataframe(input_df, bacteria, code):
+    """Clean input dataframe"""
     print(f"Keys used: {bacteria}")
     input_df = input_df[input_df["ERREGERLANG"].isin(bacteria)]
     df = pd.DataFrame(columns=["LABORNR"])
 
-    for row in input_df.itertuples(index=False):
-        if row.LABORNR in df["LABORNR"].tolist():
-            index = df.loc[df["LABORNR"] == row.LABORNR].index[0]
+    for _, row in input_df.iterrows():
+        if row["LABORNR"] in df["LABORNR"].tolist():
+            index = df.loc[df["LABORNR"] == row["LABORNR"]].index[0]
         else:
             index = len(df)
-            df.at[index, "LABORNR"] = row.LABORNR
-        value = (str(row._13) + str(row._14)).replace(
-            "nan", ""
-        )  # _13 = 13th column, _14 = 14th column
-        if not value == "":
-            df.at[index, row.ANTIBIOTIKA] = value
+            df.at[index, "LABORNR"] = row["LABORNR"]
+
+        value = (str(row["MHK-VKZ"]) + str(row["MHK-Wert"])).replace("nan", "")
+
+        if value != "":
+            df.at[
+                index,
+                row["ANTIBIOTIKA"]
+                .split("(", 1)[0]
+                .replace("/", "-")
+                .replace("+", "-")
+                .replace("_", "-")
+                .replace(" ", ""),
+            ] = value
 
     df.insert(loc=1, column="Organism_Code", value=code)
     df = df.dropna(axis=0, how="all", subset=df.columns[2:])
     df = df.dropna(axis=1, how="all")
+    df = df.fillna("NA")
     return df
 
 
-# assign unique bacteria to categories
 def assign_unique(df, categories):
+    """Assign unique bacteria to categories"""
     unique_bacteria = df["ERREGERLANG"].dropna().unique()
-    assignments = {c: [] for c in categories}
+    output = {c: [] for c in categories}
 
     for b in unique_bacteria:
         scores = []
@@ -57,36 +72,19 @@ def assign_unique(df, categories):
             similarity = fuzz.token_set_ratio(clean_text(b), clean_text(c))
             scores.append(similarity)
         highest_index = scores.index(max(scores))
-        assignments[categories[highest_index]].append(b)
+        output[categories[highest_index]].append(b)
 
-    pprint(assignments)
+    pprint(output)
     if confirm("Continue with assignments?"):
-        return assignments
-    else:
-        return []
+        return output
+    return []
 
 
-# combine outputs (optional)
-def combine(input_folder):
-    combined_df = pd.DataFrame()
-
-    for file in os.listdir(input_folder):
-        if file.endswith(".csv"):
-            file_path = os.path.join(input_folder, file)
-            df = pd.read_csv(file_path)
-            combined_df = pd.concat([combined_df, df], ignore_index=True)
-
-    return combined_df
-
-
-# fix typos / different names
-def translate(input_df, translations_df):
-    for old in translations_df["Old"]:
-        input_df = input_df.rename(
-            columns=lambda col: col.replace(
-                old, translations_df.loc[translations_df["Old"] == old, "New"].values[0]
-            )
-        )
+def translate(input_df, translations):
+    """Fix Typos / different names"""
+    rename_dict = dict(zip(translations["Old"], translations["New"]))
+    for old, new in rename_dict.items():
+        input_df.columns = input_df.columns.str.replace(old, new, regex=True)
     return input_df
 
 
@@ -96,19 +94,22 @@ NAMES_PATH = "resources/names.csv"
 TRANSLATIONS_PATH = "resources/translations.csv"
 OUTPUT_FOLDER = "output/vitek_parsed/"
 
+# create missing output directory
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
 # Load
-input_df = pd.read_csv(INPUT_PATH, sep=",")
+vitek_df = pd.read_csv(INPUT_PATH, sep=",")
 names_df = pd.read_csv(NAMES_PATH, sep=",")
 translations_df = pd.read_csv(TRANSLATIONS_PATH, sep=",")
 
 # Assign all Bacteria to categories
-assignments = assign_unique(input_df, names_df["Vitek_Name"])
+assignments = assign_unique(vitek_df, names_df["Vitek_Name"])
 
 # Clean & Save (if assignments are correct)
 if assignments:
     for name in names_df["Vitek_Name"]:
         cleaned_df = clean_dataframe(
-            input_df,
+            vitek_df,
             assignments[name],
             names_df.loc[names_df["Vitek_Name"] == name, "Code"].values[0],
         )

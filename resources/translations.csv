@@ -1,9 +1,10 @@
 Old,New
 Trimethroprim,Trimethoprim
 Amikazin,Amikacin
-Pip/Taz,Piperacillin-Tazobactam
+Pip-Taz,Piperacillin-Tazobactam
 Ceftazidim,Ceftazidime
 Nalidixin,Nalidixic
-Ceftolozan+Tazobacta,Ceftolozane-tazobactam
+Ceftolozan-Tazobacta,Ceftolozane-tazobactam
+Fosfomycin-Etest,Fosfomycin iv
+Ceftazidim-Avibacta,Ceftazidime-avibactam
 Trimetophrim,Trimethoprim
-Fosfomycin_Etest,Fosfomycin iv

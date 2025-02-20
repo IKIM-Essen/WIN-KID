@@ -1,11 +1,15 @@
 # WIN-KID
 
 ## How To Use
-1. Run vitek_parser.py to generate a vitek_parsed.csv from a UKM VITEK File
-2. Run mic_interpreter.py to generate a mic_interpretation.csv from a vitek_parsed.csv
+- names.csv : List for uniform Oganism Name & Code and the Eucast json it should use
+- translations.csv : Manual translation of typos / different vitek names for mic interpretation
+- ignore.csv : Antibiotika Names that should be ignored in no match handling (interpreter)
+1. Run vitek_parser_new.py to generate multiple {bacteria_name}.csv files in output/vitek_parsed from UKM VITEK data
+2. Run mic_interpreter.py to generate multiple {bacteria_name}.csv files in output/interpreted with the MIC Interpretation from the Eucast json files
 
 ## Parser
-- Removes all columns of the UKM file except for Sample_ID_IfH ,Organism_Code ,Card_Name and the antibiotic MHK values
+- Splits the Vitek file by bacteria name
+- Removes unnecessary columns and restructures the file
 
 ## Interpreter
 - Antibiotics from a vitek file that can not be matched to an EUCAST antibiotic are skipped and logged via print
@@ -16,6 +20,7 @@
 - The ">" "=" are removed from the VITEK files and directly compared with the EUCAST values
 
 ## ToDo
+- Rework MIC Interpretation
 - Use different cartridges
 - Use different species
 - Use different VITEK sources (UKM)
