@@ -117,5 +117,5 @@ if assignments:
             OUTPUT_FOLDER + f"{name.lower().replace(' ', '_')}.csv", index=False
         )
         print(
-            f"All {name} saved to {OUTPUT_FOLDER + f"{name.lower().replace(' ', '_')}.csv"}"
+            f"All {name} saved to {OUTPUT_FOLDER + name.lower().replace(' ', '_')}.csv"
         )
