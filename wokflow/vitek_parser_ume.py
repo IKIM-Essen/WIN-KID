@@ -1,7 +1,3 @@
-"""
-Parse raw data
-"""
-
 # Copyright 2025 by Miriam Balzer & Julian Welling, University of Duisburg-Essen
 # Licensed under the MIT License
 # This file may be copied, modified, and distributed under the terms of the MIT License.
@@ -13,14 +9,12 @@ from fuzzywuzzy import fuzz
 
 
 def clean_text(text):
-    """Remove special characters"""
     if pd.isna(text):
         return ""
     return re.sub(r"[^a-zA-Z\s]", "", text).lower()
 
 
 def confirm(question):
-    """Ask user to confirm something"""
     while True:
         answer = input(f"{question} (y/n): ").strip().lower()
         if answer in ["y", "n"]:
@@ -29,7 +23,6 @@ def confirm(question):
 
 
 def clean_dataframe(input_df, bacteria, code):
-    """Clean input dataframe"""
     print(f"Keys used: {bacteria}")
     input_df = input_df[input_df["ERREGERLANG"].isin(bacteria)]
     df = pd.DataFrame(columns=["LABORNR"])
@@ -46,11 +39,7 @@ def clean_dataframe(input_df, bacteria, code):
             index = len(df)
             df.at[index, "LABORNR"] = row["LABORNR"]
 
-        value = (
-            # str(row["TESTUNG"]) + str(row["MHK-VKZ"]) + str(row["MHK-Wert"])
-            str(row["MHK-VKZ"])
-            + str(row["MHK-Wert"])
-        ).replace("nan", "")
+        value = (str(row["MHK-VKZ"]) + str(row["MHK-Wert"])).replace("nan", "")
 
         if value != "":
             df.at[
@@ -67,11 +56,11 @@ def clean_dataframe(input_df, bacteria, code):
     df = df.dropna(axis=0, how="all", subset=df.columns[2:])
     df = df.dropna(axis=1, how="all")
     df = df.fillna("NA")
+    df = df.rename(columns={"LABORNR": "Sample_ID_IfH"})
     return df
 
 
 def assign_unique(df, categories):
-    """Assign unique bacteria to categories"""
     unique_bacteria = df["ERREGERLANG"].dropna().unique()
     output = {c: [] for c in categories}
 
@@ -90,7 +79,6 @@ def assign_unique(df, categories):
 
 
 def translate(input_df, translations):
-    """Fix Typos / different names"""
     rename_dict = dict(zip(translations["Old"], translations["New"]))
     for old, new in rename_dict.items():
         input_df.columns = input_df.columns.str.replace(old, new, regex=True)
