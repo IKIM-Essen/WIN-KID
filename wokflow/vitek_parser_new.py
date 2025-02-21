@@ -35,13 +35,22 @@ def clean_dataframe(input_df, bacteria, code):
     df = pd.DataFrame(columns=["LABORNR"])
 
     for _, row in input_df.iterrows():
+        if str(row["ANTIBIOTIKA"]) == "nan":
+            continue
+        if "MRGN" in row["ANTIBIOTIKA"]:
+            continue
+
         if row["LABORNR"] in df["LABORNR"].tolist():
             index = df.loc[df["LABORNR"] == row["LABORNR"]].index[0]
         else:
             index = len(df)
             df.at[index, "LABORNR"] = row["LABORNR"]
 
-        value = (str(row["MHK-VKZ"]) + str(row["MHK-Wert"])).replace("nan", "")
+        value = (
+            # str(row["TESTUNG"]) + str(row["MHK-VKZ"]) + str(row["MHK-Wert"])
+            str(row["MHK-VKZ"])
+            + str(row["MHK-Wert"])
+        ).replace("nan", "")
 
         if value != "":
             df.at[

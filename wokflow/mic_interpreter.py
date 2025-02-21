@@ -87,17 +87,42 @@ def get_mic_interpretation(columns_vitek, rows_eucast, antibiotic_name_vitek, df
         # handle 'NA's
         if isinstance(data, float):
             interpretation = "NA"
-        # vitek interpretation
+        # MIC interpretation
         else:
-            data = data.replace(">", "").replace("=", "").replace(",", ".")
-            if "<" in data:
-                interpretation = EucastInterpretation(1).name
-            elif float(data) <= float(rows_eucast["S <="].iloc[0]):
-                interpretation = EucastInterpretation(1).name
-            elif float(data) <= float(rows_eucast["R >"].iloc[0]):
-                interpretation = EucastInterpretation(2).name
+            raw_data = float(
+                data.replace(">", "")
+                .replace("=", "")
+                .replace("<", "")
+                .replace(",", ".")
+            )
+            s_eucast = float(rows_eucast["S <="].iloc[0])
+            r_eucast = float(rows_eucast["R >"].iloc[0])
+            interpretations = []
+            if raw_data <= s_eucast:
+                interpretations.append("S")
+            if raw_data >= r_eucast:
+                interpretations.append("R")
+            if len(interpretations) == 0:
+                interpretation = "I"
+            elif len(interpretations) == 1:
+                interpretation = interpretations[0]
             else:
-                interpretation = EucastInterpretation(3).name
+                if "<" in data:
+                    interpretation = "S"
+                elif ">" in data:
+                    interpretation = "R"
+                else:
+                    interpretation = "I"
+                print(interpretations, data)
+
+            # if "<" in data:
+            #     interpretation = EucastInterpretation(1).name
+            # elif float(data) <= float(rows_eucast["S <="].iloc[0]):
+            #     interpretation = EucastInterpretation(1).name
+            # elif float(data) <= float(rows_eucast["R >"].iloc[0]):
+            #     interpretation = EucastInterpretation(2).name
+            # else:
+            #     interpretation = EucastInterpretation(3).name
 
         df.at[index, antibiotic_name_vitek] = interpretation
         index += 1
