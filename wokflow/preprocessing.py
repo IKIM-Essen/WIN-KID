@@ -15,7 +15,7 @@ GFF_COLUMNS = [
     "phase",
     "attributes",
 ]
-ID_COLUMN = "Sample_ID_IfH "
+ID_COLUMN = "Sample_ID_IfH"
 
 
 def extract_gene_attribute(attribute_string, key):
