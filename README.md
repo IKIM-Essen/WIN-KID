@@ -19,7 +19,7 @@
 - Genotypic and phenotypic data are read in directly, preprocessed and fed into an RF model
 - Metrics such as ROC are calculated for the results
 - The starting point is the class `random_forest.py` which is used as follows:
-`path/to/python WIN-KID/wokflow/random_forest.py output/mic_interpretation.csv resources/genotype`
+`path/to/python WIN-KID/workflow/random_forest.py output/mic_interpretation.csv resources/genotype`
 
 ## ToDo
 - Random forest results shall also be calculated I and S. Currently only R is used.
