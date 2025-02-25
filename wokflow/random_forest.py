@@ -65,7 +65,6 @@ def run_random_forest(phenotype_file_path, genotype_dir_path):
     return generate_results(y_test, y_score, y_pred, preprocessed_data)
 
 
-# /Users/julianzander/mambaforge/envs/python/bin/python /Users/julianzander/Code/WIN-KID/wokflow/random_forest.py output/mic_interpretation.csv resources/genotype
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run RF")
     parser.add_argument("phenotype_file_path", help="Path to phenotype csv file")

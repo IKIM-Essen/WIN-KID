@@ -24,3 +24,4 @@ jobs:
           VALIDATE_SNAKEMAKE_LINT: true
           VALIDATE_PYTHON_BLACK: true
           VALIDATE_MARKDOWN: true
+          VALIDATE_PYTHON: true
