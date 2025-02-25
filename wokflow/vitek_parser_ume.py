@@ -86,9 +86,8 @@ def translate(input_df, translations):
     return input_df
 
 
-# ** Main Execution **
+#execution in terminal
 if __name__ == "__main__":
-    # ** Parse command-line arguments **
     parser = argparse.ArgumentParser(
         description="Parse Vitek data and categorize bacteria."
     )
@@ -99,11 +98,11 @@ if __name__ == "__main__":
     INPUT_PATH = args.input_file
     OUTPUT_FOLDER = args.output_dir
 
-    # ** Paths for required files **
+    #paths to required files (static)
     NAMES_PATH = "resources/names.csv"
     TRANSLATIONS_PATH = "resources/translations.csv"
 
-    # ** Ensure required files exist **
+    #Ensure required files exist
     if not os.path.exists(NAMES_PATH):
         print(f"Error: You need to add a 'names.csv' file at {NAMES_PATH} to continue.")
         exit(1)
@@ -114,10 +113,10 @@ if __name__ == "__main__":
         )
         exit(1)
 
-    # ** Ensure output directory exists **
+    #Ensure output directory exists
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-    # ** Load data **
+
     try:
         vitek_df = pd.read_csv(INPUT_PATH, sep=",")
         names_df = pd.read_csv(NAMES_PATH, sep=",")
@@ -126,10 +125,10 @@ if __name__ == "__main__":
         print(f"Error loading CSV files: {e}")
         exit(1)
 
-    # ** Assign all Bacteria to categories **
+    
     assignments = assign_unique(vitek_df, names_df["Vitek_Name"])
 
-    # ** Clean & Save (if assignments are correct) **
+
     if assignments:
         for name in names_df["Vitek_Name"]:
             cleaned_df = clean_dataframe(
