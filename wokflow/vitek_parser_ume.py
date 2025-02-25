@@ -3,6 +3,7 @@
 # This file may be copied, modified, and distributed under the terms of the MIT License.
 import re
 import os
+import argparse
 from pprint import pprint
 import pandas as pd
 from fuzzywuzzy import fuzz
@@ -85,35 +86,62 @@ def translate(input_df, translations):
     return input_df
 
 
-# Paths
-INPUT_PATH = "resources/UME_vitek_daten.csv"
-NAMES_PATH = "resources/names.csv"
-TRANSLATIONS_PATH = "resources/translations.csv"
-OUTPUT_FOLDER = "output/vitek_parsed/"
+# ** Main Execution **
+if __name__ == "__main__":
+    # ** Parse command-line arguments **
+    parser = argparse.ArgumentParser(
+        description="Parse Vitek data and categorize bacteria."
+    )
+    parser.add_argument("input_file", help="Path to input CSV file")
+    parser.add_argument("output_dir", help="Path to output directory")
+    args = parser.parse_args()
 
-# create missing output directory
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+    INPUT_PATH = args.input_file
+    OUTPUT_FOLDER = args.output_dir
 
-# Load
-vitek_df = pd.read_csv(INPUT_PATH, sep=",")
-names_df = pd.read_csv(NAMES_PATH, sep=",")
-translations_df = pd.read_csv(TRANSLATIONS_PATH, sep=",")
+    # ** Paths for required files **
+    NAMES_PATH = "resources/names.csv"
+    TRANSLATIONS_PATH = "resources/translations.csv"
 
-# Assign all Bacteria to categories
-assignments = assign_unique(vitek_df, names_df["Vitek_Name"])
+    # ** Ensure required files exist **
+    if not os.path.exists(NAMES_PATH):
+        print(f"Error: You need to add a 'names.csv' file at {NAMES_PATH} to continue.")
+        exit(1)
 
-# Clean & Save (if assignments are correct)
-if assignments:
-    for name in names_df["Vitek_Name"]:
-        cleaned_df = clean_dataframe(
-            vitek_df,
-            assignments[name],
-            names_df.loc[names_df["Vitek_Name"] == name, "Code"].values[0],
-        )
-        cleaned_df = translate(cleaned_df, translations_df)
-        cleaned_df.to_csv(
-            OUTPUT_FOLDER + f"{name.lower().replace(' ', '_')}.csv", index=False
-        )
+    if not os.path.exists(TRANSLATIONS_PATH):
         print(
-            f"All {name} saved to {OUTPUT_FOLDER + name.lower().replace(' ', '_')}.csv"
+            f"Error: You need to add a 'translations.csv' file at {TRANSLATIONS_PATH} to continue."
         )
+        exit(1)
+
+    # ** Ensure output directory exists **
+    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+    # ** Load data **
+    try:
+        vitek_df = pd.read_csv(INPUT_PATH, sep=",")
+        names_df = pd.read_csv(NAMES_PATH, sep=",")
+        translations_df = pd.read_csv(TRANSLATIONS_PATH, sep=",")
+    except Exception as e:
+        print(f"Error loading CSV files: {e}")
+        exit(1)
+
+    # ** Assign all Bacteria to categories **
+    assignments = assign_unique(vitek_df, names_df["Vitek_Name"])
+
+    # ** Clean & Save (if assignments are correct) **
+    if assignments:
+        for name in names_df["Vitek_Name"]:
+            cleaned_df = clean_dataframe(
+                vitek_df,
+                assignments[name],
+                names_df.loc[names_df["Vitek_Name"] == name, "Code"].values[0],
+            )
+            cleaned_df = translate(cleaned_df, translations_df)
+            cleaned_df.to_csv(
+                os.path.join(OUTPUT_FOLDER, f"{name.lower().replace(' ', '_')}.csv"),
+                index=False,
+            )
+            print(
+                f"All {name} saved to {os.path.join(OUTPUT_FOLDER, name.lower().replace(' ', '_') + '.csv')}"
+            )
