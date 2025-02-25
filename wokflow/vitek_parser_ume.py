@@ -86,7 +86,7 @@ def translate(input_df, translations):
 
 
 # Paths
-INPUT_PATH = "resources/UKM_vitek_daten_2.csv"
+INPUT_PATH = "resources/UME_vitek_daten.csv"
 NAMES_PATH = "resources/names.csv"
 TRANSLATIONS_PATH = "resources/translations.csv"
 OUTPUT_FOLDER = "output/vitek_parsed/"
