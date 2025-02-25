@@ -4,6 +4,7 @@
 
 import os
 import pandas as pd
+import argparse
 
 
 def clean_dataframe(df):
@@ -41,22 +42,44 @@ def clean_dataframe(df):
     ]
     return df
 
+# Execution in terminal
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Parse Vitek data and categorize bacteria.")
+    parser.add_argument("input_file", help="Path to input CSV file")
+    parser.add_argument("output_file", help="Path to output CSV file")  # Changed to "file"
+    args = parser.parse_args()
 
-# Paths
-INPUT_PATH = "resources/MHK_UKM_Subset.csv"
-OUTPUT_PATH = "output/vitek_parsed/ukm_parsed.csv"
-TRANSLATIONS_PATH = "resources/translations.csv"
+    INPUT_PATH = args.input_file
+    OUTPUT_PATH = args.output_file
 
-# Load
-vitek_df = pd.read_csv(INPUT_PATH, sep="\t", quotechar='"')
-translations_df = pd.read_csv(TRANSLATIONS_PATH, sep=",")
+    # Paths to required files (static)
+    TRANSLATIONS_PATH = "resources/translations.csv"
 
-# Clean
-cleaned_df = clean_dataframe(vitek_df)
+    # Ensure required files exist
+    if not os.path.exists(TRANSLATIONS_PATH):
+        print(f"Error: 'translations.csv' not found at {TRANSLATIONS_PATH}.")
+        exit(1)
+    
+    # Ensure OUTPUT_PATH is a valid file path, not a directory
+    if os.path.isdir(OUTPUT_PATH):
+        print(f"Error: '{OUTPUT_PATH}' is a directory. Please provide a valid file path.")
+        exit(1)
 
-# create missing output directory
-os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
 
-# Save
-cleaned_df.to_csv(OUTPUT_PATH, index=False)
-print(f"Cleaned file saved to: {OUTPUT_PATH}")
+    print(f"Loading data from: {INPUT_PATH}")
+    try:
+        vitek_df = pd.read_csv(INPUT_PATH, sep="\t", quotechar='"')
+        translations_df = pd.read_csv(TRANSLATIONS_PATH, sep=",")
+    except Exception as e:
+        print(f"Error loading CSV files: {e}")
+        exit(1)
+
+    # Clean
+    cleaned_df = clean_dataframe(vitek_df)
+    print(cleaned_df.head())  # Show first few rows to check if processing worked
+
+    # Save
+    cleaned_df.to_csv(OUTPUT_PATH, index=False)
+    print(f"Cleaned file saved to: {OUTPUT_PATH}")
