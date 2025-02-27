@@ -31,7 +31,11 @@ def clean_dataframe(df):
         }
     )
     df = df.replace(",", ".", regex=True)
-    df = df.map(lambda x: x.strip() if isinstance(x, str) else x)
+    df.iloc[:, 2:] = df.iloc[:, 2:].map(
+        lambda x: (
+            "NA" if isinstance(x, str) and not any(char.isdigit() for char in x) else x
+        )
+    )
     df.columns = [df.columns[0], df.columns[1]] + [
         col.split("(", 1)[0]
         .replace("/", "-")
@@ -43,14 +47,19 @@ def clean_dataframe(df):
 
     # Replace missing values with 'NA'
     df = df.fillna("NA")
-    
+
     return df
+
 
 # Execution in terminal
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Parse Vitek data and categorize bacteria.")
+    parser = argparse.ArgumentParser(
+        description="Parse Vitek data and categorize bacteria."
+    )
     parser.add_argument("input_file", help="Path to input CSV file")
-    parser.add_argument("output_file", help="Path to output CSV file")  # Changed to "file"
+    parser.add_argument(
+        "output_file", help="Path to output CSV file"
+    )  # Changed to "file"
     args = parser.parse_args()
 
     INPUT_PATH = args.input_file
@@ -63,10 +72,12 @@ if __name__ == "__main__":
     if not os.path.exists(TRANSLATIONS_PATH):
         print(f"Error: 'translations.csv' not found at {TRANSLATIONS_PATH}.")
         exit(1)
-    
+
     # Ensure OUTPUT_PATH is a valid file path, not a directory
     if os.path.isdir(OUTPUT_PATH):
-        print(f"Error: '{OUTPUT_PATH}' is a directory. Please provide a valid file path.")
+        print(
+            f"Error: '{OUTPUT_PATH}' is a directory. Please provide a valid file path."
+        )
         exit(1)
 
     # Ensure output directory exists

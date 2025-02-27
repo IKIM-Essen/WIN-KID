@@ -6,6 +6,7 @@ import os
 from enum import Enum
 import pandas as pd
 from fuzzywuzzy import fuzz
+import argparse
 
 
 class EucastInterpretation(Enum):
@@ -143,41 +144,49 @@ def interpret_vitek(input_vitek, input_eucast):
     return df
 
 
-def interpret_file(vitek_path, output_path):
-    vitek_df = pd.read_csv(vitek_path)
-    split_df = {key: group for key, group in vitek_df.groupby("Organism_Code")}
-    output_df = pd.DataFrame()
-    for key, df in split_df.items():
-        matching_json_name = names_df.loc[
-            names_df["Code"] == key,
-            "Eucast_File_Name",
-        ].values[0]
-        print(f"Used {matching_json_name} for {os.path.basename(vitek_path)}")
-        matching_json = pd.read_json(INPUT_EUCAST_FOLDER + matching_json_name)
-        interpreted_df = interpret_vitek(df, matching_json)
-        output_df = pd.concat([output_df, interpreted_df], ignore_index=True).fillna(
-            "NA"
-        )
-    output_df.to_csv(output_path, index=False)
-    print(f"Interpreted file saved to: {output_path}")
-
-
 def interpret_folder(vitek_folder, output_folder):
     for vitek_file_name in os.listdir(vitek_folder):
         if vitek_file_name.endswith(".csv"):
-            interpret_file(
-                vitek_folder + vitek_file_name,
-                output_folder + vitek_file_name.replace("parsed", "interpreted"),
+            vitek_path = os.path.join(vitek_folder, vitek_file_name)
+            output_path = os.path.join(
+                output_folder, vitek_file_name.replace("parsed", "interpreted")
             )
 
+            vitek_df = pd.read_csv(vitek_path)
+            split_df = {key: group for key, group in vitek_df.groupby("Organism_Code")}
+            output_df = pd.DataFrame()
 
-# Paths (Folder Interpretation)
-INPUT_VITEK_FOLDER = "output/vitek_parsed/"
-OUTPUT_FOLDER = "output/interpreted/"
+            for key, df in split_df.items():
+                matching_json_name = names_df.loc[
+                    names_df["Code"] == key,
+                    "Eucast_File_Name",
+                ].values[0]
+                print(f"Used {matching_json_name} for {os.path.basename(vitek_path)}")
+                matching_json = pd.read_json(INPUT_EUCAST_FOLDER + matching_json_name)
+                interpreted_df = interpret_vitek(df, matching_json)
+                output_df = pd.concat(
+                    [output_df, interpreted_df], ignore_index=True
+                ).fillna("NA")
 
-# Paths (File Interpretation)
-INPUT_SINGLE_VITEK = "output/vitek_parsed.csv"
-OUTPUT_SINGLE = "output/mic_interpretation.csv"
+            output_df.to_csv(output_path, index=False)
+            print(f"Interpreted file saved to: {output_path}")
+
+
+# terminal input
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Parse Vitek data and categorize bacteria."
+    )
+    parser.add_argument(
+        "input_folder", help="Path to input folder containing CSV files"
+    )
+    parser.add_argument(
+        "output_folder", help="Path to output directory for interpreted files"
+    )
+    args = parser.parse_args()
+
+    INPUT_VITEK_FOLDER = args.input_folder
+    OUTPUT_FOLDER = args.output_folder
 
 
 # Paths (Misc.)
@@ -198,7 +207,6 @@ translations_df = pd.read_csv(TRANSLATIONS_PATH)
 HANDLE_NO_MATCHES = False
 
 # Interpret & Save
-# interpret_file(INPUT_SINGLE_VITEK, OUTPUT_SINGLE)
 interpret_folder(INPUT_VITEK_FOLDER, OUTPUT_FOLDER)
 
 ignore_df.to_csv(IGNORE_PATH, index=False)

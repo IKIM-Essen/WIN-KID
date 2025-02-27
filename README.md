@@ -5,9 +5,10 @@
 - translations.csv : Manual translation of typos / different vitek names for mic interpretation
 - ignore.csv : Antibiotika Names that should be ignored in no match handling (interpreter)
 1. Run vitek_parser_ukm.py for UKM VITEK data, run vitek_parser_ume.py for UME VITEK data
-1.1 Run via: python vitek_parser_ume.py directory/vitek.csv directory/for/outputfiles/
-1.2 Run via: python vitek_parser_ukm.py directory/vitek.csv directory/for/outputfiles/file.csv
+1.1 Run via: python vitek_parser_ume.py directory/vitek.csv directory/output/files/
+1.2 Run via: python vitek_parser_ukm.py directory/vitek.csv directory/output/files/file.csv
 2. Run mic_interpreter.py to interpret any parsed files
+2.1 Run via: python mic_interpreter.py directory/input/files directory/output/files/
 
 ## Parser UME
 - works with tab seperated csv files only
