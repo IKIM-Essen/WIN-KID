@@ -40,6 +40,10 @@ def clean_dataframe(df):
         .replace(" ", "")
         for col in df.columns[2:]
     ]
+
+    # Replace missing values with 'NA'
+    df = df.fillna("NA")
+    
     return df
 
 # Execution in terminal

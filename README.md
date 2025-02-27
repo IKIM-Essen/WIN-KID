@@ -10,6 +10,7 @@
 2. Run mic_interpreter.py to interpret any parsed files
 
 ## Parser UME
+- works with tab seperated csv files only
 - Splits the Vitek file by bacteria name
 - Removes unnecessary data and restructures the file
 - specify output FOLDER for the parsed vitek files
