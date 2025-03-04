@@ -1,19 +1,23 @@
 # WIN-KID
+
 ## Parser UME
-- Run via: 'python vitek_parser_ume.py directory/vitek.csv directory/output/'  with test data at 'resources/test_data'
+
+- Run via: `python vitek_parser_ume.py directory/vitek.csv directory/output/` with test data at `resources/test_data`
 - works with tab seperated csv files only
 - Removes unnecessary columns
 - specify output FILE for the parsed vitek file
 
 ## Parser UKM
-- Run via: 'python vitek_parser_ukm.py directory/vitek.csv directory/output/file.csv' with test data at 'resources/test_data'
+
+- Run via: `python vitek_parser_ukm.py directory/vitek.csv directory/output/file.csv` with test data at `resources/test_data`
 - Splits the Vitek file by bacteria name
 - Removes unnecessary data and restructures the file
 - specify output FOLDER for the parsed vitek files
 
 ## Interpreter
--  Run mic_interpreter.py to interpret any parsed files:
-  'python mic_interpreter.py directory/input/files directory/output/files/'
+
+- Run mic_interpreter.py to interpret any parsed files:
+  `python mic_interpreter.py directory/input/files directory/output/files/`
 - Can handle single and multiple Input files and can handle multiple organisms in one file
 - Antibiotics from a vitek file that can not be matched to an EUCAST antibiotic are skipped and logged via print
 - For a match, the name of the VITEK antibiotic must be found in full in the EUCAST table
@@ -27,13 +31,14 @@
   - any VITEK value containing ">" will be interpreted as "R"
   - everything else will be interpteted as "S
 
-##  Settings
-- 'names.csv' : List for uniform Oganism Name & Code and the Eucast json it should use
-- 'translations.csv' : Manual translation of typos / different vitek names for mic interpretation
-- 'ignore.csv' : Antibiotika Names that should be ignored in no match handling (interpreter)
+## Settings
 
+- `names.csv` : List for uniform Oganism Name & Code and the Eucast json it should use
+- `translations.csv` : Manual translation of typos / different vitek names for mic interpretation
+- `ignore.csv` : Antibiotika Names that should be ignored in no match handling (interpreter)
 
 ## ToDo
+
 - Use different cartridges
 - Use different species
 - Differentiate between oral and non oral?
