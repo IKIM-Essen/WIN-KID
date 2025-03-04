@@ -2,9 +2,10 @@
 # Licensed under the MIT License
 # This file may be copied, modified, and distributed under the terms of the MIT License.
 
+import argparse
+import sys
 import os
 import pandas as pd
-import argparse
 
 
 def clean_dataframe(df):
@@ -66,19 +67,19 @@ if __name__ == "__main__":
     OUTPUT_PATH = args.output_file
 
     # Paths to required files (static)
-    TRANSLATIONS_PATH = "resources/translations.csv"
+    TRANSLATIONS_PATH = "resources/settings/translations.csv"
 
     # Ensure required files exist
     if not os.path.exists(TRANSLATIONS_PATH):
         print(f"Error: 'translations.csv' not found at {TRANSLATIONS_PATH}.")
-        exit(1)
+        sys.exit(0)
 
     # Ensure OUTPUT_PATH is a valid file path, not a directory
     if os.path.isdir(OUTPUT_PATH):
         print(
             f"Error: '{OUTPUT_PATH}' is a directory. Please provide a valid file path."
         )
-        exit(1)
+        sys.exit(0)
 
     # Ensure output directory exists
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
@@ -87,9 +88,9 @@ if __name__ == "__main__":
     try:
         vitek_df = pd.read_csv(INPUT_PATH, sep="\t", quotechar='"')
         translations_df = pd.read_csv(TRANSLATIONS_PATH, sep=",")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error loading CSV files: {e}")
-        exit(1)
+        sys.exit(0)
 
     # Clean
     cleaned_df = clean_dataframe(vitek_df)

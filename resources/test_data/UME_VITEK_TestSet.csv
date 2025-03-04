@@ -5699,11 +5699,11 @@ LABORNR,MATERIAL,MATLANG,DATUM,PATIENTENNR,GESCHLECHT,GEBOREN,EINSENDER,STATION,
 24-64768366,MRA,Rachenabstrich,2024-10-25,23508742.0,weiblich,2151-12-13,14,KIK4,MENCLCPX,Enterobacter cloacae complex,Gentamicin,S,<=,1.0
 24-64768366,MRA,Rachenabstrich,2024-10-25,23508742.0,weiblich,2151-12-13,14,KIK4,MENCLCPX,Enterobacter cloacae complex,Trimethroprim/Sulfam,S,<=,20.0
 24-64768366,MRA,Rachenabstrich,2024-10-25,23508742.0,weiblich,2151-12-13,14,KIK4,MENCLCPX,Enterobacter cloacae complex,Ciprofloxacin,S,<=,0.06
-24-64768366,MRA,Rachenabstrich,2024-10-25,23508742.0,weiblich,2151-12-13,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Imipenem,S,<=,0.5
-24-64768366,MRA,Rachenabstrich,2024-10-25,23508742.0,weiblich,2151-12-13,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Meropenem,S,<=,0.25
-24-64768366,MRA,Rachenabstrich,2024-10-25,23508742.0,weiblich,2151-12-13,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Gentamicin,S,<=,1.0
-24-64768366,MRA,Rachenabstrich,2024-10-25,23508742.0,weiblich,2151-12-13,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Trimethroprim/Sulfam,S,<=,20.0
-24-64768366,MRA,Rachenabstrich,2024-10-25,23508742.0,weiblich,2151-12-13,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Ciprofloxacin,M,=,0.12
+24-64768366,MRA,Rachenabstrich,2024-10-25,23508742.0,weiblich,2151-12-13,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Imipenem,S,<=,0.5
+24-64768366,MRA,Rachenabstrich,2024-10-25,23508742.0,weiblich,2151-12-13,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Meropenem,S,<=,0.25
+24-64768366,MRA,Rachenabstrich,2024-10-25,23508742.0,weiblich,2151-12-13,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Gentamicin,S,<=,1.0
+24-64768366,MRA,Rachenabstrich,2024-10-25,23508742.0,weiblich,2151-12-13,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Trimethroprim/Sulfam,S,<=,20.0
+24-64768366,MRA,Rachenabstrich,2024-10-25,23508742.0,weiblich,2151-12-13,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Ciprofloxacin,M,=,0.12
 24-64788368,MURI,Urin,2024-11-20,22153614.0,männlich,2206-07-08,1,AC5,MPSAE,Pseudomonas aeruginosa,Ampicillin,R,>,8.0
 24-64788368,MURI,Urin,2024-11-20,22153614.0,männlich,2206-07-08,1,AC5,MPSAE,Pseudomonas aeruginosa,Ampicillin+Sulbactam,R,,
 24-64788368,MURI,Urin,2024-11-20,22153614.0,männlich,2206-07-08,1,AC5,MPSAE,Pseudomonas aeruginosa,Piperacillin,M,<=,4.0
@@ -9503,11 +9503,11 @@ LABORNR,MATERIAL,MATLANG,DATUM,PATIENTENNR,GESCHLECHT,GEBOREN,EINSENDER,STATION,
 24-64762273,MANAL,Rektalabstrich,2024-10-17,23511789.0,weiblich,2179-04-30,14,PZ,MENCLCPX,Enterobacter cloacae complex,Gentamicin,S,<=,1.0
 24-64762273,MANAL,Rektalabstrich,2024-10-17,23511789.0,weiblich,2179-04-30,14,PZ,MENCLCPX,Enterobacter cloacae complex,Trimethroprim/Sulfam,S,<=,20.0
 24-64762273,MANAL,Rektalabstrich,2024-10-17,23511789.0,weiblich,2179-04-30,14,PZ,MENCLCPX,Enterobacter cloacae complex,Ciprofloxacin,S,<=,0.06
-24-64762268,MNA,Nasenabstrich,2024-10-17,23511789.0,weiblich,2179-04-30,14,PZ,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Imipenem,S,<=,0.5
-24-64762268,MNA,Nasenabstrich,2024-10-17,23511789.0,weiblich,2179-04-30,14,PZ,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Meropenem,S,<=,0.25
-24-64762268,MNA,Nasenabstrich,2024-10-17,23511789.0,weiblich,2179-04-30,14,PZ,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Gentamicin,S,<=,1.0
-24-64762268,MNA,Nasenabstrich,2024-10-17,23511789.0,weiblich,2179-04-30,14,PZ,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Trimethroprim/Sulfam,S,<=,20.0
-24-64762268,MNA,Nasenabstrich,2024-10-17,23511789.0,weiblich,2179-04-30,14,PZ,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Ciprofloxacin,M,=,0.25
+24-64762268,MNA,Nasenabstrich,2024-10-17,23511789.0,weiblich,2179-04-30,14,PZ,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Imipenem,S,<=,0.5
+24-64762268,MNA,Nasenabstrich,2024-10-17,23511789.0,weiblich,2179-04-30,14,PZ,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Meropenem,S,<=,0.25
+24-64762268,MNA,Nasenabstrich,2024-10-17,23511789.0,weiblich,2179-04-30,14,PZ,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Gentamicin,S,<=,1.0
+24-64762268,MNA,Nasenabstrich,2024-10-17,23511789.0,weiblich,2179-04-30,14,PZ,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Trimethroprim/Sulfam,S,<=,20.0
+24-64762268,MNA,Nasenabstrich,2024-10-17,23511789.0,weiblich,2179-04-30,14,PZ,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Ciprofloxacin,M,=,0.25
 24-64775485,MURI,Urin,2024-11-04,23511789.0,weiblich,2179-04-30,14,ZNA-KINDER,MENCLCPX,Enterobacter cloacae complex,Pip/Taz,S,<=,4.0
 24-64775485,MURI,Urin,2024-11-04,23511789.0,weiblich,2179-04-30,14,ZNA-KINDER,MENCLCPX,Enterobacter cloacae complex,Cefotaxim(m,S,<=,1.0
 24-64775485,MURI,Urin,2024-11-04,23511789.0,weiblich,2179-04-30,14,ZNA-KINDER,MENCLCPX,Enterobacter cloacae complex,Ceftazidim,S,=,0.25
@@ -44324,25 +44324,25 @@ LABORNR,MATERIAL,MATLANG,DATUM,PATIENTENNR,GESCHLECHT,GEBOREN,EINSENDER,STATION,
 24-64766856,MANAL,Rektalabstrich,2024-10-23,23514766.0,weiblich,2179-04-30,14,KIK4,MENCLCPX2MR,Enterobacter cloacae complex (2MRGN),Gentamicin,S,<=,1.0
 24-64766856,MANAL,Rektalabstrich,2024-10-23,23514766.0,weiblich,2179-04-30,14,KIK4,MENCLCPX2MR,Enterobacter cloacae complex (2MRGN),Trimethroprim/Sulfam,S,<=,20.0
 24-64766856,MANAL,Rektalabstrich,2024-10-23,23514766.0,weiblich,2179-04-30,14,KIK4,MENCLCPX2MR,Enterobacter cloacae complex (2MRGN),Ciprofloxacin,S,<=,0.06
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Ampicillin,R,>,8.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Piperacillin,R,<=,8.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Pip/Taz,R,<=,8.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Cefuroxim,R,>,8.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Cefotaxim(m,R,=,2.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Ceftazidim,R,<=,1.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Imipenem,S,<=,1.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Meropenem,S,<=,0.12
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Gentamicin,S,<=,2.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Tobramycin,S,<=,2.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Amikazin,S,<=,8.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Trimethroprim/Sulfam,S,<=,0.0526
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Ciprofloxacin,M,=,0.25
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Levofloxacin,S,<=,0.5
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Fosfomycin,R,=,64.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Nitrofurantoin,R,>,64.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Amoxicillin+Clavulan,R,=,16.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Colistin,S,<=,2.0
-24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,	Acinetobacter baumannii complex (2MRGN),Amoxicillin,R,,
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Ampicillin,R,>,8.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Piperacillin,R,<=,8.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Pip/Taz,R,<=,8.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Cefuroxim,R,>,8.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Cefotaxim(m,R,=,2.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Ceftazidim,R,<=,1.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Imipenem,S,<=,1.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Meropenem,S,<=,0.12
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Gentamicin,S,<=,2.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Tobramycin,S,<=,2.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Amikazin,S,<=,8.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Trimethroprim/Sulfam,S,<=,0.0526
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Ciprofloxacin,M,=,0.25
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Levofloxacin,S,<=,0.5
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Fosfomycin,R,=,64.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Nitrofurantoin,R,>,64.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Amoxicillin+Clavulan,R,=,16.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Colistin,S,<=,2.0
+24-64773217,MRA,Rachenabstrich,2024-11-04,23514766.0,weiblich,2179-04-30,14,KIK4,MACBACPX2MR,Acinetobacter baumannii complex (2MRGN),Amoxicillin,R,,
 24-64800467,MURI,Urin,2024-12-05,23205706.0,weiblich,2042-04-04,UNI,#WTZI,MESCCOL3,Escherichia coli,Ampicillin,S,<=,2.0
 24-64800467,MURI,Urin,2024-12-05,23205706.0,weiblich,2042-04-04,UNI,#WTZI,MESCCOL3,Escherichia coli,Pip/Taz,S,<=,4.0
 24-64800467,MURI,Urin,2024-12-05,23205706.0,weiblich,2042-04-04,UNI,#WTZI,MESCCOL3,Escherichia coli,Cefuroxim-Axetil,S,=,2.0

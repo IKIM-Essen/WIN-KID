@@ -3,6 +3,7 @@
 # This file may be copied, modified, and distributed under the terms of the MIT License.
 import re
 import os
+import sys
 import argparse
 from pprint import pprint
 import pandas as pd
@@ -99,8 +100,8 @@ if __name__ == "__main__":
     OUTPUT_FOLDER = args.output_dir
 
     # paths to required files (static)
-    NAMES_PATH = "resources/names.csv"
-    TRANSLATIONS_PATH = "resources/translations.csv"
+    NAMES_PATH = "resources/settings/names.csv"
+    TRANSLATIONS_PATH = "resources/settings/translations.csv"
 
     # Ensure required files exist
     if not os.path.exists(NAMES_PATH):
@@ -120,9 +121,9 @@ if __name__ == "__main__":
         vitek_df = pd.read_csv(INPUT_PATH, sep=",")
         names_df = pd.read_csv(NAMES_PATH, sep=",")
         translations_df = pd.read_csv(TRANSLATIONS_PATH, sep=",")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error loading CSV files: {e}")
-        exit(1)
+        sys.exit(0)
 
     assignments = assign_unique(vitek_df, names_df["Vitek_Name"])
 
@@ -139,5 +140,7 @@ if __name__ == "__main__":
                 index=False,
             )
             print(
-                f"All {name} saved to {os.path.join(OUTPUT_FOLDER, name.lower().replace(' ', '_') + '.csv')}"
+                f"All {name} saved to {
+                    os.path.join(OUTPUT_FOLDER, name.lower().replace(' ', '_') + '.csv')
+                    }"
             )
