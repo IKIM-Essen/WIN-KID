@@ -46,6 +46,9 @@ def clean_dataframe(df):
         for col in df.columns[2:]
     ]
 
+    df = df.replace("NA", None)
+    df = df.dropna(axis=1, how="all")
+
     # Replace missing values with 'NA'
     df = df.fillna("NA")
 

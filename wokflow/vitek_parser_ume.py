@@ -56,6 +56,7 @@ def clean_dataframe(input_df, bacteria, code):
 
     df.insert(loc=1, column="Organism_Code", value=code)
     df = df.dropna(axis=0, how="all", subset=df.columns[2:])
+    df = df.replace("NA", None)
     df = df.dropna(axis=1, how="all")
     df = df.fillna("NA")
     df = df.rename(columns={"LABORNR": "Sample_ID_IfH"})

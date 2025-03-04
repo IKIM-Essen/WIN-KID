@@ -155,6 +155,9 @@ def interpret_vitek(input_vitek, input_eucast):
             column_data_vitek, matching_rows_eucast, column_vitek, df
         )
 
+    # Convert all data types to object
+    df = df.astype("object")
+
     return df
 
 
