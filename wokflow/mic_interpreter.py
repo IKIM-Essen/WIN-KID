@@ -2,11 +2,25 @@
 # Licensed under the MIT License
 # This file may be copied, modified, and distributed under the terms of the MIT License.
 
+import argparse
 import os
 from enum import Enum
 import pandas as pd
 from fuzzywuzzy import fuzz
-import argparse
+
+# Set Paths
+NAMES_PATH = "resources/settings/names.csv"
+IGNORE_PATH = "resources/settings/ignore.csv"
+TRANSLATIONS_PATH = "resources/settings/translations.csv"
+INPUT_EUCAST_FOLDER = "resources/eucast_files/"
+
+# Load
+NAMES_DF = pd.read_csv(NAMES_PATH)
+IGNORE_DF = pd.read_csv(IGNORE_PATH)
+TRANSLATION_DF = pd.read_csv(TRANSLATIONS_PATH)
+
+# Toggle if no eucast matches should be handled
+HANDLE_NO_MATCHES = False
 
 
 class EucastInterpretation(Enum):
@@ -41,7 +55,7 @@ def get_most_similar_name(input_df, target_name, cut_off):
     best_match_index = input_df["similarity_score"].idxmax()
     best_match = input_df.loc[[best_match_index]].copy()
     if best_match["similarity_score"].iloc[0] < cut_off:
-        if not target_name in ignore_df["Ignorelist"].tolist():
+        if not target_name in IGNORE_DF["Ignorelist"].tolist():
             print(f"No EUCAST Match with Score >= {cut_off}: {target_name}")
         return pd.DataFrame()
 
@@ -49,7 +63,7 @@ def get_most_similar_name(input_df, target_name, cut_off):
 
 
 def handle_no_match(name, eucast):
-    if name in translations_df["Old"].tolist():
+    if name in TRANSLATION_DF["Old"].tolist():
         print(f"{name} already translated, rerun parser to load")
         return
     print(f"Handling no match for {name}...")
@@ -57,8 +71,8 @@ def handle_no_match(name, eucast):
     print(f"Best match: {best_match['Name'].iloc[0]}")
     use_match = confirm("Do you want to use it in the future?")
     if use_match:
-        if not name in translations_df["Old"].tolist():
-            translations_df.loc[len(translations_df)] = [
+        if not name in TRANSLATION_DF["Old"].tolist():
+            TRANSLATION_DF.loc[len(TRANSLATION_DF)] = [
                 name,
                 best_match["Name"].iloc[0],
             ]
@@ -67,7 +81,7 @@ def handle_no_match(name, eucast):
     else:
         ignore_check = confirm(f"Do you want to ignore {name}?")
         if ignore_check:
-            ignore_df.loc[len(ignore_df), "Ignorelist"] = name
+            IGNORE_DF.loc[len(IGNORE_DF), "Ignorelist"] = name
 
 
 def get_mic_interpretation(columns_vitek, rows_eucast, antibiotic_name_vitek, df):
@@ -126,10 +140,10 @@ def interpret_vitek(input_vitek, input_eucast):
             if (
                 matching_rows_eucast.empty
                 and HANDLE_NO_MATCHES
-                and not column_vitek in ignore_df["Ignorelist"].tolist()
+                and not column_vitek in IGNORE_DF["Ignorelist"].tolist()
             ):
                 handle_no_match(column_vitek, input_eucast)
-        elif not removed_match and not column_vitek in ignore_df["Ignorelist"].tolist():
+        elif not removed_match and not column_vitek in IGNORE_DF["Ignorelist"].tolist():
             print(f"No EUCAST Match: {column_vitek}")
             if HANDLE_NO_MATCHES:
                 handle_no_match(column_vitek, input_eucast)
@@ -144,12 +158,12 @@ def interpret_vitek(input_vitek, input_eucast):
     return df
 
 
-def interpret_folder(vitek_folder, output_folder):
+def interpret_folder(vitek_folder, output_folder_df):
     for vitek_file_name in os.listdir(vitek_folder):
         if vitek_file_name.endswith(".csv"):
             vitek_path = os.path.join(vitek_folder, vitek_file_name)
             output_path = os.path.join(
-                output_folder, vitek_file_name.replace("parsed", "interpreted")
+                output_folder_df, vitek_file_name.replace("parsed", "interpreted")
             )
 
             vitek_df = pd.read_csv(vitek_path)
@@ -157,8 +171,8 @@ def interpret_folder(vitek_folder, output_folder):
             output_df = pd.DataFrame()
 
             for key, df in split_df.items():
-                matching_json_name = names_df.loc[
-                    names_df["Code"] == key,
+                matching_json_name = NAMES_DF.loc[
+                    NAMES_DF["Code"] == key,
                     "Eucast_File_Name",
                 ].values[0]
                 print(f"Used {matching_json_name} for {os.path.basename(vitek_path)}")
@@ -178,36 +192,22 @@ if __name__ == "__main__":
         description="Parse Vitek data and categorize bacteria."
     )
     parser.add_argument(
-        "input_folder", help="Path to input folder containing CSV files"
+        "input_folder_path", help="Path to input folder containing CSV files"
     )
     parser.add_argument(
-        "output_folder", help="Path to output directory for interpreted files"
+        "output_folder_path", help="Path to output directory for interpreted files"
     )
     args = parser.parse_args()
 
-    INPUT_VITEK_FOLDER = args.input_folder
-    OUTPUT_FOLDER = args.output_folder
+    input_folder = args.input_folder_path
+    output_folder = args.output_folder_path
 
+    # create missing output directory
+    os.makedirs(input_folder, exist_ok=True)
 
-# Paths (Misc.)
-NAMES_PATH = "resources/names.csv"
-IGNORE_PATH = "resources/ignore.csv"
-TRANSLATIONS_PATH = "resources/translations.csv"
-INPUT_EUCAST_FOLDER = "resources/eucast_files/"
+    # Interpret & Save
+    print(input_folder)
+    interpret_folder(input_folder, output_folder)
 
-# create missing output directory
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-
-# Load
-names_df = pd.read_csv(NAMES_PATH)
-ignore_df = pd.read_csv(IGNORE_PATH)
-translations_df = pd.read_csv(TRANSLATIONS_PATH)
-
-# Toggle if no eucast matches should be handled
-HANDLE_NO_MATCHES = False
-
-# Interpret & Save
-interpret_folder(INPUT_VITEK_FOLDER, OUTPUT_FOLDER)
-
-ignore_df.to_csv(IGNORE_PATH, index=False)
-translations_df.to_csv(TRANSLATIONS_PATH, index=False)
+    IGNORE_DF.to_csv(IGNORE_PATH, index=False)
+    TRANSLATION_DF.to_csv(TRANSLATIONS_PATH, index=False)

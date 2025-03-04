@@ -20,6 +20,7 @@
   `python mic_interpreter.py directory/input/files directory/output/files/`
 - Can handle single and multiple Input files and can handle multiple organisms in one file
 - Antibiotics from a vitek file that can not be matched to an EUCAST antibiotic are skipped and logged via print
+- Antibiotics with missing EUCAST Values (e.g.: '"S <=": "-",') are removed from the interpreted table
 - For a match, the name of the VITEK antibiotic must be found in full in the EUCAST table
 - If several values are found, the one with the highest similarity score is used. If two values have the same similarity, any one is used.
 - If the selected value falls below a certain similarity score, it is also discarded and logged via print.
@@ -29,7 +30,7 @@
   - any VITEK value above the "R >" EUCAST Value will be interpreted as "R"
 - If the EUCAST values for "S <=" and "R >" are the same:
   - any VITEK value containing ">" will be interpreted as "R"
-  - everything else will be interpteted as "S
+  - everything else will be interpteted as "S"
 
 ## Settings
 
@@ -39,6 +40,7 @@
 
 ## ToDo
 
+- Add regression test
 - Use different cartridges
 - Use different species
 - Differentiate between oral and non oral?
