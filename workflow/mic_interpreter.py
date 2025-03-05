@@ -2,88 +2,215 @@
 # Licensed under the MIT License
 # This file may be copied, modified, and distributed under the terms of the MIT License.
 
+import argparse
+import os
 from enum import Enum
 import pandas as pd
 from fuzzywuzzy import fuzz
 
-OUTPUT_PATH = "output/mic_interpretation.csv"
-INPUT_EUCAST_PATH = "resources/MIC_Enterobacterales_v15_0.json"
-INPUT_VITEK_PATH = "output/vitek_parsed.csv"
+# Set Paths
+NAMES_PATH = "resources/settings/names.csv"
+IGNORE_PATH = "resources/settings/ignore.csv"
+TRANSLATIONS_PATH = "resources/settings/translations.csv"
+INPUT_EUCAST_FOLDER = "resources/eucast_files/"
+
+# Load
+NAMES_DF = pd.read_csv(NAMES_PATH)
+IGNORE_DF = pd.read_csv(IGNORE_PATH)
+TRANSLATION_DF = pd.read_csv(TRANSLATIONS_PATH)
+
+# Toggle if no eucast matches should be handled
+HANDLE_NO_MATCHES = False
 
 
 class EucastInterpretation(Enum):
     S = 1
     I = 2
     R = 3
+    NA = 4
+
+
+def is_float(value):
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False
+
+
+def confirm(question):
+    while True:
+        answer = input(f"{question} (y/n): ").strip().lower()
+        if answer in ["y", "n"]:
+            return answer == "y"
+        print("Invalid Input")
 
 
 def get_most_similar_name(input_df, target_name, cut_off):
     input_df = input_df.copy()
+    input_df["Name"] = input_df["Name"].str.split("(", n=1).str[0].str.strip()
     input_df["similarity_score"] = input_df["Name"].apply(
         lambda name: fuzz.ratio(target_name, name)
     )
     best_match_index = input_df["similarity_score"].idxmax()
     best_match = input_df.loc[[best_match_index]].copy()
     if best_match["similarity_score"].iloc[0] < cut_off:
-        print(f"No EUCAST Match with Score >= {cut_off}: {target_name}")
+        if not target_name in IGNORE_DF["Ignorelist"].tolist():
+            print(f"No EUCAST Match with Score >= {cut_off}: {target_name}")
         return pd.DataFrame()
 
     return best_match
+
+
+def handle_no_match(name, eucast):
+    if name in TRANSLATION_DF["Old"].tolist():
+        print(f"{name} already translated, rerun parser to load")
+        return
+    print(f"Handling no match for {name}...")
+    best_match = get_most_similar_name(eucast, name, 0)
+    print(f"Best match: {best_match['Name'].iloc[0]}")
+    use_match = confirm("Do you want to use it in the future?")
+    if use_match:
+        if not name in TRANSLATION_DF["Old"].tolist():
+            TRANSLATION_DF.loc[len(TRANSLATION_DF)] = [
+                name,
+                best_match["Name"].iloc[0],
+            ]
+        else:
+            print(f"{name} already translated, run the parser again.")
+    else:
+        ignore_check = confirm(f"Do you want to ignore {name}?")
+        if ignore_check:
+            IGNORE_DF.loc[len(IGNORE_DF), "Ignorelist"] = name
 
 
 def get_mic_interpretation(columns_vitek, rows_eucast, antibiotic_name_vitek, df):
     index = 0
     for data in columns_vitek:
         interpretation = ""
-        data = data.replace(">", "").replace("=", "").replace(",", ".")
-        if "<" in data:
-            interpretation = EucastInterpretation(1).name
-        elif float(data) <= float(rows_eucast["S <="].iloc[0]):
-            interpretation = EucastInterpretation(1).name
-        elif float(data) <= float(rows_eucast["R >"].iloc[0]):
-            interpretation = EucastInterpretation(2).name
+        if isinstance(data, float):
+            interpretation = EucastInterpretation(4).name
         else:
-            interpretation = EucastInterpretation(3).name
+            raw_data = float(
+                data.replace(">", "")
+                .replace("=", "")
+                .replace("<", "")
+                .replace(",", ".")
+            )
+            s_eucast = float(rows_eucast["S <="].iloc[0])
+            r_eucast = float(rows_eucast["R >"].iloc[0])
+            if raw_data == s_eucast and raw_data == r_eucast:
+                if ">" in data:
+                    interpretation = EucastInterpretation(3).name
+                else:
+                    interpretation = EucastInterpretation(1).name
+            elif raw_data <= s_eucast:
+                interpretation = EucastInterpretation(1).name
+            elif raw_data > r_eucast:
+                interpretation = EucastInterpretation(3).name
+            else:
+                interpretation = EucastInterpretation(2).name
 
         df.at[index, antibiotic_name_vitek] = interpretation
         index += 1
     return df
 
 
-input_vitek = pd.read_csv(INPUT_VITEK_PATH)
-input_eucast = pd.read_json(INPUT_EUCAST_PATH)
+def interpret_vitek(input_vitek, input_eucast):
+    df = input_vitek[["Sample_ID_IfH", "Organism_Code"]].copy()
+    input_vitek.columns = input_vitek.columns.str.strip()
+    input_vitek = input_vitek.map(lambda x: x.strip() if isinstance(x, str) else x)
 
-output_df = input_vitek[["Sample_ID_IfH", "Organism_Code", "Card_Name"]].copy()
+    for column_vitek in input_vitek.columns[2:]:
 
-# Clean VITEK data
-input_vitek.columns = input_vitek.columns.str.strip()
-input_vitek = input_vitek.map(lambda x: x.strip() if isinstance(x, str) else x)
-input_vitek = input_vitek.replace("NA", None)
-input_vitek = input_vitek.dropna(axis=1, how="all")
+        matching_rows_eucast = input_eucast.loc[
+            input_eucast["Name"].str.contains(column_vitek, case=False, na=False)
+        ]
 
-# Process each antibiotic column
-for column_vitek in input_vitek.columns[3:]:
-    # Adapt VITEK name to EUCAST
-    column_name_vitek = column_vitek.split("-", 1)[1]
-    column_name_vitek = column_name_vitek.replace("/", "-")
+        removed_match = False
+        for index, row in matching_rows_eucast.iterrows():
+            if (not is_float(row["S <="])) or (not is_float(row["R >"])):
+                matching_rows_eucast = matching_rows_eucast.drop(index)
+                removed_match = True
 
-    matching_rows_eucast = input_eucast.loc[
-        input_eucast["Name"].str.contains(column_name_vitek, case=False, na=False)
-    ]
+        if not matching_rows_eucast.empty:
+            matching_rows_eucast = get_most_similar_name(
+                matching_rows_eucast, column_vitek, 70
+            )
+            if (
+                matching_rows_eucast.empty
+                and HANDLE_NO_MATCHES
+                and not column_vitek in IGNORE_DF["Ignorelist"].tolist()
+            ):
+                handle_no_match(column_vitek, input_eucast)
+        elif not removed_match and not column_vitek in IGNORE_DF["Ignorelist"].tolist():
+            print(f"No EUCAST Match: {column_vitek}")
+            if HANDLE_NO_MATCHES:
+                handle_no_match(column_vitek, input_eucast)
+        if matching_rows_eucast.empty:
+            continue
 
-    if not matching_rows_eucast.empty:
-        matching_rows_eucast = get_most_similar_name(
-            matching_rows_eucast, column_name_vitek, 70
+        column_data_vitek = input_vitek[column_vitek]
+        df = get_mic_interpretation(
+            column_data_vitek, matching_rows_eucast, column_vitek, df
         )
-    else:
-        print(f"No EUCAST Match: {column_vitek}")
-    if matching_rows_eucast.empty:
-        continue
 
-    column_data_vitek = input_vitek[column_vitek]
-    output_df = get_mic_interpretation(
-        column_data_vitek, matching_rows_eucast, column_name_vitek, output_df
+    # Convert all data types to object
+    df = df.astype("object")
+
+    return df
+
+
+def interpret_folder(vitek_folder, output_folder_df):
+    for vitek_file_name in os.listdir(vitek_folder):
+        if vitek_file_name.endswith(".csv"):
+            vitek_path = os.path.join(vitek_folder, vitek_file_name)
+            output_path = os.path.join(
+                output_folder_df, vitek_file_name.replace("parsed", "interpreted")
+            )
+
+            vitek_df = pd.read_csv(vitek_path)
+            split_df = {key: group for key, group in vitek_df.groupby("Organism_Code")}
+            output_df = pd.DataFrame()
+
+            for key, df in split_df.items():
+                matching_json_name = NAMES_DF.loc[
+                    NAMES_DF["Code"] == key,
+                    "Eucast_File_Name",
+                ].values[0]
+                print(f"Used {matching_json_name} for {os.path.basename(vitek_path)}")
+                matching_json = pd.read_json(INPUT_EUCAST_FOLDER + matching_json_name)
+                interpreted_df = interpret_vitek(df, matching_json)
+                output_df = pd.concat(
+                    [output_df, interpreted_df], ignore_index=True
+                ).fillna("NA")
+
+            output_df.to_csv(output_path, index=False)
+            print(f"Interpreted file saved to: {output_path}")
+
+
+# terminal input
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Parse Vitek data and categorize bacteria."
     )
+    parser.add_argument(
+        "input_folder_path", help="Path to input folder containing CSV files"
+    )
+    parser.add_argument(
+        "output_folder_path", help="Path to output directory for interpreted files"
+    )
+    args = parser.parse_args()
 
-output_df.to_csv(OUTPUT_PATH, index=False)
-print(f"Cleaned file saved to: {OUTPUT_PATH}")
+    input_folder = args.input_folder_path
+    output_folder = args.output_folder_path
+
+    # create missing output directory
+    os.makedirs(input_folder, exist_ok=True)
+
+    # Interpret & Save
+    print(input_folder)
+    interpret_folder(input_folder, output_folder)
+
+    IGNORE_DF.to_csv(IGNORE_PATH, index=False)
+    TRANSLATION_DF.to_csv(TRANSLATIONS_PATH, index=False)

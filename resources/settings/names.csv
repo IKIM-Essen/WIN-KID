@@ -1,0 +1,6 @@
+Vitek_Name,Code,Eucast_File_Name
+Escherichia Coli,ECO,MIC_Enterobacterales_v15_0.json
+Klebsiella Pneumoniae,EKPN,MIC_Enterobacterales_v15_0.json
+Acinetobacter Baumannii,PTX,MIC_Pseudomonas_v15_0.json
+Pseudomonas Aeruginosa,PPA,MIC_Pseudomonas_v15_0.json
+Enterobacter Cloacae,EECG,MIC_Enterobacterales_v15_0.json
