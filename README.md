@@ -6,6 +6,7 @@
 
 ## Parser
 - Removes all columns of the UKM file except for Sample_ID_IfH ,Organism_Code ,Card_Name and the antibiotic MHK values
+- works with tab seperated csv files only
 
 ## Interpreter
 - Antibiotics from a vitek file that can not be matched to an EUCAST antibiotic are skipped and logged via print
@@ -18,6 +19,7 @@
 ## Preprocessing and random forest
 - Genotypic and phenotypic data are read in directly, preprocessed and fed into an RF model
 - Metrics such as ROC are calculated for the results
+- the size of the current table needs to be adjusted in preprocessing script (number of columns)
 - The starting point is the class `random_forest.py` which is used as follows:
 `path/to/python WIN-KID/workflow/random_forest.py output/mic_interpretation.csv resources/genotype`
 
@@ -30,6 +32,7 @@
 - What shall happen with EUCAST values that are doublets (e.g.: due extra information)
 
 ## Restrictions
+- RF cant handle NaNs -> set to 'S' currently during preprocessing
 - Only E.coli
 - Only AST-N428 cartridge
 - Only UKM VITEK files

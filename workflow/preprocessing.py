@@ -137,6 +137,9 @@ class DataLoader:
 
         raw_gff_df = load_genotypes(genotype_dir_path)
 
+        # Replace all NaN values with "S" early
+        raw_gff_df.fillna("S", inplace=True)
+
         attribute_single_features = ["Name", "ResistanceMechanism"]
         extracted_single_pd = extract_single_features(
             raw_gff_df, attribute_single_features
@@ -161,10 +164,15 @@ class DataLoader:
             input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
         )
 
+        # Replace any remaining NaNs in the entire dataset
+        self.merged_input = pd.merge(
+            input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
+        ).fillna("S")
+
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
-            self.merged_input.columns[3:17],
-            self.merged_input.columns[17:],
+            self.merged_input.columns[2:22], #adjust to current table
+            self.merged_input.columns[22:], #same
         )
 
         return preprocessed_data
