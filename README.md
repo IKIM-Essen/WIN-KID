@@ -13,6 +13,7 @@
 - Splits the Vitek file by bacteria name
 - Removes unnecessary data and restructures the file
 - specify output FOLDER for the parsed vitek files
+- works with tab seperated csv files only
 
 ## Interpreter
 
@@ -38,7 +39,15 @@
 - `translations.csv` : Manual translation of typos / different vitek names for mic interpretation
 - `ignore.csv` : Antibiotika Names that should be ignored in no match handling (interpreter)
 
+## Preprocessing and random forest
+- Genotypic and phenotypic data are read in directly, preprocessed and fed into an RF model
+- Metrics such as ROC are calculated for the results
+- the size of the current table needs to be adjusted in preprocessing script (number of columns)
+- The starting point is the class `random_forest.py` which is used as follows:
+`path/to/python WIN-KID/workflow/random_forest.py output/mic_interpretation.csv resources/genotype`
+
 ## ToDo
+- Random forest results shall also be calculated I and S. Currently only R is used.
 
 - Add regression test
 - Use different cartridges
