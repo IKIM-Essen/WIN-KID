@@ -2,9 +2,6 @@
 # Licensed under the MIT License
 # This file may be copied, modified, and distributed under the terms of the MIT License.
 
-# Copyright 2025 by Miriam Balzer & Julian Welling, University of Duisburg-Essen
-# Licensed under the MIT License
-# This file may be copied, modified, and distributed under the terms of the MIT License.
 import re
 import os
 import sys
@@ -149,3 +146,4 @@ if __name__ == "__main__":
                     os.path.join(OUTPUT_FOLDER, name.lower().replace(' ', '_') + '.csv')
                     }"
             )
+            
