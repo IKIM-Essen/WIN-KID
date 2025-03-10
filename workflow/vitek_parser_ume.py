@@ -17,14 +17,6 @@ def clean_text(text):
     return re.sub(r"[^a-zA-Z\s]", "", text).lower()
 
 
-def confirm(question):
-    while True:
-        answer = input(f"{question} (y/n): ").strip().lower()
-        if answer in ["y", "n"]:
-            return answer == "y"
-        print("Invalid Input")
-
-
 def clean_dataframe(input_df, bacteria, code):
     print(f"Keys used: {bacteria}")
     input_df = input_df[input_df["ERREGERLANG"].isin(bacteria)]
@@ -77,9 +69,8 @@ def assign_unique(df, categories):
         output[categories[highest_index]].append(b)
 
     pprint(output)
-    if confirm("Continue with assignments?"):
-        return output
-    return []
+
+    return output
 
 
 def translate(input_df, translations):
@@ -91,6 +82,8 @@ def translate(input_df, translations):
 
 # execution in terminal
 if __name__ == "__main__":
+
+    # LOAD
     parser = argparse.ArgumentParser(
         description="Parse Vitek data and categorize bacteria."
     )
@@ -127,23 +120,27 @@ if __name__ == "__main__":
         print(f"Error loading CSV files: {e}")
         sys.exit(0)
 
+    # PROCESS
     assignments = assign_unique(vitek_df, names_df["Vitek_Name"])
 
-    if assignments:
-        for name in names_df["Vitek_Name"]:
-            cleaned_df = clean_dataframe(
-                vitek_df,
-                assignments[name],
-                names_df.loc[names_df["Vitek_Name"] == name, "Code"].values[0],
-            )
-            cleaned_df = translate(cleaned_df, translations_df)
-            cleaned_df.to_csv(
-                os.path.join(OUTPUT_FOLDER, f"{name.lower().replace(' ', '_')}.csv"),
-                index=False,
-            )
-            print(
-                f"All {name} saved to {
-                    os.path.join(OUTPUT_FOLDER, name.lower().replace(' ', '_') + '.csv')
-                    }"
-            )
-            
+    cleaned_df_dic = {}
+    for name in names_df["Vitek_Name"]:
+        cleaned_df = clean_dataframe(
+            vitek_df,
+            assignments[name],
+            names_df.loc[names_df["Vitek_Name"] == name, "Code"].values[0],
+        )
+        cleaned_df = translate(cleaned_df, translations_df)
+        cleaned_df_dic[name] = cleaned_df
+
+    # SAVE
+    for name in names_df["Vitek_Name"]:
+        cleaned_df_dic[name].to_csv(
+            os.path.join(OUTPUT_FOLDER, f"{name.lower().replace(' ', '_')}.csv"),
+            index=False,
+        )
+        print(
+            f"All {name} saved to {
+                os.path.join(OUTPUT_FOLDER, name.lower().replace(' ', '_') + '.csv')
+                }"
+        )
