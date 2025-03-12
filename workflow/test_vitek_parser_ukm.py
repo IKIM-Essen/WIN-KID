@@ -4,7 +4,7 @@ import vitek_parser_ukm
 
 
 class TestVitekParserUkm(unittest.TestCase):
-    def test_clean_dataframe(self):
+    def test_process(self):
 
         input_pd = pd.read_csv(
             "resources/test_data/UKM_VITEK_TestSet.csv", sep="\t", quotechar='"'
@@ -15,7 +15,7 @@ class TestVitekParserUkm(unittest.TestCase):
             quotechar='"',
         )
 
-        actual = vitek_parser_ukm.clean_dataframe(input_pd)
+        actual = vitek_parser_ukm.process(input_pd)
         pd.testing.assert_frame_equal(expected, actual, check_dtype=False)
 
 

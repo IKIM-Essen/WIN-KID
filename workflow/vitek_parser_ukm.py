@@ -8,7 +8,7 @@ import os
 import pandas as pd
 
 
-def clean_dataframe(df):
+def process(df):
     df = df.loc[:, ~df.columns.str.contains("Family|Andere-Instrument", regex=True)]
     df.columns = df.columns.str.strip()
     columns_to_drop = [
@@ -57,6 +57,7 @@ def clean_dataframe(df):
 
 # Execution in terminal
 if __name__ == "__main__":
+    # PROCESS
     parser = argparse.ArgumentParser(
         description="Parse Vitek data and categorize bacteria."
     )
@@ -86,10 +87,10 @@ if __name__ == "__main__":
         print(f"Error loading CSV files: {e}")
         sys.exit(0)
 
-    # Clean
-    cleaned_df = clean_dataframe(vitek_df)
+    # PROCESS
+    cleaned_df = process(vitek_df)
     print(cleaned_df.head())  # Show first few rows to check if processing worked
 
-    # Save
+    # SAVE
     cleaned_df.to_csv(OUTPUT_PATH, index=False)
     print(f"Cleaned file saved to: {OUTPUT_PATH}")
