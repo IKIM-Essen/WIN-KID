@@ -140,7 +140,5 @@ if __name__ == "__main__":
             index=False,
         )
         print(
-            f"All {name} saved to {
-                os.path.join(OUTPUT_FOLDER, name.lower().replace(' ', '_') + '.csv')
-                }"
+            f"All {name} saved to {os.path.join(OUTPUT_FOLDER, name.lower().replace(' ', '_') + '.csv')}"
         )
