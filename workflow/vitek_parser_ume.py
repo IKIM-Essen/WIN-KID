@@ -8,6 +8,8 @@ import sys
 import argparse
 from pprint import pprint
 import pandas as pd
+from constants import NAMES_PATH
+from constants import TRANSLATIONS_PATH
 from fuzzywuzzy import fuzz
 
 
@@ -98,18 +100,14 @@ def process(vitek_df, names_df, translations_df):
 
 def load(input_path_load, output_path_load):
 
-    # paths to required files (static)
-    names_path = "resources/settings/names.csv"
-    translations_path = "resources/settings/translations.csv"
-
     # Ensure required files exist
-    if not os.path.exists(names_path):
-        print(f"Error: You need to add a 'names.csv' file at {names_path} to continue.")
+    if not os.path.exists(NAMES_PATH):
+        print(f"Error: You need to add a 'names.csv' file at {NAMES_PATH} to continue.")
         exit(1)
 
-    if not os.path.exists(translations_path):
+    if not os.path.exists(TRANSLATIONS_PATH):
         print(
-            f"Error: You need to add a 'translations.csv' file at {translations_path} to continue."
+            f"Error: You need to add a 'translations.csv' file at {TRANSLATIONS_PATH} to continue."
         )
         exit(1)
 
@@ -119,8 +117,8 @@ def load(input_path_load, output_path_load):
     try:
         return (
             pd.read_csv(input_path_load, sep=","),
-            pd.read_csv(names_path, sep=","),
-            pd.read_csv(translations_path, sep=","),
+            pd.read_csv(NAMES_PATH, sep=","),
+            pd.read_csv(TRANSLATIONS_PATH, sep=","),
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error loading CSV files: {e}")

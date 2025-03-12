@@ -7,12 +7,11 @@ import os
 from enum import Enum
 import pandas as pd
 from fuzzywuzzy import fuzz
+from constants import NAMES_PATH
+from constants import TRANSLATIONS_PATH
+from constants import IGNORE_PATH
+from constants import INPUT_EUCAST_FOLDER
 
-# Set Paths
-NAMES_PATH = "resources/settings/names.csv"
-IGNORE_PATH = "resources/settings/ignore.csv"
-TRANSLATIONS_PATH = "resources/settings/translations.csv"
-INPUT_EUCAST_FOLDER = "resources/eucast_files/"
 
 # Load
 NAMES_DF = pd.read_csv(NAMES_PATH)
