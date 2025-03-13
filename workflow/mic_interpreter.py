@@ -161,6 +161,7 @@ def interpret_vitek(input_vitek, input_eucast):
 
 
 def interpret_folder(vitek_folder, output_folder_df):
+    output_df_dic = {}
     for vitek_file_name in os.listdir(vitek_folder):
         if vitek_file_name.endswith(".csv"):
             vitek_path = os.path.join(vitek_folder, vitek_file_name)
@@ -183,9 +184,8 @@ def interpret_folder(vitek_folder, output_folder_df):
                 output_df = pd.concat(
                     [output_df, interpreted_df], ignore_index=True
                 ).fillna("NA")
-
-            output_df.to_csv(output_path, index=False)
-            print(f"Interpreted file saved to: {output_path}")
+            output_df_dic[output_path] = output_df
+    return output_df_dic
 
 
 # terminal input
@@ -205,11 +205,15 @@ if __name__ == "__main__":
     output_folder = args.output_folder_path
 
     # create missing output directory
-    os.makedirs(input_folder, exist_ok=True)
+    os.makedirs(output_folder, exist_ok=True)
 
     # Interpret & Save
     print(input_folder)
-    interpret_folder(input_folder, output_folder)
+    outputs = interpret_folder(input_folder, output_folder)
+
+    for path, output in outputs.items():
+        output.to_csv(path, index=False)
+        print(f"Interpreted file saved to: {path}")
 
     IGNORE_DF.to_csv(IGNORE_PATH, index=False)
     TRANSLATION_DF.to_csv(TRANSLATIONS_PATH, index=False)

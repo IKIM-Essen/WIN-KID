@@ -10,7 +10,7 @@ class TestVitekParserUkm(unittest.TestCase):
             "resources/test_data/UKM_VITEK_TestSet.csv", sep="\t", quotechar='"'
         )
         expected = pd.read_csv(
-            "resources/test_output_control/vitek_parser_ukm.csv",
+            "resources/test_output_control/vitek_parser_ukm/vitek_parser_ukm.csv",
             sep=",",
             quotechar='"',
         )

@@ -1,0 +1,11 @@
+Sample_ID_IfH,Organism_Code,Ampicillin,Ceftazidim,Ciprofloxacin,Cefotaxim,Cefuroxim,Ertapenem,Gentamicin,Imipenem,Meropenem,Piperacillin,Ampicillin-Sulbactam,Trimethoprim-Sulfamethoxazol,Tigecycline,Piperacillin-Tazobactam
+1710491631,ECO,R,R,R,R,R,S,S,S,S,R,S,R,S,S
+1710541774,ECO,R,R,R,R,R,S,R,S,S,R,R,R,S,S
+1710543392,ECO,R,R,R,R,R,S,R,S,S,R,R,R,S,S
+1710545611,ECO,R,R,R,R,R,S,R,S,S,R,R,R,S,S
+1710545615,ECO,R,R,R,R,R,S,S,S,S,R,R,R,S,S
+1710545937i2,ECO,R,R,R,R,R,S,R,S,S,R,R,R,S,S
+1710545937i1,ECO,R,R,R,R,R,S,R,S,S,R,R,R,S,S
+1710547088i1,ECO,R,R,R,R,R,S,S,S,S,R,R,R,S,R
+1710547548i1,ECO,R,R,R,R,R,S,R,S,S,R,R,R,S,S
+1710547548i2,ECO,R,R,R,R,R,S,R,S,S,R,R,R,S,S
