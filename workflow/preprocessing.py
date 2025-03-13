@@ -6,19 +6,9 @@ import os
 import re
 from dataclasses import dataclass
 import pandas as pd
+from constants import GFF_COLUMNS
 
 GFF_DIR = "resources/genotype"
-GFF_COLUMNS = [
-    "seqid",
-    "source",
-    "type",
-    "start",
-    "end",
-    "score",
-    "strand",
-    "phase",
-    "attributes",
-]
 ID_COLUMN = "Sample_ID_IfH"
 
 
@@ -171,8 +161,8 @@ class DataLoader:
 
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
-            self.merged_input.columns[2:22], #adjust to current table
-            self.merged_input.columns[22:], #same
+            self.merged_input.columns[2:22],  # adjust to current table
+            self.merged_input.columns[22:],  # same
         )
 
         return preprocessed_data

@@ -190,6 +190,8 @@ def interpret_folder(vitek_folder, output_folder_df):
 
 # terminal input
 if __name__ == "__main__":
+
+    # LOAD
     parser = argparse.ArgumentParser(
         description="Parse Vitek data and categorize bacteria."
     )
@@ -207,10 +209,10 @@ if __name__ == "__main__":
     # create missing output directory
     os.makedirs(output_folder, exist_ok=True)
 
-    # Interpret & Save
-    print(input_folder)
+    # PROCESS
     outputs = interpret_folder(input_folder, output_folder)
 
+    # SAVE
     for path, output in outputs.items():
         output.to_csv(path, index=False)
         print(f"Interpreted file saved to: {path}")
