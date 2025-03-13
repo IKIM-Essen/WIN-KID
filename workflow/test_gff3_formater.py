@@ -5,7 +5,6 @@ from constants import GFF_COLUMNS
 
 
 class TestGffFormatter(unittest.TestCase):
-
     def test_txt_to_gff3(self):
 
         input_df = pd.read_csv(
