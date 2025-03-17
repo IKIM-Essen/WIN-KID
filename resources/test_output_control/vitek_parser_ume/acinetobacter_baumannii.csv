@@ -1,0 +1,13 @@
+Sample_ID_IfH,Organism_Code,Imipenem,Meropenem,Gentamicin,Trimethoprim-Sulfam,Ciprofloxacin,Ampicillin,Cefuroxim,Cefotaxim,Ceftazidime,Tobramycin,Amikacin,Levofloxacin,Fosfomycin,Nitrofurantoin,Colistin,Piperacillin,Piperacillin-Tazobactam,Amoxicillin-Clavulan
+24-64768366,PTX,<=0.5,<=0.25,<=1.0,<=20.0,=0.12,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+24-64762268,PTX,<=0.5,<=0.25,<=1.0,<=20.0,=0.25,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+24-64772528,PTX,<=0.5,<=0.25,<=1.0,<=20.0,=0.12,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+24-64780776,PTX,<=1.0,=1.0,<=2.0,<=0.0526,=0.25,>8.0,>8.0,=8.0,=4.0,<=2.0,<=8.0,<=0.5,>64.0,>64.0,<=2.0,NA,NA,NA
+24-64749990,PTX,<=1.0,=1.0,<=2.0,<=0.0526,=0.25,>8.0,>8.0,=4.0,<=1.0,<=2.0,<=8.0,<=0.5,>64.0,>64.0,<=2.0,NA,NA,NA
+24-64776344,PTX,<=0.5,<=0.25,<=1.0,<=20.0,=0.12,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+24-64762639,PTX,<=0.5,<=0.25,<=1.0,<=20.0,=0.12,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+24-64760931,PTX,<=1.0,=1.0,<=2.0,<=0.0526,=0.25,>8.0,>8.0,=4.0,=2.0,<=2.0,<=8.0,<=0.5,>64.0,>64.0,<=2.0,NA,NA,NA
+24-64799691,PTX,<=1.0,=1.0,<=2.0,<=0.0526,=0.25,>8.0,>8.0,=8.0,=2.0,<=2.0,<=8.0,<=0.5,=64.0,>64.0,<=2.0,NA,NA,NA
+24-64769346,PTX,<=1.0,=1.0,<=2.0,<=0.0526,<=0.06,>8.0,>8.0,=4.0,=2.0,<=2.0,<=8.0,<=0.5,=64.0,>64.0,<=2.0,NA,NA,NA
+24-64773217,PTX,<=1.0,<=0.12,<=2.0,<=0.0526,=0.25,>8.0,>8.0,=2.0,<=1.0,<=2.0,<=8.0,<=0.5,=64.0,>64.0,<=2.0,<=8.0,<=8.0,=16.0
+24-64816144,PTX,<=0.5,=0.5,<=1.0,<=20.0,=0.12,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA

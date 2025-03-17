@@ -8,7 +8,7 @@ import os
 import pandas as pd
 
 
-def clean_dataframe(df):
+def process(df):
     df = df.loc[:, ~df.columns.str.contains("Family|Andere-Instrument", regex=True)]
     df.columns = df.columns.str.strip()
     columns_to_drop = [
@@ -57,6 +57,7 @@ def clean_dataframe(df):
 
 # Execution in terminal
 if __name__ == "__main__":
+    # PROCESS
     parser = argparse.ArgumentParser(
         description="Parse Vitek data and categorize bacteria."
     )
@@ -68,14 +69,6 @@ if __name__ == "__main__":
 
     INPUT_PATH = args.input_file
     OUTPUT_PATH = args.output_file
-
-    # Paths to required files (static)
-    TRANSLATIONS_PATH = "resources/settings/translations.csv"
-
-    # Ensure required files exist
-    if not os.path.exists(TRANSLATIONS_PATH):
-        print(f"Error: 'translations.csv' not found at {TRANSLATIONS_PATH}.")
-        sys.exit(0)
 
     # Ensure OUTPUT_PATH is a valid file path, not a directory
     if os.path.isdir(OUTPUT_PATH):
@@ -90,15 +83,14 @@ if __name__ == "__main__":
     print(f"Loading data from: {INPUT_PATH}")
     try:
         vitek_df = pd.read_csv(INPUT_PATH, sep="\t", quotechar='"')
-        translations_df = pd.read_csv(TRANSLATIONS_PATH, sep=",")
     except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error loading CSV files: {e}")
         sys.exit(0)
 
-    # Clean
-    cleaned_df = clean_dataframe(vitek_df)
+    # PROCESS
+    cleaned_df = process(vitek_df)
     print(cleaned_df.head())  # Show first few rows to check if processing worked
 
-    # Save
+    # SAVE
     cleaned_df.to_csv(OUTPUT_PATH, index=False)
     print(f"Cleaned file saved to: {OUTPUT_PATH}")

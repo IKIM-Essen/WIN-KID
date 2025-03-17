@@ -8,6 +8,8 @@ import sys
 import argparse
 from pprint import pprint
 import pandas as pd
+from constants import NAMES_PATH
+from constants import TRANSLATIONS_PATH
 from fuzzywuzzy import fuzz
 
 
@@ -15,14 +17,6 @@ def clean_text(text):
     if pd.isna(text):
         return ""
     return re.sub(r"[^a-zA-Z\s]", "", text).lower()
-
-
-def confirm(question):
-    while True:
-        answer = input(f"{question} (y/n): ").strip().lower()
-        if answer in ["y", "n"]:
-            return answer == "y"
-        print("Invalid Input")
 
 
 def clean_dataframe(input_df, bacteria, code):
@@ -77,9 +71,8 @@ def assign_unique(df, categories):
         output[categories[highest_index]].append(b)
 
     pprint(output)
-    if confirm("Continue with assignments?"):
-        return output
-    return []
+
+    return output
 
 
 def translate(input_df, translations):
@@ -89,21 +82,23 @@ def translate(input_df, translations):
     return input_df
 
 
-# execution in terminal
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Parse Vitek data and categorize bacteria."
-    )
-    parser.add_argument("input_file", help="Path to input CSV file")
-    parser.add_argument("output_dir", help="Path to output directory")
-    args = parser.parse_args()
+def process(vitek_df, names_df, translations_df):
+    assignments = assign_unique(vitek_df, names_df["Vitek_Name"])
 
-    INPUT_PATH = args.input_file
-    OUTPUT_FOLDER = args.output_dir
+    cleaned_df_dic = {}
+    for process_name in names_df["Vitek_Name"]:
+        cleaned_df = clean_dataframe(
+            vitek_df,
+            assignments[process_name],
+            names_df.loc[names_df["Vitek_Name"] == process_name, "Code"].values[0],
+        )
+        cleaned_df = translate(cleaned_df, translations_df)
+        cleaned_df_dic[process_name] = cleaned_df
 
-    # paths to required files (static)
-    NAMES_PATH = "resources/settings/names.csv"
-    TRANSLATIONS_PATH = "resources/settings/translations.csv"
+    return cleaned_df_dic
+
+
+def load(input_path_load, output_path_load):
 
     # Ensure required files exist
     if not os.path.exists(NAMES_PATH):
@@ -117,33 +112,43 @@ if __name__ == "__main__":
         exit(1)
 
     # Ensure output directory exists
-    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+    os.makedirs(output_path_load, exist_ok=True)
 
     try:
-        vitek_df = pd.read_csv(INPUT_PATH, sep=",")
-        names_df = pd.read_csv(NAMES_PATH, sep=",")
-        translations_df = pd.read_csv(TRANSLATIONS_PATH, sep=",")
+        return (
+            pd.read_csv(input_path_load, sep=","),
+            pd.read_csv(NAMES_PATH, sep=","),
+            pd.read_csv(TRANSLATIONS_PATH, sep=","),
+        )
     except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error loading CSV files: {e}")
         sys.exit(0)
 
-    assignments = assign_unique(vitek_df, names_df["Vitek_Name"])
 
-    if assignments:
-        for name in names_df["Vitek_Name"]:
-            cleaned_df = clean_dataframe(
-                vitek_df,
-                assignments[name],
-                names_df.loc[names_df["Vitek_Name"] == name, "Code"].values[0],
-            )
-            cleaned_df = translate(cleaned_df, translations_df)
-            cleaned_df.to_csv(
-                os.path.join(OUTPUT_FOLDER, f"{name.lower().replace(' ', '_')}.csv"),
-                index=False,
-            )
-            print(
-                f"All {name} saved to {
-                    os.path.join(OUTPUT_FOLDER, name.lower().replace(' ', '_') + '.csv')
-                    }"
-            )
-            
+# execution in terminal
+if __name__ == "__main__":
+
+    # LOAD
+    parser = argparse.ArgumentParser(
+        description="Parse Vitek data and categorize bacteria."
+    )
+    parser.add_argument("input_file", help="Path to input CSV file")
+    parser.add_argument("output_dir", help="Path to output directory")
+    args = parser.parse_args()
+
+    input_path = args.input_file
+    output_path = args.output_dir
+    vitek_input, names_input, translations_input = load(input_path, output_path)
+
+    # PROCESS
+    processed_df = process(vitek_input, names_input, translations_input)
+
+    # SAVE
+    for name in names_input["Vitek_Name"]:
+        processed_df[name].to_csv(
+            os.path.join(output_path, f"{name.lower().replace(' ', '_')}.csv"),
+            index=False,
+        )
+        print(
+            f"All {name} saved to {os.path.join(output_path, name.lower().replace(' ', '_') + '.csv')}"
+        )
