@@ -6,9 +6,10 @@ import argparse
 import sys
 import os
 import pandas as pd
+from constants import TRANSLATIONS_PATH
 
 
-def process(df):
+def process(df, translations_df):
     df = df.loc[:, ~df.columns.str.contains("Family|Andere-Instrument", regex=True)]
     df.columns = df.columns.str.strip()
     columns_to_drop = [
@@ -52,8 +53,15 @@ def process(df):
     # Replace missing values with 'NA'
     df = df.fillna("NA")
 
+    translate(df, translations_df)
+
     return df
 
+def translate(input_df, translations):
+    rename_dict = dict(zip(translations["Old"], translations["New"]))
+    for old, new in rename_dict.items():
+        input_df.columns = input_df.columns.str.replace(old, new, regex=True)
+    return input_df
 
 # Execution in terminal
 if __name__ == "__main__":
@@ -83,12 +91,13 @@ if __name__ == "__main__":
     print(f"Loading data from: {INPUT_PATH}")
     try:
         vitek_df = pd.read_csv(INPUT_PATH, sep="\t", quotechar='"')
+        translations_input = pd.read_csv(TRANSLATIONS_PATH, sep=",")
     except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error loading CSV files: {e}")
         sys.exit(0)
 
     # PROCESS
-    cleaned_df = process(vitek_df)
+    cleaned_df = process(vitek_df, translations_input)
     print(cleaned_df.head())  # Show first few rows to check if processing worked
 
     # SAVE
