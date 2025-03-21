@@ -57,11 +57,13 @@ def process(df, translations_df):
 
     return df
 
+
 def translate(input_df, translations):
     rename_dict = dict(zip(translations["Old"], translations["New"]))
     for old, new in rename_dict.items():
         input_df.columns = input_df.columns.str.replace(old, new, regex=True)
     return input_df
+
 
 # Execution in terminal
 if __name__ == "__main__":
