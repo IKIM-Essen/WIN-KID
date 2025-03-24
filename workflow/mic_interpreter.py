@@ -18,9 +18,6 @@ NAMES_DF = pd.read_csv(NAMES_PATH)
 IGNORE_DF = pd.read_csv(IGNORE_PATH)
 TRANSLATION_DF = pd.read_csv(TRANSLATIONS_PATH)
 
-# Toggle if no eucast matches should be handled
-HANDLE_NO_MATCHES = False
-
 
 class EucastInterpretation(Enum):
     S = 1
@@ -61,28 +58,6 @@ def get_most_similar_name(input_df, target_name, cut_off):
     return best_match
 
 
-def handle_no_match(name, eucast):
-    if name in TRANSLATION_DF["Old"].tolist():
-        print(f"{name} already translated, rerun parser to load")
-        return
-    print(f"Handling no match for {name}...")
-    best_match = get_most_similar_name(eucast, name, 0)
-    print(f"Best match: {best_match['Name'].iloc[0]}")
-    use_match = confirm("Do you want to use it in the future?")
-    if use_match:
-        if not name in TRANSLATION_DF["Old"].tolist():
-            TRANSLATION_DF.loc[len(TRANSLATION_DF)] = [
-                name,
-                best_match["Name"].iloc[0],
-            ]
-        else:
-            print(f"{name} already translated, run the parser again.")
-    else:
-        ignore_check = confirm(f"Do you want to ignore {name}?")
-        if ignore_check:
-            IGNORE_DF.loc[len(IGNORE_DF), "Ignorelist"] = name
-
-
 def get_mic_interpretation(columns_vitek, rows_eucast, antibiotic_name_vitek, df):
     index = 0
     for data in columns_vitek:
@@ -110,6 +85,7 @@ def get_mic_interpretation(columns_vitek, rows_eucast, antibiotic_name_vitek, df
             else:
                 interpretation = EucastInterpretation(2).name
 
+        df = df.reset_index(drop=True)
         df.at[index, antibiotic_name_vitek] = interpretation
         index += 1
     return df
@@ -121,7 +97,6 @@ def interpret_vitek(input_vitek, input_eucast):
     input_vitek = input_vitek.map(lambda x: x.strip() if isinstance(x, str) else x)
 
     for column_vitek in input_vitek.columns[2:]:
-
         matching_rows_eucast = input_eucast.loc[
             input_eucast["Name"].str.contains(column_vitek, case=False, na=False)
         ]
@@ -136,27 +111,14 @@ def interpret_vitek(input_vitek, input_eucast):
             matching_rows_eucast = get_most_similar_name(
                 matching_rows_eucast, column_vitek, 70
             )
-            if (
-                matching_rows_eucast.empty
-                and HANDLE_NO_MATCHES
-                and not column_vitek in IGNORE_DF["Ignorelist"].tolist()
-            ):
-                handle_no_match(column_vitek, input_eucast)
-        elif not removed_match and not column_vitek in IGNORE_DF["Ignorelist"].tolist():
-            print(f"No EUCAST Match: {column_vitek}")
-            if HANDLE_NO_MATCHES:
-                handle_no_match(column_vitek, input_eucast)
         if matching_rows_eucast.empty:
             continue
-
         column_data_vitek = input_vitek[column_vitek]
         df = get_mic_interpretation(
             column_data_vitek, matching_rows_eucast, column_vitek, df
         )
-
     # Convert all data types to object
     df = df.astype("object")
-
     return df
 
 
