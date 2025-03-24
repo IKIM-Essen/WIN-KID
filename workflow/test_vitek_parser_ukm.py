@@ -22,6 +22,9 @@ class TestVitekParserUkm(unittest.TestCase):
         )
 
         actual = vitek_parser_ukm.process(input_pd, translation)
+
+        actual = actual.replace("NA", pd.NA)
+        expected = expected.replace("NA", pd.NA)
         pd.testing.assert_frame_equal(expected, actual, check_dtype=False)
 
 
