@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 import argparse
 import pandas as pd
 from constants import NAMES_PATH
@@ -8,6 +9,8 @@ from fuzzywuzzy import process
 
 
 def process_bvbcr(vitek_df, names_df, translations_df):
+
+    df = pd.DataFrame()
     # Group by genome ID
     for unique_genome_id in vitek_df["Genome ID"].unique():
         unique_genome_id_df = vitek_df[vitek_df["Genome ID"] == unique_genome_id]
@@ -28,11 +31,21 @@ def process_bvbcr(vitek_df, names_df, translations_df):
         genome_transformed_df.at[0, "Organism_Code"] = names_df.iloc[
             best_match_index, 1
         ]
-        print(genome_transformed_df)
 
-    # Bring in right shape
-
-    df = []
+        # Add antibiotics
+        for i, row in unique_genome_id_df.iterrows():
+            if row["Measurement Sign"] != "":
+                measurement = (
+                    row["Measurement"]
+                    .replace("<", "")
+                    .replace(">", "")
+                    .replace("=", "")
+                )
+                measurement = str(row["Measurement Sign"]) + measurement
+            else:
+                measurement = row["Measurement"]
+            genome_transformed_df[row["Antibiotic"]] = measurement
+        df = pd.concat([df, genome_transformed_df], ignore_index=True)
     return df
 
 
@@ -50,7 +63,7 @@ def load(input_path_load, output_path_load):
         exit(1)
 
     # Ensure output directory exists
-    os.makedirs(output_path_load, exist_ok=True)
+    os.makedirs(Path(output_path_load).parent, exist_ok=True)
 
     try:
         return (
@@ -81,3 +94,5 @@ if __name__ == "__main__":
     processed_df = process_bvbcr(vitek_input, names_input, translations_input)
 
     # SAVE
+    processed_df.to_csv(output_path, index=False)
+    print(f"Cleaned bvbcr file saved to: {output_path}")
