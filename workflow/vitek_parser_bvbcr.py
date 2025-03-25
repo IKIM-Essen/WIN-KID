@@ -41,7 +41,9 @@ def process_bvbcr(vitek_df, names_df, translations_df):
                     .replace(">", "")
                     .replace("=", "")
                 )
-                measurement = str(row["Measurement Sign"]) + measurement
+                measurement = (
+                    str(row["Measurement Sign"]).replace("nan", "") + measurement
+                )
             else:
                 measurement = row["Measurement"]
             genome_transformed_df[row["Antibiotic"]] = measurement
