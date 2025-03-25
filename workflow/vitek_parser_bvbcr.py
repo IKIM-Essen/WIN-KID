@@ -33,7 +33,7 @@ def process_bvbcr(vitek_df, names_df, translations_df):
         ]
 
         # Add antibiotics
-        for i, row in unique_genome_id_df.iterrows():
+        for _, row in unique_genome_id_df.iterrows():
             if row["Measurement Sign"] != "":
                 measurement = (
                     row["Measurement"]
