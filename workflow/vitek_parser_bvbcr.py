@@ -11,12 +11,12 @@ from fuzzywuzzy import process
 def process_bvbcr(vitek_df, names_df, translations_df):
 
     df = pd.DataFrame()
-    # Group by genome ID
     for unique_genome_id in vitek_df["Genome ID"].unique():
+        # Group by genome ID
         unique_genome_id_df = vitek_df[vitek_df["Genome ID"] == unique_genome_id]
         genome_transformed_df = pd.DataFrame(columns=["Sample_ID_IfH", "Organism_Code"])
         genome_transformed_df.at[0, "Sample_ID_IfH"] = unique_genome_id
-        # TODO: What happens if multiple entries of the same GenomeID have different Names? Kommt das überhaupt vor?
+
         # Set name code
         name = unique_genome_id_df.iloc[0, 2]
         best_match_tuple = process.extractOne(
@@ -46,7 +46,15 @@ def process_bvbcr(vitek_df, names_df, translations_df):
                 measurement = row["Measurement"]
             genome_transformed_df[row["Antibiotic"]] = measurement
         df = pd.concat([df, genome_transformed_df], ignore_index=True)
+        df = translate(df, translations_df)
     return df
+
+
+def translate(input_df, translations):
+    rename_dict = dict(zip(translations["Old"], translations["New"]))
+    for old, new in rename_dict.items():
+        input_df.columns = input_df.columns.str.replace(old, new, regex=True)
+    return input_df
 
 
 def load(input_path_load, output_path_load):
