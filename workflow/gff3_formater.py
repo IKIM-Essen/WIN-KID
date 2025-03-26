@@ -60,7 +60,7 @@ if __name__ == "__main__":
     # PROCESS
     df_converted = txt_to_gff3(df)
 
-    # SAVE
+    # SAVE check that ending is gff and not gff3
     with open(args.output_file, "w") as f:
         f.write("##gff-version 3\n")
         df_converted.to_csv(f, sep="\t", header=False, index=False)

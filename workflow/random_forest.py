@@ -9,9 +9,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import roc_curve, auc, RocCurveDisplay, accuracy_score
+from sklearn.metrics import roc_curve, auc, RocCurveDisplay, accuracy_score, roc_auc_score
 import preprocessing
-
+from sklearn.preprocessing import LabelEncoder, MultiLabelBinarizer
+from collections import Counter
 
 @dataclass
 class ResultDTO:
@@ -56,15 +57,17 @@ def run_random_forest(phenotype_file_path, genotype_dir_path):
     X = preprocessed_data.merged_input[preprocessed_data.feature_cols]
     y = preprocessed_data.merged_input[preprocessed_data.target_cols]
 
+
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.4, random_state=42
+        X, y, test_size=0.2, random_state=42
     )
 
-    rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+    rf_model = RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42)
     rf_model.fit(X_train, y_train)
 
     y_score = rf_model.predict_proba(X_test)
     y_pred = rf_model.predict(X_test)
+
 
     return generate_results(y_test, y_score, y_pred, preprocessed_data)
 
