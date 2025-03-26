@@ -41,6 +41,11 @@
   - any VITEK value containing ">" will be interpreted as "R"
   - everything else will be interpteted as "S"
 
+## GFF3 formatter
+
+- Run via: `python gff3_formatter.py /path/to/input_folder /path/to/output_folder`
+- Transforms card annotation txt files in gff3 files
+
 ## Settings
 
 - `names.csv` : List for uniform Oganism Name & Code and the Eucast json it should use
