@@ -153,7 +153,7 @@ class DataLoader:
 
             
             input_phenotype = input_phenotype.drop(index=rows_to_remove)
-            #X = X.loc[y.index]  # Ensure X and y stay aligned
+
 
             
         # Drop target columns that have only 1 unique class
@@ -202,7 +202,6 @@ class DataLoader:
             self.merged_input.columns[2:num_phenotype_cols],
             self.merged_input.columns[num_phenotype_cols:],
         )
-        #print(preprocessed_data)
         return preprocessed_data
 
 

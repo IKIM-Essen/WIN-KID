@@ -13,39 +13,41 @@ from sklearn.metrics import roc_curve, auc, RocCurveDisplay, accuracy_score, roc
 import preprocessing
 from sklearn.preprocessing import LabelEncoder, MultiLabelBinarizer
 from collections import Counter
+from sklearn.preprocessing import label_binarize
 
 @dataclass
 class ResultDTO:
-
-    fpr: np.ndarray
-    tpr: np.ndarray
-    roc: np.ndarray
-    roc_auc: float
+    fpr: dict
+    tpr: dict
+    roc_auc: dict
     accuracy: float
     y_pred: np.ndarray
     y_score: np.ndarray
 
-
 def generate_results(y_test, y_score, y_pred, preprocessed_data):
     result_dic = {}
-    col_index = 0
-    for col in y_test.columns:
-        y_score_roc = np.array(y_score[col_index])[:, 0]
-        y_test_roc = np.char.strip(
-            np.array(y_test.iloc[:, col_index].astype(str), dtype=str)
-        )
-        # TODO Calculate for R, I and S?
-        fpr, tpr, thresholds = roc_curve(y_test_roc, y_score_roc, pos_label="R")
-        roc_auc = auc(fpr, tpr)
-
-        y_pred_df = pd.DataFrame(y_pred, columns=preprocessed_data.target_cols)
-        accuracy = accuracy_score(y_test[col], y_pred_df[col])
-        result_dic[col] = ResultDTO(
-            fpr, tpr, thresholds, roc_auc, accuracy, y_pred_df[col], y_score_roc
-        )
-        col_index += 1
+    
+    for col_index, col in enumerate(y_test.columns):
+        y_test_col = y_test[col]
+        y_pred_col = y_pred[:, col_index]
+        y_score_col = y_score[col_index]
+        
+        unique_classes = np.unique(y_test_col)
+        
+        fpr = {}
+        tpr = {}
+        roc_auc = {}
+        
+        for class_label in unique_classes:
+            y_test_binarized = (y_test_col == class_label).astype(int)
+            fpr[class_label], tpr[class_label], _ = roc_curve(y_test_binarized, y_score_col[:, class_label])
+            roc_auc[class_label] = auc(fpr[class_label], tpr[class_label])
+        
+        accuracy = accuracy_score(y_test_col, y_pred_col)
+        
+        result_dic[col] = ResultDTO(fpr, tpr, roc_auc, accuracy, y_pred_col, y_score_col)
+    
     return result_dic
-
 
 def run_random_forest(phenotype_file_path, genotype_dir_path):
     data_loader = preprocessing.DataLoader()
@@ -53,24 +55,29 @@ def run_random_forest(phenotype_file_path, genotype_dir_path):
         phenotype_file_path,
         genotype_dir_path,
     )
-
+    
     X = preprocessed_data.merged_input[preprocessed_data.feature_cols]
     y = preprocessed_data.merged_input[preprocessed_data.target_cols]
-
-
+    
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
-
-    rf_model = RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42)
-    rf_model.fit(X_train, y_train)
-
-    y_score = rf_model.predict_proba(X_test)
-    y_pred = rf_model.predict(X_test)
-
-
-    return generate_results(y_test, y_score, y_pred, preprocessed_data)
-
+    
+    rf_models = {}
+    y_pred_list = []
+    y_score_list = []
+    
+    for col in y_train.columns:
+        model = RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42)
+        model.fit(X_train, y_train[col])
+        
+        y_pred_list.append(model.predict(X_test))
+        y_score_list.append(model.predict_proba(X_test))
+        
+        rf_models[col] = model
+    
+    y_pred = np.array(y_pred_list).T
+    return generate_results(y_test, y_score_list, y_pred, preprocessed_data)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run RF")
@@ -80,15 +87,17 @@ if __name__ == "__main__":
 
     rf_results = run_random_forest(args.phenotype_file_path, args.genotype_dir_path)
 
-    # Display results
     for name in rf_results:
         result = rf_results[name]
-        print(f"{name}    ROC AUC: {result.roc_auc}     Accuracy: {result.accuracy}")
-
-        display = RocCurveDisplay(
-            fpr=result.fpr, tpr=result.tpr, roc_auc=result.roc_auc, estimator_name="RF"
-        )
-        ax = display.plot().ax_
-        ax.set_title(f"ROC - {name}")
-
+        print(f"{name}    Accuracy: {result.accuracy}")
+        
+        for class_label in result.roc_auc:
+            print(f"  Class {class_label} ROC AUC: {result.roc_auc[class_label]}")
+            
+            display = RocCurveDisplay(
+                fpr=result.fpr[class_label], tpr=result.tpr[class_label], roc_auc=result.roc_auc[class_label], estimator_name=f"RF-{class_label}"
+            )
+            ax = display.plot().ax_
+            ax.set_title(f"ROC - {name} (Class {class_label})")
+    
     plt.show()
