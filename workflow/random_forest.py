@@ -9,11 +9,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import roc_curve, auc, RocCurveDisplay, accuracy_score, roc_auc_score
+from sklearn.metrics import (
+    roc_curve,
+    auc,
+    RocCurveDisplay,
+    accuracy_score,
+    roc_auc_score,
+)
 import preprocessing
 from sklearn.preprocessing import LabelEncoder, MultiLabelBinarizer
 from collections import Counter
 from sklearn.preprocessing import label_binarize
+
 
 @dataclass
 class ResultDTO:
@@ -24,30 +31,36 @@ class ResultDTO:
     y_pred: np.ndarray
     y_score: np.ndarray
 
+
 def generate_results(y_test, y_score, y_pred, preprocessed_data):
     result_dic = {}
-    
+
     for col_index, col in enumerate(y_test.columns):
         y_test_col = y_test[col]
         y_pred_col = y_pred[:, col_index]
         y_score_col = y_score[col_index]
-        
+
         unique_classes = np.unique(y_test_col)
-        
+
         fpr = {}
         tpr = {}
         roc_auc = {}
-        
+
         for class_label in unique_classes:
             y_test_binarized = (y_test_col == class_label).astype(int)
-            fpr[class_label], tpr[class_label], _ = roc_curve(y_test_binarized, y_score_col[:, class_label])
+            fpr[class_label], tpr[class_label], _ = roc_curve(
+                y_test_binarized, y_score_col[:, class_label]
+            )
             roc_auc[class_label] = auc(fpr[class_label], tpr[class_label])
-        
+
         accuracy = accuracy_score(y_test_col, y_pred_col)
-        
-        result_dic[col] = ResultDTO(fpr, tpr, roc_auc, accuracy, y_pred_col, y_score_col)
-    
+
+        result_dic[col] = ResultDTO(
+            fpr, tpr, roc_auc, accuracy, y_pred_col, y_score_col
+        )
+
     return result_dic
+
 
 def run_random_forest(phenotype_file_path, genotype_dir_path):
     data_loader = preprocessing.DataLoader()
@@ -55,29 +68,32 @@ def run_random_forest(phenotype_file_path, genotype_dir_path):
         phenotype_file_path,
         genotype_dir_path,
     )
-    
+
     X = preprocessed_data.merged_input[preprocessed_data.feature_cols]
     y = preprocessed_data.merged_input[preprocessed_data.target_cols]
-    
+
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
-    
+
     rf_models = {}
     y_pred_list = []
     y_score_list = []
-    
+
     for col in y_train.columns:
-        model = RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42)
+        model = RandomForestClassifier(
+            n_estimators=100, class_weight="balanced", random_state=42
+        )
         model.fit(X_train, y_train[col])
-        
+
         y_pred_list.append(model.predict(X_test))
         y_score_list.append(model.predict_proba(X_test))
-        
+
         rf_models[col] = model
-    
+
     y_pred = np.array(y_pred_list).T
     return generate_results(y_test, y_score_list, y_pred, preprocessed_data)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run RF")
@@ -90,14 +106,17 @@ if __name__ == "__main__":
     for name in rf_results:
         result = rf_results[name]
         print(f"{name}    Accuracy: {result.accuracy}")
-        
+
         for class_label in result.roc_auc:
             print(f"  Class {class_label} ROC AUC: {result.roc_auc[class_label]}")
-            
+
             display = RocCurveDisplay(
-                fpr=result.fpr[class_label], tpr=result.tpr[class_label], roc_auc=result.roc_auc[class_label], estimator_name=f"RF-{class_label}"
+                fpr=result.fpr[class_label],
+                tpr=result.tpr[class_label],
+                roc_auc=result.roc_auc[class_label],
+                estimator_name=f"RF-{class_label}",
             )
             ax = display.plot().ax_
             ax.set_title(f"ROC - {name} (Class {class_label})")
-    
+
     plt.show()
