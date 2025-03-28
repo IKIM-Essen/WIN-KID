@@ -49,8 +49,8 @@
 ## ToDo
 - Random forest results shall also be calculated I and S. Currently only R is used.
 
-- Add regression test
 - Use different cartridges
 - Use different species
 - Differentiate between oral and non oral?
 - What shall happen with EUCAST values that are doublets (e.g.: due extra information)
+- currently NaN in phenotype data switched to S -> find better solution
