@@ -130,7 +130,7 @@ class DataLoader:
     def __init__(self):
         self.merged_input = None
 
-    def get_preprocessed_data(self, phenotype_file_path, genotype_dir_path):
+    def preprocess_phenotype_data(self, phenotype_file_path):
         input_phenotype = pd.read_csv(phenotype_file_path)
 
         while True:
@@ -153,7 +153,6 @@ class DataLoader:
 
             input_phenotype = input_phenotype.drop(index=rows_to_remove)
 
-        # Drop target columns that have only 1 unique class
         input_phenotype = input_phenotype.loc[
             :,
             ["Sample_ID_IfH", "Organism_Code"]
@@ -162,13 +161,10 @@ class DataLoader:
             ),
         ].reset_index(drop=True)
 
-        num_phenotype_cols = input_phenotype.shape[
-            1
-        ]  # variable for later seperating feature and target columns
+        return input_phenotype
 
+    def preprocess_genotype_data(self, genotype_dir_path):
         raw_gff_df = load_genotypes(genotype_dir_path)
-
-        # Replace all NaN values with "S" early
         raw_gff_df.fillna("S", inplace=True)
 
         attribute_single_features = ["Name", "ResistanceMechanism"]
@@ -188,14 +184,21 @@ class DataLoader:
             how="inner",
         )
 
+        return input_genotype
+
+    def get_preprocessed_data(self, phenotype_file_path, genotype_dir_path):
+        input_phenotype = self.preprocess_phenotype_data(phenotype_file_path)
+        input_genotype = self.preprocess_genotype_data(genotype_dir_path)
+
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].str.strip()
 
-        # Replace any remaining NaNs in the entire dataset
         self.merged_input = pd.merge(
             input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
         ).fillna("S")
-        # Convert target columns (phenotypes) to categorical codes
+
+        num_phenotype_cols = input_phenotype.shape[1]
+
         for col in self.merged_input.columns[2:22]:
             self.merged_input[col] = self.merged_input[col].astype("category").cat.codes
 

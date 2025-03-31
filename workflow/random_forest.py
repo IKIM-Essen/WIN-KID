@@ -32,7 +32,7 @@ class ResultDTO:
     y_score: np.ndarray
 
 
-def generate_results(y_test, y_score, y_pred, preprocessed_data):
+def generate_results(y_test, y_score, y_pred):
     result_dic = {}
 
     for col_index, col in enumerate(y_test.columns):
@@ -46,12 +46,12 @@ def generate_results(y_test, y_score, y_pred, preprocessed_data):
         tpr = {}
         roc_auc = {}
 
-        for class_label in unique_classes:
-            y_test_binarized = (y_test_col == class_label).astype(int)
-            fpr[class_label], tpr[class_label], _ = roc_curve(
-                y_test_binarized, y_score_col[:, class_label]
+        for label_class in unique_classes:
+            y_test_binarized = (y_test_col == label_class).astype(int)
+            fpr[label_class], tpr[label_class], _ = roc_curve(
+                y_test_binarized, y_score_col[:, label_class]
             )
-            roc_auc[class_label] = auc(fpr[class_label], tpr[class_label])
+            roc_auc[label_class] = auc(fpr[label_class], tpr[label_class])
 
         accuracy = accuracy_score(y_test_col, y_pred_col)
 
@@ -92,7 +92,7 @@ def run_random_forest(phenotype_file_path, genotype_dir_path):
         rf_models[col] = model
 
     y_pred = np.array(y_pred_list).T
-    return generate_results(y_test, y_score_list, y_pred, preprocessed_data)
+    return generate_results(y_test, y_score_list, y_pred)
 
 
 if __name__ == "__main__":
