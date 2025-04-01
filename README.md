@@ -54,3 +54,5 @@
 - Use different species
 - Differentiate between oral and non oral?
 - What shall happen with EUCAST values that are doublets (e.g.: due extra information)
+- long term solution for phenotype data NaNs (currently -> S)
+- long term solution for genotype data NaNs (currently -> 0)

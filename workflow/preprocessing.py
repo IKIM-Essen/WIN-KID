@@ -161,11 +161,12 @@ class DataLoader:
             ),
         ].reset_index(drop=True)
 
+        input_phenotype.fillna("S", inplace=True)
         return input_phenotype
 
     def preprocess_genotype_data(self, genotype_dir_path):
         raw_gff_df = load_genotypes(genotype_dir_path)
-        raw_gff_df.fillna("S", inplace=True)
+        raw_gff_df.fillna("0", inplace=True)
 
         attribute_single_features = ["Name", "ResistanceMechanism"]
         extracted_single_pd = extract_single_features(
@@ -195,7 +196,7 @@ class DataLoader:
 
         self.merged_input = pd.merge(
             input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
-        ).fillna("S")
+        )
 
         num_phenotype_cols = input_phenotype.shape[1]
 
