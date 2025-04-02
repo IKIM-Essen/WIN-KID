@@ -48,7 +48,7 @@ def generate_results(y_test, y_score, y_pred):
             if label_class >= y_score_col.shape[1]:  # Safety check
                 print(f"Skipping class {label_class} for {col}, not in predictions")
                 continue
-            
+
             fpr[label_class], tpr[label_class], _ = roc_curve(
                 y_test_binarized, y_score_col[:, label_class]
             )
@@ -88,7 +88,7 @@ def run_random_forest(phenotype_file_path, genotype_dir_path):
         model.fit(X_train, y_train[col])
 
         y_pred_list.append(model.predict(X_test))
-    
+
         # Ensure consistent ordering of probabilities (0=S, 1=I, 2=R)
         unique_classes = model.classes_  # Extract classes learned by RF
         y_proba = model.predict_proba(X_test)

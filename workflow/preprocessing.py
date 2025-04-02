@@ -203,8 +203,9 @@ class DataLoader:
         mapping = {"S": 0, "I": 1, "R": 2}
 
         for col in self.merged_input.columns[2:22]:
-            self.merged_input[col] = self.merged_input[col].map(mapping).fillna(-1).astype(int)
-
+            self.merged_input[col] = (
+                self.merged_input[col].map(mapping).fillna(-1).astype(int)
+            )
 
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
