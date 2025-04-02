@@ -14,12 +14,9 @@ from sklearn.metrics import (
     auc,
     RocCurveDisplay,
     accuracy_score,
-    roc_auc_score,
 )
 import preprocessing
-from sklearn.preprocessing import LabelEncoder, MultiLabelBinarizer
 from collections import Counter
-from sklearn.preprocessing import label_binarize
 
 
 @dataclass
@@ -48,6 +45,10 @@ def generate_results(y_test, y_score, y_pred):
 
         for label_class in unique_classes:
             y_test_binarized = (y_test_col == label_class).astype(int)
+            if label_class >= y_score_col.shape[1]:  # Safety check
+                print(f"Skipping class {label_class} for {col}, not in predictions")
+                continue
+            
             fpr[label_class], tpr[label_class], _ = roc_curve(
                 y_test_binarized, y_score_col[:, label_class]
             )
@@ -87,7 +88,17 @@ def run_random_forest(phenotype_file_path, genotype_dir_path):
         model.fit(X_train, y_train[col])
 
         y_pred_list.append(model.predict(X_test))
-        y_score_list.append(model.predict_proba(X_test))
+    
+        # Ensure consistent ordering of probabilities (0=S, 1=I, 2=R)
+        unique_classes = model.classes_  # Extract classes learned by RF
+        y_proba = model.predict_proba(X_test)
+
+        # Create a full 3-column probability array, filling missing classes with 0
+        proba_full = np.zeros((y_proba.shape[0], 3))  # Shape (samples, 3 classes)
+        for idx, class_label in enumerate(unique_classes):
+            proba_full[:, class_label] = y_proba[:, idx]  # Map existing probabilities
+
+        y_score_list.append(proba_full)  # Store correctly ordered probabilities
 
         rf_models[col] = model
 
