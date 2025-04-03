@@ -96,6 +96,7 @@ def load_genotypes(directory):
 
             data.append(gff_df)
 
+    print("Number of input genotype samples: " + str(len(data)))
     genotype_df = pd.concat(data, ignore_index=True) if data else pd.DataFrame()
 
     return genotype_df
@@ -132,6 +133,7 @@ class DataLoader:
 
     def preprocess_phenotype_data(self, phenotype_file_path):
         input_phenotype = pd.read_csv(phenotype_file_path)
+        print("Number of input phenotype samples: " + str(len(input_phenotype)))
 
         while True:
             rows_to_remove = set()
@@ -168,13 +170,13 @@ class DataLoader:
         raw_gff_df = load_genotypes(genotype_dir_path)
         raw_gff_df.fillna("0", inplace=True)
 
-        attribute_single_features = ["Name", "ResistanceMechanism"]
+        attribute_single_features = ["Name", "ResistanceMechanism", "ORF"]
         extracted_single_pd = extract_single_features(
             raw_gff_df, attribute_single_features
         )
         extracted_single_pd.drop(columns=GFF_COLUMNS, inplace=True)
 
-        attribute_list_features = ["Antibiotic"]
+        attribute_list_features = ["Antibiotic", "DrugClass", "AMRGeneFamily"]
         extracted_list_pd = extract_list_features(raw_gff_df, attribute_list_features)
         extracted_list_pd.drop(columns=GFF_COLUMNS, inplace=True)
 
@@ -194,24 +196,32 @@ class DataLoader:
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].str.strip()
 
+        #TODO: Get Organism_Code from const?
+        # Encode Organism Code as ints
+        input_phenotype["Organism_Code"] = input_phenotype["Organism_Code"].astype("category").cat.codes
+        # Encode target values as specific ints
+        mapping = {"S": 0, "I": 1, "R": 2}
+        for col in input_phenotype.columns[2:]:
+            input_phenotype[col] = (
+                input_phenotype[col].map(mapping).fillna(-1).astype(int)
+            )
+
         self.merged_input = pd.merge(
             input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
         )
 
         num_phenotype_cols = input_phenotype.shape[1]
-
-        mapping = {"S": 0, "I": 1, "R": 2}
-
-        for col in self.merged_input.columns[2:22]:
-            self.merged_input[col] = (
-                self.merged_input[col].map(mapping).fillna(-1).astype(int)
-            )
+        
+        feature_cols_merged = list(self.merged_input.columns[num_phenotype_cols:])
+        feature_cols_merged.append("Organism_Code") 
 
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
             self.merged_input.columns[2:num_phenotype_cols],
-            self.merged_input.columns[num_phenotype_cols:],
+            feature_cols_merged,
         )
+        print("Number of preprocessed merged samples: " + str(len(preprocessed_data.merged_input)))
+
         return preprocessed_data
 
 
