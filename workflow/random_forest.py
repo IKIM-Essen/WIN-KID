@@ -4,6 +4,7 @@
 
 from dataclasses import dataclass
 import argparse
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -63,12 +64,7 @@ def generate_results(y_test, y_score, y_pred):
     return result_dic
 
 
-def run_random_forest(phenotype_file_path, genotype_dir_path):
-    data_loader = preprocessing.DataLoader()
-    preprocessed_data = data_loader.get_preprocessed_data(
-        phenotype_file_path,
-        genotype_dir_path,
-    )
+def run_random_forest(preprocessed_data):
 
     X = preprocessed_data.merged_input[preprocessed_data.feature_cols]
     y = preprocessed_data.merged_input[preprocessed_data.target_cols]
@@ -105,14 +101,30 @@ def run_random_forest(phenotype_file_path, genotype_dir_path):
     y_pred = np.array(y_pred_list).T
     return generate_results(y_test, y_score_list, y_pred)
 
+def load_dataset_paths(path_file):
+    if not os.path.exists(path_file):
+        raise FileNotFoundError(f"Settings file '{path_file}' not found.")
+
+    path_df = pd.read_csv(path_file)
+    
+    if not {"DataSetName", "PathToCsv", "PathToGff"}.issubset(path_df.columns):
+        raise ValueError("Settings file must contain columns: DataSetName, PathToCsv, PathToGff")
+
+    return path_df
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run RF")
-    parser.add_argument("phenotype_file_path", help="Path to phenotype csv file")
-    parser.add_argument("genotype_dir_path", help="Path to genotype folder")
+    parser = argparse.ArgumentParser(description="Run RF on multiple datasets from a settings file")
+    parser.add_argument("path_file", help="Path to the settings CSV file")
     args = parser.parse_args()
 
-    rf_results = run_random_forest(args.phenotype_file_path, args.genotype_dir_path)
+    dataset_list = load_dataset_paths(args.path_file)
+
+    data_loader = preprocessing.DataLoader()
+    preprocessed_data_input = data_loader.get_preprocessed_data(
+        dataset_list
+    )
+
+    rf_results = run_random_forest(preprocessed_data_input)
 
     for name in rf_results:
         result = rf_results[name]

@@ -131,8 +131,25 @@ class DataLoader:
     def __init__(self):
         self.merged_input = None
 
-    def preprocess_phenotype_data(self, phenotype_file_path):
-        input_phenotype = pd.read_csv(phenotype_file_path)
+    def preprocess_phenotype_data(self, phenotype_file_paths):
+        seen_once = set()
+        duplicates = set()
+        input_phenotype_list = []
+        for phenotype_file_path in phenotype_file_paths:
+            input_phenotype_data = pd.read_csv(phenotype_file_path)
+
+            # Check for duplicates across datasets
+            ids_in_current = set(input_phenotype_data[ID_COLUMN])
+            common_ids = ids_in_current & seen_once
+            if common_ids:
+                duplicates.update(common_ids)
+            seen_once.update(ids_in_current)
+
+            input_phenotype_list.append(input_phenotype_data)
+
+        if duplicates:
+            raise ValueError(f"Duplicate IDs found across datasets: {sorted(duplicates)}")
+        input_phenotype = pd.concat(input_phenotype_list, ignore_index=True)
         print("Number of input phenotype samples: " + str(len(input_phenotype)))
 
         while True:
@@ -166,8 +183,12 @@ class DataLoader:
         input_phenotype.fillna("S", inplace=True)
         return input_phenotype
 
-    def preprocess_genotype_data(self, genotype_dir_path):
-        raw_gff_df = load_genotypes(genotype_dir_path)
+    def preprocess_genotype_data(self, genotype_dir_paths):
+        raw_gff_list = []
+        for genotype_dir_path in genotype_dir_paths:
+            raw_gff_data = load_genotypes(genotype_dir_path)
+            raw_gff_list.append(raw_gff_data)
+        raw_gff_df = pd.concat(raw_gff_list, ignore_index=True)
         raw_gff_df.fillna("0", inplace=True)
 
         attribute_single_features = ["Name", "ResistanceMechanism", "ORF"]
@@ -180,18 +201,18 @@ class DataLoader:
         extracted_list_pd = extract_list_features(raw_gff_df, attribute_list_features)
         extracted_list_pd.drop(columns=GFF_COLUMNS, inplace=True)
 
-        input_genotype = pd.merge(
+        input_genotype_combined = pd.merge(
             extracted_single_pd,
             extracted_list_pd,
             on=ID_COLUMN,
             how="inner",
         )
 
-        return input_genotype
+        return input_genotype_combined
 
-    def get_preprocessed_data(self, phenotype_file_path, genotype_dir_path):
-        input_phenotype = self.preprocess_phenotype_data(phenotype_file_path)
-        input_genotype = self.preprocess_genotype_data(genotype_dir_path)
+    def get_preprocessed_data(self, dataset_list):
+        input_phenotype = self.preprocess_phenotype_data(dataset_list["PathToCsv"])
+        input_genotype = self.preprocess_genotype_data(dataset_list["PathToGff"])
 
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].str.strip()

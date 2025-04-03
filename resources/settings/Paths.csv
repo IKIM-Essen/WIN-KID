@@ -1,0 +1,3 @@
+DataSetName,PathToCsv,PathToGff
+Retrospective_Dec22-Jul24_all-species,/groups/ds/Win-KID/UKM_Sciebo/Retrospective_Dec22-Jul24_all-species/retrospective_MHK_interpreted_cleaned_dublicates.csv,/groups/ds/Win-KID/UKM_Sciebo/Retrospective_Dec22-Jul24_all-species/gff_card
+Prospective_Aug24-Dec24,/groups/ds/Win-KID/UKM_Sciebo/Prospective_Aug24-Dec24/MHKs_prospective_Aug24-Dec24_interpreted.csv,/groups/ds/Win-KID/UKM_Sciebo/Prospective_Aug24-Dec24/gff_card
