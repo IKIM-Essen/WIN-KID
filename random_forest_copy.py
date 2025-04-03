@@ -1,0 +1,136 @@
+# Copyright 2025 by Miriam Balzer & Julian Welling, University of Duisburg-Essen
+# Licensed under the MIT License
+# This file may be copied, modified, and distributed under the terms of the MIT License.
+
+from dataclasses import dataclass
+import argparse
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import (
+    roc_curve,
+    auc,
+    RocCurveDisplay,
+    accuracy_score,
+    roc_auc_score,
+)
+import preprocessing
+from sklearn.preprocessing import LabelEncoder, MultiLabelBinarizer
+from collections import Counter
+from sklearn.preprocessing import label_binarize
+
+
+@dataclass
+class ResultDTO:
+    fpr: dict
+    tpr: dict
+    roc_auc: dict
+    accuracy: float
+    y_pred: np.ndarray
+    y_score: np.ndarray
+
+
+def generate_results(y_test, y_score, y_pred):
+    result_dic = {}
+
+    for col_index, col in enumerate(y_test.columns):
+        y_test_col = y_test[col]
+        y_pred_col = y_pred[:, col_index]
+        y_score_col = y_score[col_index]
+
+        unique_classes = np.unique(y_test_col)
+
+        fpr = {}
+        tpr = {}
+        roc_auc = {}
+
+        #TODO: Why I,R,S
+        print(unique_classes)
+        for label_class in unique_classes:
+            y_test_binarized = (y_test_col == label_class).astype(int)
+            fpr[label_class], tpr[label_class], _ = roc_curve(
+                y_test_binarized, y_score_col[:, label_class]
+            )
+            roc_auc[label_class] = auc(fpr[label_class], tpr[label_class])
+
+        # print(len(y_test_col))
+        # print(len(y_pred_col))
+        # print(y_test_col.shape)
+        # print(y_pred_col.shape)
+        # print(y_test_col.dtype)
+        # print(y_pred_col.dtype)
+        # print(np.unique(y_test_col))
+        # print(np.unique(y_pred_col))
+        # print(y_test_col.to_string())
+        # print(y_pred_col)
+        # y_test_col = y_test_col.reset_index(drop=True)
+        y_pred_col = np.array(y_pred_col, dtype=int)
+        accuracy = accuracy_score(y_test_col, y_pred_col)
+
+        result_dic[col] = ResultDTO(
+            fpr, tpr, roc_auc, accuracy, y_pred_col, y_score_col
+        )
+
+    return result_dic
+
+
+def run_random_forest(phenotype_file_path, genotype_dir_path):
+    data_loader = preprocessing.DataLoader()
+    preprocessed_data = data_loader.get_preprocessed_data(
+        phenotype_file_path,
+        genotype_dir_path,
+    )
+
+    X = preprocessed_data.merged_input[preprocessed_data.feature_cols]
+    y = preprocessed_data.merged_input[preprocessed_data.target_cols]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+
+    rf_models = {}
+    y_pred_list = []
+    y_score_list = []
+
+    for col in y_train.columns:
+        model = RandomForestClassifier(
+            n_estimators=100, class_weight="balanced", random_state=42
+        )
+        model.fit(X_train, y_train[col])
+
+        y_pred_list.append(model.predict(X_test))
+        y_score_list.append(model.predict_proba(X_test))
+
+        rf_models[col] = model
+
+    y_pred = np.array(y_pred_list).T
+    return generate_results(y_test, y_score_list, y_pred)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run RF")
+    parser.add_argument("phenotype_file_path", help="Path to phenotype csv file")
+    parser.add_argument("genotype_dir_path", help="Path to genotype folder")
+    args = parser.parse_args()
+
+    rf_results = run_random_forest(args.phenotype_file_path, args.genotype_dir_path)
+
+    for name in rf_results:
+        result = rf_results[name]
+        print(f"{name}    Accuracy: {result.accuracy}")
+
+        for class_label in result.roc_auc:
+            print(f"  Class {class_label} ROC AUC: {result.roc_auc[class_label]}")
+
+            display = RocCurveDisplay(
+                fpr=result.fpr[class_label],
+                tpr=result.tpr[class_label],
+                roc_auc=result.roc_auc[class_label],
+                estimator_name=f"RF-{class_label}",
+            )
+            ax = display.plot().ax_
+            ax.set_title(f"ROC - {name} (Class {class_label})")
+
+    plt.show()
