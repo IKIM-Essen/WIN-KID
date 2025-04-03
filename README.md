@@ -2,15 +2,23 @@
 
 ## Parser UME
 
-- Run via: `python vitek_parser_ume.py directory/vitek.csv directory/output/` with test data at `resources/test_data`
+- Run via: `python workflow/vitek_parser_ume.py directory/vitek.csv directory/output/` with test data at `resources/test_data`
 - works with tab seperated csv files only
 - Removes unnecessary columns
 - specify output FILE for the parsed vitek file
 
 ## Parser UKM
 
-- Run via: `python vitek_parser_ukm.py directory/vitek.csv directory/output/file.csv` with test data at `resources/test_data`
-- Splits the Vitek file by bacteria name
+- Run via: `python workflow/vitek_parser_ukm.py directory/vitek.csv directory/output/file.csv` with test data at `resources/test_data`
+- Splits the Vitek file by bacteria name and replaces them with bactia code (see names.csv)
+- Removes unnecessary data and restructures the file
+- specify output FOLDER for the parsed vitek files
+- works with ";" seperated csv files only
+
+## Parser BVBCR
+
+- Run via: `python workflow/vitek_parser_bvbcr.py directory/vitek.csv directory/output/file.csv` with test data at `resources/test_data`
+- Splits the Vitek file by bacteria name and replaces them with bactia code (see names.csv)
 - Removes unnecessary data and restructures the file
 - specify output FOLDER for the parsed vitek files
 - works with tab seperated csv files only
@@ -18,7 +26,7 @@
 ## Interpreter
 
 - Run mic_interpreter.py to interpret any parsed files:
-  `python mic_interpreter.py directory/input/files directory/output/files/`
+  `python workflow/mic_interpreter.py directory/input/files directory/output/files/`
 - Can handle single and multiple Input files and can handle multiple organisms in one file
 - Antibiotics from a vitek file that can not be matched to an EUCAST antibiotic are skipped and logged via print
 - Antibiotics with missing EUCAST Values (e.g.: '"S <=": "-",') are removed from the interpreted table
@@ -32,6 +40,11 @@
 - If the EUCAST values for "S <=" and "R >" are the same:
   - any VITEK value containing ">" will be interpreted as "R"
   - everything else will be interpteted as "S"
+
+## GFF3 formatter
+
+- Run via: `python gff3_formatter.py /path/to/input_folder /path/to/output_folder`
+- Transforms card annotation txt files in gff3 files
 
 ## Settings
 
@@ -48,7 +61,6 @@
 ## ToDo
 - Random forest results shall also be calculated I and S. Currently only R is used.
 
-- Add regression test
 - Use different cartridges
 - Use different species
 - Differentiate between oral and non oral?

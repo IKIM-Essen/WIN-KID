@@ -4,24 +4,26 @@
 
 import unittest
 import pandas as pd
-import vitek_parser_ukm
+import vitek_parser_bvbcr
+from constants import NAMES_PATH
 from constants import TRANSLATIONS_PATH
 
 
-class TestVitekParserUkm(unittest.TestCase):
+class TestVitekParserBvbcr(unittest.TestCase):
     def test_process(self):
 
         input_pd = pd.read_csv(
-            "resources/test_data/UKM_VITEK_TestSet.csv", sep="\t", quotechar='"'
+            "resources/test_data/BVBCR_VITEK_TestSet.csv", sep=";", quotechar='"'
         )
         translation = pd.read_csv(TRANSLATIONS_PATH, sep=",")
+        names = pd.read_csv(NAMES_PATH, sep=",")
         expected = pd.read_csv(
-            "resources/test_output_control/vitek_parser_ukm/vitek_parser_ukm.csv",
+            "resources/test_output_control/vitek_parser_bvbcr/vitek_parser_bvbcr.csv",
             sep=",",
             quotechar='"',
         )
 
-        actual = vitek_parser_ukm.process(input_pd, translation)
+        actual = vitek_parser_bvbcr.process_bvbcr(input_pd, names, translation)
 
         actual = actual.replace("NA", pd.NA)
         expected = expected.replace("NA", pd.NA)
