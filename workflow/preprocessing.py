@@ -6,7 +6,11 @@ import os
 import re
 from dataclasses import dataclass
 import pandas as pd
+from warnings import simplefilter
+
+simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 from constants import GFF_COLUMNS
+
 
 GFF_DIR = "resources/genotype"
 ID_COLUMN = "Sample_ID_IfH"
@@ -19,10 +23,12 @@ def extract_gene_attribute(attribute_string, key):
 
 
 def extract_single_features(gff_df_input, features):
+    print(gff_df_input.columns)
+
     gff_df = gff_df_input.copy()
     for feature in features:
         gff_df[feature] = (
-            gff_df["attributes"]
+            gff_df["Attributes"]
             .apply(lambda attr, feature=feature: extract_gene_attribute(attr, feature))
             .dropna()
         )
@@ -43,7 +49,7 @@ def extract_single_features(gff_df_input, features):
 def extract_list_features(gff_df_input, features):
     gff_df = gff_df_input.copy()
     for feature in features:
-        gff_df[feature] = gff_df["attributes"].apply(
+        gff_df[feature] = gff_df["Attributes"].apply(
             lambda attr, feature=feature: (
                 extract_gene_attribute(attr, feature) if pd.notna(attr) else None
             )
@@ -90,7 +96,9 @@ def load_genotypes(directory):
 
             data.append(gff_df)
 
-    return pd.concat(data, ignore_index=True) if data else pd.DataFrame()
+    genotype_df = pd.concat(data, ignore_index=True) if data else pd.DataFrame()
+
+    return genotype_df
 
 
 def encode_one_hot(df, features):
@@ -122,13 +130,43 @@ class DataLoader:
     def __init__(self):
         self.merged_input = None
 
-    def get_preprocessed_data(self, phenotype_file_path, genotype_dir_path):
+    def preprocess_phenotype_data(self, phenotype_file_path):
         input_phenotype = pd.read_csv(phenotype_file_path)
 
-        raw_gff_df = load_genotypes(genotype_dir_path)
+        while True:
+            rows_to_remove = set()
+            updated = False
 
-        # Replace all NaN values with "S" early
-        raw_gff_df.fillna("S", inplace=True)
+            for col in input_phenotype.columns[2:]:
+                class_counts = input_phenotype[col].value_counts()
+                rare_classes = class_counts[class_counts == 1].index
+
+                if not rare_classes.empty:
+                    updated = True
+
+                rows_to_remove.update(
+                    input_phenotype[input_phenotype[col].isin(rare_classes)].index
+                )
+
+            if not updated:
+                break
+
+            input_phenotype = input_phenotype.drop(index=rows_to_remove)
+
+        input_phenotype = input_phenotype.loc[
+            :,
+            ["Sample_ID_IfH", "Organism_Code"]
+            + list(
+                input_phenotype.columns[2:][input_phenotype.iloc[:, 2:].nunique() > 1]
+            ),
+        ].reset_index(drop=True)
+
+        input_phenotype.fillna("S", inplace=True)
+        return input_phenotype
+
+    def preprocess_genotype_data(self, genotype_dir_path):
+        raw_gff_df = load_genotypes(genotype_dir_path)
+        raw_gff_df.fillna("0", inplace=True)
 
         attribute_single_features = ["Name", "ResistanceMechanism"]
         extracted_single_pd = extract_single_features(
@@ -147,6 +185,12 @@ class DataLoader:
             how="inner",
         )
 
+        return input_genotype
+
+    def get_preprocessed_data(self, phenotype_file_path, genotype_dir_path):
+        input_phenotype = self.preprocess_phenotype_data(phenotype_file_path)
+        input_genotype = self.preprocess_genotype_data(genotype_dir_path)
+
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].str.strip()
 
@@ -154,17 +198,20 @@ class DataLoader:
             input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
         )
 
-        # Replace any remaining NaNs in the entire dataset
-        self.merged_input = pd.merge(
-            input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
-        ).fillna("S")
+        num_phenotype_cols = input_phenotype.shape[1]
+
+        mapping = {"S": 0, "I": 1, "R": 2}
+
+        for col in self.merged_input.columns[2:22]:
+            self.merged_input[col] = (
+                self.merged_input[col].map(mapping).fillna(-1).astype(int)
+            )
 
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
-            self.merged_input.columns[2:22],  # adjust to current table
-            self.merged_input.columns[22:],  # same
+            self.merged_input.columns[2:num_phenotype_cols],
+            self.merged_input.columns[num_phenotype_cols:],
         )
-
         return preprocessed_data
 
 

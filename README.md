@@ -55,9 +55,8 @@
 ## Preprocessing and random forest
 - Genotypic and phenotypic data are read in directly, preprocessed and fed into an RF model
 - Metrics such as ROC are calculated for the results
-- the size of the current table needs to be adjusted in preprocessing script (number of columns)
 - The starting point is the class `random_forest.py` which is used as follows:
-`/workflow/random_forest.py output/mic_interpretation.csv resources/genotype`
+`path/to/python workflow/random_forest.py /groups/ds/Win-KID/UKM_Subset_300/interpreted_retrospective_MHK_ECO_428_371.csv  /groups/ds/Win-KID/UKM_Subset_300/card_gff3`
 
 ## ToDo
 - Random forest results shall also be calculated I and S. Currently only R is used.
@@ -66,4 +65,5 @@
 - Use different species
 - Differentiate between oral and non oral?
 - What shall happen with EUCAST values that are doublets (e.g.: due extra information)
-- currently NaN in phenotype data switched to S -> find better solution
+- long term solution for phenotype data NaNs (currently -> S)
+- long term solution for genotype data NaNs (currently -> 0)
