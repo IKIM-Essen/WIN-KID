@@ -17,7 +17,6 @@ from sklearn.metrics import (
     accuracy_score,
 )
 import preprocessing
-from collections import Counter
 
 
 @dataclass

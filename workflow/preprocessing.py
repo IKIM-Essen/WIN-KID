@@ -14,6 +14,7 @@ from constants import GFF_COLUMNS
 
 GFF_DIR = "resources/genotype"
 ID_COLUMN = "Sample_ID_IfH"
+ORGANISM_COLUMN = "Organism_Code"
 
 
 def extract_gene_attribute(attribute_string, key):
@@ -174,7 +175,7 @@ class DataLoader:
 
         input_phenotype = input_phenotype.loc[
             :,
-            ["Sample_ID_IfH", "Organism_Code"]
+            [ID_COLUMN, ORGANISM_COLUMN]
             + list(
                 input_phenotype.columns[2:][input_phenotype.iloc[:, 2:].nunique() > 1]
             ),
@@ -214,12 +215,11 @@ class DataLoader:
         input_phenotype = self.preprocess_phenotype_data(dataset_list["PathToCsv"])
         input_genotype = self.preprocess_genotype_data(dataset_list["PathToGff"])
 
-        input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].str.strip()
-        input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].str.strip()
+        input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].astype(str).str.strip()
+        input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].astype(str).str.strip()
 
-        #TODO: Get Organism_Code from const?
         # Encode Organism Code as ints
-        input_phenotype["Organism_Code"] = input_phenotype["Organism_Code"].astype("category").cat.codes
+        input_phenotype[ORGANISM_COLUMN] = input_phenotype[ORGANISM_COLUMN].astype("category").cat.codes
         # Encode target values as specific ints
         mapping = {"S": 0, "I": 1, "R": 2}
         for col in input_phenotype.columns[2:]:
@@ -231,10 +231,14 @@ class DataLoader:
             input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
         )
 
+        # for column in self.merged_input.columns:
+            # print(column)
+
         num_phenotype_cols = input_phenotype.shape[1]
+        print(input_phenotype.columns)
         
         feature_cols_merged = list(self.merged_input.columns[num_phenotype_cols:])
-        feature_cols_merged.append("Organism_Code") 
+        feature_cols_merged.append(ORGANISM_COLUMN) 
 
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
@@ -243,6 +247,8 @@ class DataLoader:
         )
         print("Number of preprocessed merged samples: " + str(len(preprocessed_data.merged_input)))
 
+        #TODO: Fix AB_x -> There seems to be some mix up with the preprocessed_data.target_cols and the feature_cols_merged
+        print(preprocessed_data.target_cols)
         return preprocessed_data
 
 
