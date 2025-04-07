@@ -5,6 +5,7 @@
 
 import argparse
 import pandas as pd
+import os
 from constants import GFF_COLUMNS
 
 
@@ -48,24 +49,44 @@ def txt_to_gff3(df):
 
 
 if __name__ == "__main__":
-
     # LOAD
-    parser = argparse.ArgumentParser(description="Convert a TXT file to GFF3 format.")
-    parser.add_argument("input_file", help="Path to the input TXT file")
-    parser.add_argument("output_file", help="Path to the output GFF3 file")
+    parser = argparse.ArgumentParser(
+        description="Convert all TXT files in a folder to GFF3 format."
+    )
+    parser.add_argument("input_folder", help="Path to the folder containing TXT files")
+    parser.add_argument(
+        "output_folder", help="Path to the folder for GFF3 output files"
+    )
     args = parser.parse_args()
-    # Load the tab-separated TXT file
-    df = pd.read_csv(args.input_file, sep="\t", dtype=str)
 
-    # PROCESS
-    df_converted = txt_to_gff3(df)
+    # Ensure output folder exists
+    os.makedirs(args.output_folder, exist_ok=True)
 
-    # SAVE
-    with open(args.output_file, "w") as f:
-        f.write("##gff-version 3\n")
-        df_converted.to_csv(f, sep="\t", header=False, index=False)
+    # Process all TXT files in the input folder
+    txt_files = [f for f in os.listdir(args.input_folder) if f.endswith(".txt")]
 
-    # Print completion message
+    if not txt_files:
+        print("No TXT files found in the input folder.")
+        exit(1)
+
+    for txt_file in txt_files:
+        input_path = os.path.join(args.input_folder, txt_file)
+        output_file = os.path.splitext(txt_file)[0] + ".gff"
+        output_path = os.path.join(args.output_folder, output_file)
+
+        # Load the TXT file
+        df = pd.read_csv(input_path, sep="\t", dtype=str)
+
+        # Process
+        df_converted = txt_to_gff3(df)
+
+        # Save
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write("##gff-version 3\n")
+            df_converted.to_csv(f, sep="\t", header=False, index=False)
+
+        print(f"Converted: {txt_file} → {output_file}")
+
     print(
-        f"CARD txt to GFF3 conversion completed successfully! Output saved to: {args.output_file}"
+        f"All TXT files in '{args.input_folder}' have been processed and saved to '{args.output_folder}'."
     )
