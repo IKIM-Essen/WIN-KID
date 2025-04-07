@@ -115,25 +115,29 @@ if __name__ == "__main__":
 
     rf_results = run_random_forest(args.phenotype_file_path, args.genotype_dir_path)
 
+    reverse_mapping = {0: "S", 1: "I", 2: "R"}
     with PdfPages("rf_roc_report.pdf") as pdf:
         for name in rf_results:
             result = rf_results[name]
             print(f"{name}    Accuracy: {result.accuracy}")
 
             for class_label in result.roc_auc:
-                print(f"  Class {class_label} ROC AUC: {result.roc_auc[class_label]}")
-
                 if np.isnan(result.roc_auc[class_label]):
                     continue
+
+            
+                class_name = reverse_mapping.get(class_label, str(class_label))
+
+                print(f"  Class {class_name} ROC AUC: {result.roc_auc[class_label]}")
 
                 display = RocCurveDisplay(
                     fpr=result.fpr[class_label],
                     tpr=result.tpr[class_label],
                     roc_auc=result.roc_auc[class_label],
-                    estimator_name=f"RF-{class_label}",
+                    estimator_name=f"RF-{class_name}",
                 )
                 fig = display.plot().figure_
-                fig.suptitle(f"ROC - {name} (Class {class_label})")
+                fig.suptitle(f"ROC - {name} (Class {class_name})")
 
                 pdf.savefig(fig)
                 plt.close(fig)
