@@ -83,8 +83,9 @@ def clean_and_split(value):
     return [v.strip() for v in cleaned_values if v.strip()]
 
 
-def load_genotypes(directory):
+def load_genotypes(directory_row):
     data = []
+    directory = directory_row["PathToGff"]
 
     for gff_file in os.listdir(directory):
         if gff_file.endswith(".gff"):
@@ -97,7 +98,7 @@ def load_genotypes(directory):
 
             data.append(gff_df)
 
-    print("Number of input genotype samples: " + str(len(data)))
+    print(str(len(data)) + " input genotype samples from " + directory_row["DataSetName"])
     genotype_df = pd.concat(data, ignore_index=True) if data else pd.DataFrame()
 
     return genotype_df
@@ -132,12 +133,13 @@ class DataLoader:
     def __init__(self):
         self.merged_input = None
 
-    def preprocess_phenotype_data(self, phenotype_file_paths):
+    def preprocess_phenotype_data(self, dataset_list):
         seen_once = set()
         duplicates = set()
         input_phenotype_list = []
-        for phenotype_file_path in phenotype_file_paths:
-            input_phenotype_data = pd.read_csv(phenotype_file_path)
+        for _, phenotype_file_row in dataset_list.iterrows():
+            input_phenotype_data = pd.read_csv(phenotype_file_row["PathToCsv"])
+            print(str(len(input_phenotype_data)) + " input phenotype samples from " + phenotype_file_row["DataSetName"])
 
             # Check for duplicates across datasets
             ids_in_current = set(input_phenotype_data[ID_COLUMN])
@@ -151,7 +153,7 @@ class DataLoader:
         if duplicates:
             raise ValueError(f"Duplicate IDs found across datasets: {sorted(duplicates)}")
         input_phenotype = pd.concat(input_phenotype_list, ignore_index=True)
-        print("Number of input phenotype samples: " + str(len(input_phenotype)))
+        print(str(len(input_phenotype)) + " input phenotype samples overall")
 
         while True:
             rows_to_remove = set()
@@ -184,10 +186,10 @@ class DataLoader:
         input_phenotype.fillna("S", inplace=True)
         return input_phenotype
 
-    def preprocess_genotype_data(self, genotype_dir_paths):
+    def preprocess_genotype_data(self, dataset_list):
         raw_gff_list = []
-        for genotype_dir_path in genotype_dir_paths:
-            raw_gff_data = load_genotypes(genotype_dir_path)
+        for _, genotype_file_row in dataset_list.iterrows():
+            raw_gff_data = load_genotypes(genotype_file_row)
             raw_gff_list.append(raw_gff_data)
         raw_gff_df = pd.concat(raw_gff_list, ignore_index=True)
         raw_gff_df.fillna("0", inplace=True)
@@ -208,12 +210,13 @@ class DataLoader:
             on=ID_COLUMN,
             how="inner",
         )
+        print(str(len(input_genotype_combined)) + " input genotype samples overall")
 
         return input_genotype_combined
 
     def get_preprocessed_data(self, dataset_list):
-        input_phenotype = self.preprocess_phenotype_data(dataset_list["PathToCsv"])
-        input_genotype = self.preprocess_genotype_data(dataset_list["PathToGff"])
+        input_phenotype = self.preprocess_phenotype_data(dataset_list)
+        input_genotype = self.preprocess_genotype_data(dataset_list)
 
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].astype(str).str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].astype(str).str.strip()
@@ -227,15 +230,12 @@ class DataLoader:
                 input_phenotype[col].map(mapping).fillna(-1).astype(int)
             )
 
+        # Make target columns distinguishable from feature
+        input_phenotype.columns =  list(input_phenotype.columns[:2]) + [f"{col}_AB" for col in input_phenotype.columns[2:]]
         self.merged_input = pd.merge(
             input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
         )
-
-        # for column in self.merged_input.columns:
-            # print(column)
-
         num_phenotype_cols = input_phenotype.shape[1]
-        print(input_phenotype.columns)
         
         feature_cols_merged = list(self.merged_input.columns[num_phenotype_cols:])
         feature_cols_merged.append(ORGANISM_COLUMN) 
@@ -247,8 +247,6 @@ class DataLoader:
         )
         print("Number of preprocessed merged samples: " + str(len(preprocessed_data.merged_input)))
 
-        #TODO: Fix AB_x -> There seems to be some mix up with the preprocessed_data.target_cols and the feature_cols_merged
-        print(preprocessed_data.target_cols)
         return preprocessed_data
 
 
