@@ -141,4 +141,3 @@ if __name__ == "__main__":
 
                 pdf.savefig(fig)
                 plt.close(fig)
-                
