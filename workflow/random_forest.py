@@ -7,6 +7,7 @@ import argparse
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
@@ -114,20 +115,28 @@ if __name__ == "__main__":
 
     rf_results = run_random_forest(args.phenotype_file_path, args.genotype_dir_path)
 
-    for name in rf_results:
-        result = rf_results[name]
-        print(f"{name}    Accuracy: {result.accuracy}")
+    reverse_mapping = {0: "S", 1: "I", 2: "R"}
+    with PdfPages("rf_roc_report.pdf") as pdf:
+        for name in rf_results:
+            result = rf_results[name]
+            print(f"{name}    Accuracy: {result.accuracy}")
 
-        for class_label in result.roc_auc:
-            print(f"  Class {class_label} ROC AUC: {result.roc_auc[class_label]}")
+            for class_label in result.roc_auc:
+                if np.isnan(result.roc_auc[class_label]):
+                    continue
 
-            display = RocCurveDisplay(
-                fpr=result.fpr[class_label],
-                tpr=result.tpr[class_label],
-                roc_auc=result.roc_auc[class_label],
-                estimator_name=f"RF-{class_label}",
-            )
-            ax = display.plot().ax_
-            ax.set_title(f"ROC - {name} (Class {class_label})")
+                class_name = reverse_mapping.get(class_label, str(class_label))
 
-    plt.show()
+                print(f"  Class {class_name} ROC AUC: {result.roc_auc[class_label]}")
+
+                display = RocCurveDisplay(
+                    fpr=result.fpr[class_label],
+                    tpr=result.tpr[class_label],
+                    roc_auc=result.roc_auc[class_label],
+                    estimator_name=f"RF-{class_name}",
+                )
+                fig = display.plot().figure_
+                fig.suptitle(f"ROC - {name} (Class {class_name})")
+
+                pdf.savefig(fig)
+                plt.close(fig)
