@@ -125,7 +125,6 @@ if __name__ == "__main__":
                 if np.isnan(result.roc_auc[class_label]):
                     continue
 
-            
                 class_name = reverse_mapping.get(class_label, str(class_label))
 
                 print(f"  Class {class_name} ROC AUC: {result.roc_auc[class_label]}")
