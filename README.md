@@ -55,8 +55,9 @@
 ## Preprocessing and random forest
 - Genotypic and phenotypic data are read in directly, preprocessed and fed into an RF model
 - Metrics such as ROC are calculated for the results
+- Add the paths to the data records that are processed to the `resources/settings/DataPaths.csv`
 - The starting point is the class `random_forest.py` which is used as follows:
-`path/to/python workflow/random_forest.py /groups/ds/Win-KID/UKM_Subset_300/interpreted_retrospective_MHK_ECO_428_371.csv  /groups/ds/Win-KID/UKM_Subset_300/card_gff3`
+`path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
 
 ## ToDo
 - Random forest results shall also be calculated I and S. Currently only R is used.
