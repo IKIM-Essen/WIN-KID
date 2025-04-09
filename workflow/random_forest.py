@@ -100,28 +100,32 @@ def run_random_forest(preprocessed_data):
     y_pred = np.array(y_pred_list).T
     return generate_results(y_test, y_score_list, y_pred)
 
+
 def load_dataset_paths(path_file):
     if not os.path.exists(path_file):
         raise FileNotFoundError(f"Settings file '{path_file}' not found.")
 
     path_df = pd.read_csv(path_file)
-    
+
     if not {"DataSetName", "PathToCsv", "PathToGff"}.issubset(path_df.columns):
-        raise ValueError("Settings file must contain columns: DataSetName, PathToCsv, PathToGff")
+        raise ValueError(
+            "Settings file must contain columns: DataSetName, PathToCsv, PathToGff"
+        )
 
     return path_df
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run RF on multiple datasets from a settings file")
+    parser = argparse.ArgumentParser(
+        description="Run RF on multiple datasets from a settings file"
+    )
     parser.add_argument("path_file", help="Path to the settings CSV file")
     args = parser.parse_args()
 
     dataset_list = load_dataset_paths(args.path_file)
 
     data_loader = preprocessing.DataLoader()
-    preprocessed_data_input = data_loader.get_preprocessed_data(
-        dataset_list
-    )
+    preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
     rf_results = run_random_forest(preprocessed_data_input)
 

@@ -98,7 +98,9 @@ def load_genotypes(directory_row):
 
             data.append(gff_df)
 
-    print(str(len(data)) + " input genotype samples from " + directory_row["DataSetName"])
+    print(
+        str(len(data)) + " input genotype samples from " + directory_row["DataSetName"]
+    )
     genotype_df = pd.concat(data, ignore_index=True) if data else pd.DataFrame()
 
     return genotype_df
@@ -139,7 +141,11 @@ class DataLoader:
         input_phenotype_list = []
         for _, phenotype_file_row in dataset_list.iterrows():
             input_phenotype_data = pd.read_csv(phenotype_file_row["PathToCsv"])
-            print(str(len(input_phenotype_data)) + " input phenotype samples from " + phenotype_file_row["DataSetName"])
+            print(
+                str(len(input_phenotype_data))
+                + " input phenotype samples from "
+                + phenotype_file_row["DataSetName"]
+            )
 
             # Check for duplicates across datasets
             ids_in_current = set(input_phenotype_data[ID_COLUMN])
@@ -151,7 +157,9 @@ class DataLoader:
             input_phenotype_list.append(input_phenotype_data)
 
         if duplicates:
-            raise ValueError(f"Duplicate IDs found across datasets: {sorted(duplicates)}")
+            raise ValueError(
+                f"Duplicate IDs found across datasets: {sorted(duplicates)}"
+            )
         input_phenotype = pd.concat(input_phenotype_list, ignore_index=True)
         print(str(len(input_phenotype)) + " input phenotype samples overall")
 
@@ -222,7 +230,9 @@ class DataLoader:
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].astype(str).str.strip()
 
         # Encode Organism Code as ints
-        input_phenotype[ORGANISM_COLUMN] = input_phenotype[ORGANISM_COLUMN].astype("category").cat.codes
+        input_phenotype[ORGANISM_COLUMN] = (
+            input_phenotype[ORGANISM_COLUMN].astype("category").cat.codes
+        )
         # Encode target values as specific ints
         mapping = {"S": 0, "I": 1, "R": 2}
         for col in input_phenotype.columns[2:]:
@@ -231,21 +241,26 @@ class DataLoader:
             )
 
         # Make target columns distinguishable from feature
-        input_phenotype.columns =  list(input_phenotype.columns[:2]) + [f"{col}_AB" for col in input_phenotype.columns[2:]]
+        input_phenotype.columns = list(input_phenotype.columns[:2]) + [
+            f"{col}_AB" for col in input_phenotype.columns[2:]
+        ]
         self.merged_input = pd.merge(
             input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
         )
         num_phenotype_cols = input_phenotype.shape[1]
-        
+
         feature_cols_merged = list(self.merged_input.columns[num_phenotype_cols:])
-        feature_cols_merged.append(ORGANISM_COLUMN) 
+        feature_cols_merged.append(ORGANISM_COLUMN)
 
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
             self.merged_input.columns[2:num_phenotype_cols],
             feature_cols_merged,
         )
-        print("Number of preprocessed merged samples: " + str(len(preprocessed_data.merged_input)))
+        print(
+            "Number of preprocessed merged samples: "
+            + str(len(preprocessed_data.merged_input))
+        )
 
         return preprocessed_data
 
