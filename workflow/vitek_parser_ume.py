@@ -85,7 +85,7 @@ def translate(input_df, translations):
 def process(vitek_df, names_df, translations_df):
     assignments = assign_unique(vitek_df, names_df["Vitek_Name"])
 
-    cleaned_df_dic = {}
+    combined_df = []
     for process_name in names_df["Vitek_Name"]:
         cleaned_df = clean_dataframe(
             vitek_df,
@@ -93,12 +93,15 @@ def process(vitek_df, names_df, translations_df):
             names_df.loc[names_df["Vitek_Name"] == process_name, "Code"].values[0],
         )
         cleaned_df = translate(cleaned_df, translations_df)
-        cleaned_df_dic[process_name] = cleaned_df
+        combined_df.append(cleaned_df)
 
-    return cleaned_df_dic
+    # Concatenate all individual DataFrames into one
+    result_df = pd.concat(combined_df, ignore_index=True)
+
+    return result_df
 
 
-def load(input_path_load, output_path_load):
+def load(input_path_load):
 
     # Ensure required files exist
     if not os.path.exists(NAMES_PATH):
@@ -110,9 +113,6 @@ def load(input_path_load, output_path_load):
             f"Error: You need to add a 'translations.csv' file at {TRANSLATIONS_PATH} to continue."
         )
         exit(1)
-
-    # Ensure output directory exists
-    os.makedirs(output_path_load, exist_ok=True)
 
     try:
         return (
@@ -133,22 +133,18 @@ if __name__ == "__main__":
         description="Parse Vitek data and categorize bacteria."
     )
     parser.add_argument("input_file", help="Path to input CSV file")
-    parser.add_argument("output_dir", help="Path to output directory")
+    parser.add_argument("output_file", help="Path to output file")
     args = parser.parse_args()
 
     input_path = args.input_file
-    output_path = args.output_dir
-    vitek_input, names_input, translations_input = load(input_path, output_path)
+    output_path = args.output_file
+    vitek_input, names_input, translations_input = load(input_path)
 
     # PROCESS
     processed_df = process(vitek_input, names_input, translations_input)
 
     # SAVE
-    for name in names_input["Vitek_Name"]:
-        processed_df[name].to_csv(
-            os.path.join(output_path, f"{name.lower().replace(' ', '_')}.csv"),
-            index=False,
-        )
-        print(
-            f"All {name} saved to {os.path.join(output_path, name.lower().replace(' ', '_') + '.csv')}"
-        )
+
+    # Save to single CSV
+    processed_df.to_csv(output_path, index=False)
+    print(f"All samples saved to: {output_path}")

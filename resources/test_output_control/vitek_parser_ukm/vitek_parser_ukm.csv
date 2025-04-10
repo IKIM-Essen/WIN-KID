@@ -1,4 +1,4 @@
-Sample_ID_IfH,Organism_Code,Ampicillin,Amoxicillin-clavulanic acid,Amikacin,Aztreonam,Ceftazidime,Ciprofloxacin,Cefalexin,Cefotaxim,Cefuroxim,Cefuroxim-Axetil,Ertapenem,Cefepim,Fosfomycin,Nitrofurantoin,Gentamicin,Imipenem,Levofloxacin,Mecillinam,Meropenem,Piperacillin,Ampicillin-Sulbactam,Trimethoprim-Sulfamethoxazol,Tigecycline,Tobramycin,Piperacillin-Tazobactam,Cefpodoxim,Trimethoprim
+Sample_ID_IfH,Organism_Code,Ampicillin,Amoxicillin-clavulanic acid,Amikacin,Aztreonam,Ceftazidime,Ciprofloxacin,Cefalexin,Cefotaxime,Cefuroxime,Cefuroxime-Axetil,Ertapenem,Cefepime,Fosfomycin,Nitrofurantoin,Gentamicin,Imipenem,Levofloxacin,Mecillinam,Meropenem,Piperacillin,Ampicillin-Sulbactam,Trimethoprim-Sulfamethoxazol,Tigecycline,Tobramycin,Piperacillin-Tazobactam,Cefpodoxime,Trimethoprim
 1710690825i1,PPA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,16,NA,NA,NA,>=16,NA,NA,NA,NA,NA,NA,NA,NA,64,NA,NA
 1710691704,ECO,>=32,NA,NA,NA,32,>=4,NA,>=64,>=64,>=64,<=0.12,NA,NA,NA,<=1,<=0.25,NA,NA,<=0.25,>=128,>=32,>=320,<=0.5,NA,<=4,NA,NA
 1710692159,ECO,>=32,8,NA,NA,8,1,>=64,>=64,>=64,>=64,<=0.5,16,<=16,<=16,<=1,NA,1,<=1,<=0.25,NA,NA,>=320,NA,NA,<=4,NA,NA

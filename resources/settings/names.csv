@@ -3,4 +3,10 @@ Escherichia Coli,ECO,MIC_Enterobacterales_v15_0.json
 Klebsiella Pneumoniae,EKP,MIC_Enterobacterales_v15_0.json
 Acinetobacter Baumannii,PTX,MIC_Pseudomonas_v15_0.json
 Pseudomonas Aeruginosa,PPA,MIC_Pseudomonas_v15_0.json
+Enterobacter Cloacae Complex,EECG,MIC_Enterobacterales_v15_0.json
 Enterobacter Cloacae,EECG,MIC_Enterobacterales_v15_0.json
+Enterobacter Asburiae,EECG,MIC_Enterobacterales_v15_0.json
+Enterobacter Hormaechei,EECG,MIC_Enterobacterales_v15_0.json
+Enterobacter Kobei,EECG,MIC_Enterobacterales_v15_0.json
+Enterobacter Ludwigii,EECG,MIC_Enterobacterales_v15_0.json
+Enterobacter Nimipressuralis,EECG,MIC_Enterobacterales_v15_0.json
