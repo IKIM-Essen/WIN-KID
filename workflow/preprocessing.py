@@ -7,9 +7,12 @@ import re
 from dataclasses import dataclass
 import pandas as pd
 from warnings import simplefilter
+from fuzzywuzzy import fuzz
+from itertools import combinations
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 from constants import GFF_COLUMNS
+from constants import RESISTANCE_MAPPING
 
 
 GFF_DIR = "resources/genotype"
@@ -131,6 +134,14 @@ def one_hot_encode_list(df, feature):
     return df
 
 
+def find_similar_columns(df, threshold=90):
+    columns = df.columns
+    for col1, col2 in combinations(columns, 2):
+        score = fuzz.ratio(col1, col2)
+        if score >= threshold:
+            print(f"⚠️ Similar columns: '{col1}' ↔ '{col2}' (Score: {score})")
+
+
 class DataLoader:
     def __init__(self):
         self.merged_input = None
@@ -153,7 +164,9 @@ class DataLoader:
             if common_ids:
                 duplicates.update(common_ids)
             seen_once.update(ids_in_current)
-
+            input_phenotype_data.columns = list(input_phenotype_data.columns[:2]) + [
+                col.capitalize() for col in input_phenotype_data.columns[2:]
+            ]
             input_phenotype_list.append(input_phenotype_data)
 
         if duplicates:
@@ -161,6 +174,7 @@ class DataLoader:
                 f"Duplicate IDs found across datasets: {sorted(duplicates)}"
             )
         input_phenotype = pd.concat(input_phenotype_list, ignore_index=True)
+        find_similar_columns(input_phenotype)
         print(str(len(input_phenotype)) + " input phenotype samples overall")
 
         while True:
@@ -234,10 +248,9 @@ class DataLoader:
             input_phenotype[ORGANISM_COLUMN].astype("category").cat.codes
         )
         # Encode target values as specific ints
-        mapping = {"S": 0, "I": 1, "R": 2}
         for col in input_phenotype.columns[2:]:
             input_phenotype[col] = (
-                input_phenotype[col].map(mapping).fillna(-1).astype(int)
+                input_phenotype[col].map(RESISTANCE_MAPPING).fillna(-1).astype(int)
             )
 
         # Make target columns distinguishable from feature

@@ -19,6 +19,8 @@ from sklearn.metrics import (
 )
 import preprocessing
 
+from constants import RESISTANCE_MAPPING
+
 
 @dataclass
 class ResultDTO:
@@ -130,7 +132,7 @@ if __name__ == "__main__":
 
     rf_results = run_random_forest(preprocessed_data_input)
 
-    reverse_mapping = {0: "S", 1: "I", 2: "R"}
+    reverse_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
     with PdfPages("rf_roc_report.pdf") as pdf:
         for name in rf_results:
             result = rf_results[name]

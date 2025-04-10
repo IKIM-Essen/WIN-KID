@@ -18,3 +18,5 @@ GFF_COLUMNS = [
     "Phase",
     "Attributes",
 ]
+
+RESISTANCE_MAPPING = {"S": 0, "I": 1, "R": 2}

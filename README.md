@@ -2,7 +2,7 @@
 
 ## Parser UME
 
-- Run via: `python workflow/vitek_parser_ume.py directory/vitek.csv directory/output/` with test data at `resources/test_data`
+- Run via: `python directory/vitek.csv directory/output/file.csv` with test data at `resources/test_data`
 - works with tab seperated csv files only
 - Removes unnecessary columns
 - specify output FILE for the parsed vitek file
@@ -60,10 +60,6 @@
 `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
 
 ## ToDo
-- Random forest results shall also be calculated I and S. Currently only R is used.
-
-- Use different cartridges
-- Use different species
 - Differentiate between oral and non oral?
 - What shall happen with EUCAST values that are doublets (e.g.: due extra information)
 - long term solution for phenotype data NaNs (currently -> S)
