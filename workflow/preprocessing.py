@@ -5,15 +5,15 @@
 import os
 import re
 from dataclasses import dataclass
-import pandas as pd
 from warnings import simplefilter
-from fuzzywuzzy import fuzz
 from itertools import combinations
-
-simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
+import pandas as pd
+from fuzzywuzzy import fuzz
 from constants import GFF_COLUMNS
 from constants import RESISTANCE_MAPPING
 
+
+simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 GFF_DIR = "resources/genotype"
 ID_COLUMN = "Sample_ID_IfH"

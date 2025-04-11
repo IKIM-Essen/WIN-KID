@@ -118,24 +118,11 @@ def load_dataset_paths(path_file):
     return path_df
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Run RF on multiple datasets from a settings file"
-    )
-    parser.add_argument("path_file", help="Path to the settings CSV file")
-    args = parser.parse_args()
-
-    dataset_list = load_dataset_paths(args.path_file)
-
-    data_loader = preprocessing.DataLoader()
-    preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
-
-    rf_results = run_random_forest(preprocessed_data_input)
-
+def display_results(results_dto):
     reverse_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
     with PdfPages("rf_roc_report.pdf") as pdf:
-        for name in rf_results:
-            result = rf_results[name]
+        for name in results_dto:
+            result = results_dto[name]
             print(f"{name}    Accuracy: {result.accuracy}")
 
             for class_label in result.roc_auc:
@@ -157,3 +144,20 @@ if __name__ == "__main__":
 
                 pdf.savefig(fig)
                 plt.close(fig)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Run RF on multiple datasets from a settings file"
+    )
+    parser.add_argument("path_file", help="Path to the settings CSV file")
+    args = parser.parse_args()
+
+    dataset_list = load_dataset_paths(args.path_file)
+
+    data_loader = preprocessing.DataLoader()
+    preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
+
+    rf_results = run_random_forest(preprocessed_data_input)
+
+    display_results(rf_results)
