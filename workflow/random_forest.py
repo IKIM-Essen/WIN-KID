@@ -30,9 +30,10 @@ class ResultDTO:
     accuracy: float
     y_pred: np.ndarray
     y_score: np.ndarray
+    feature_imporance: dict
 
 
-def generate_results(y_test, y_score, y_pred):
+def generate_results(y_test, y_score, y_pred, feat_import):
     result_dic = {}
 
     for col_index, col in enumerate(y_test.columns):
@@ -60,7 +61,7 @@ def generate_results(y_test, y_score, y_pred):
         accuracy = accuracy_score(y_test_col, y_pred_col)
 
         result_dic[col] = ResultDTO(
-            fpr, tpr, roc_auc, accuracy, y_pred_col, y_score_col
+            fpr, tpr, roc_auc, accuracy, y_pred_col, y_score_col, feat_import[col_index]
         )
 
     return result_dic
@@ -78,6 +79,7 @@ def run_random_forest(preprocessed_data):
     rf_models = {}
     y_pred_list = []
     y_score_list = []
+    feature_importance_list = []
 
     for col in y_train.columns:
         model = RandomForestClassifier(
@@ -100,8 +102,12 @@ def run_random_forest(preprocessed_data):
 
         rf_models[col] = model
 
+        importances = model.feature_importances_
+        forest_importances = pd.Series(importances, index=X_train.columns)
+        feature_importance_list.append(forest_importances.sort_values(ascending=False))
+
     y_pred = np.array(y_pred_list).T
-    return generate_results(y_test, y_score_list, y_pred)
+    return generate_results(y_test, y_score_list, y_pred, feature_importance_list)
 
 
 def load_dataset_paths(path_file):
@@ -118,12 +124,15 @@ def load_dataset_paths(path_file):
     return path_df
 
 
-def display_results(results_dto):
+def display_results(results_dto, print_feat_imp):
     reverse_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
     with PdfPages("rf_roc_report.pdf") as pdf:
         for name in results_dto:
             result = results_dto[name]
             print(f"{name}    Accuracy: {result.accuracy}")
+            if print_feat_imp:
+                print("Ranked Feature Importance:")
+                print(result.feature_imporance)
 
             for class_label in result.roc_auc:
                 if np.isnan(result.roc_auc[class_label]):
@@ -160,4 +169,4 @@ if __name__ == "__main__":
 
     rf_results = run_random_forest(preprocessed_data_input)
 
-    display_results(rf_results)
+    display_results(rf_results, False)
