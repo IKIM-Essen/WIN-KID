@@ -30,7 +30,7 @@ class ResultDTO:
     accuracy: float
     y_pred: np.ndarray
     y_score: np.ndarray
-    feature_imporance: dict
+    feature_importance: dict
 
 
 def generate_results(y_test, y_score, y_pred, feat_import):
@@ -132,7 +132,7 @@ def display_results(results_dto, print_feat_imp):
             print(f"{name}    Accuracy: {result.accuracy}")
             if print_feat_imp:
                 print("Ranked Feature Importance:")
-                print(result.feature_imporance)
+                print(result.feature_importance)
 
             for class_label in result.roc_auc:
                 if np.isnan(result.roc_auc[class_label]):
