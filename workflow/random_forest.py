@@ -5,6 +5,7 @@
 from dataclasses import dataclass
 import argparse
 import os
+import statistics
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -125,15 +126,36 @@ def load_dataset_paths(path_file):
 
 
 def display_results(results_dto, print_feat_imp):
+    evaluation_df = pd.DataFrame(columns=["Accuracy", "ROC_Mean"])
     reverse_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
     with PdfPages("rf_roc_report.pdf") as pdf:
         for name in results_dto:
             result = results_dto[name]
             print(f"{name}    Accuracy: {result.accuracy}")
+
+            # Investigate feature importance
             if print_feat_imp:
                 print("Ranked Feature Importance:")
                 print(result.feature_importance)
+                value_sum = 0.0
+                counter = 0
+                target_value_sum = 0.95  # Max is 1.0
+                for value in result.feature_importance:
+                    value_sum = value_sum + value
+                    counter = counter + 1
+                    if value_sum > target_value_sum:
+                        print(
+                            "Top "
+                            + str(counter)
+                            + " of "
+                            + str(len(result.feature_importance))
+                            + " Features needed for an Impact of "
+                            + str(target_value_sum)
+                        )
+                        break
 
+            roc_auth_mean = np.array(list(result.roc_auc.values())).mean()
+            evaluation_df.loc[name] = [result.accuracy] + [roc_auth_mean]
             for class_label in result.roc_auc:
                 if np.isnan(result.roc_auc[class_label]):
                     continue
@@ -153,6 +175,13 @@ def display_results(results_dto, print_feat_imp):
 
                 pdf.savefig(fig)
                 plt.close(fig)
+        print(statistics.median(evaluation_df["Accuracy"].values))
+        evaluation_df.loc["Median"] = [
+            statistics.median(evaluation_df["Accuracy"].values)
+        ] + [statistics.median(evaluation_df["ROC_Mean"].values)]
+        print(evaluation_df)
+        os.makedirs("Evaluation", exist_ok=True)
+        evaluation_df.to_csv("Evaluation/Evaluation.csv", index=True, header=True)
 
 
 if __name__ == "__main__":
