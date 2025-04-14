@@ -146,7 +146,16 @@ def load_dataset_paths(path_file):
 
 
 def display_results(results_dto, print_feat_imp, y_test_input):
-    evaluation_df = pd.DataFrame(columns=["Accuracy", "ROC_Mean", "PR_Mean"])
+    evaluation_df = pd.DataFrame(
+        columns=[
+            "Accuracy",
+            "ROC_Mean",
+            "PR_Mean",
+            "Test_Count_S",
+            "Test_Count_I",
+            "Test_Count_R",
+        ]
+    )
     reverse_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
     with PdfPages("rf_roc_report.pdf") as pdf:
         for name in results_dto:
@@ -174,11 +183,18 @@ def display_results(results_dto, print_feat_imp, y_test_input):
                         )
                         break
 
-            roc_auth_mean = np.array(list(result.roc_auc.values())).mean()
-            pr_auth_mean = np.array(list(result.pr_auc.values())).mean()
-            evaluation_df.loc[name] = (
-                [result.accuracy] + [roc_auth_mean] + [pr_auth_mean]
-            )
+            label_counts = y_test_input[name].value_counts()
+            count_s = label_counts.get(0, 0)
+            count_i = label_counts.get(1, 0)
+            count_r = label_counts.get(2, 0)
+            evaluation_df.loc[name] = [
+                result.accuracy,
+                np.array(list(result.roc_auc.values())).mean(),
+                np.array(list(result.pr_auc.values())).mean(),
+                count_s,
+                count_i,
+                count_r,
+            ]
             for class_label in result.roc_auc:
                 if np.isnan(result.roc_auc[class_label]):
                     continue
@@ -203,7 +219,13 @@ def display_results(results_dto, print_feat_imp, y_test_input):
             [statistics.median(evaluation_df["Accuracy"].values)]
             + [statistics.median(evaluation_df["ROC_Mean"].values)]
             + [statistics.median(evaluation_df["PR_Mean"].values)]
+            + [pd.NA]
+            + [pd.NA]
+            + [pd.NA]
         )
+        evaluation_df[["Test_Count_S", "Test_Count_I", "Test_Count_R"]] = evaluation_df[
+            ["Test_Count_S", "Test_Count_I", "Test_Count_R"]
+        ].astype("Int64")
         print(evaluation_df)
         os.makedirs("Evaluation", exist_ok=True)
         evaluation_df.to_csv("Evaluation/Evaluation.csv", index=True, header=True)
