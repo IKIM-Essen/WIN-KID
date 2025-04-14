@@ -17,6 +17,7 @@ from sklearn.metrics import (
     auc,
     RocCurveDisplay,
     accuracy_score,
+    average_precision_score,
 )
 import preprocessing
 
@@ -28,6 +29,7 @@ class ResultDTO:
     fpr: dict
     tpr: dict
     roc_auc: dict
+    pr_auc: dict
     accuracy: float
     y_pred: np.ndarray
     y_score: np.ndarray
@@ -47,6 +49,7 @@ def generate_results(y_test, y_score, y_pred, feat_import):
         fpr = {}
         tpr = {}
         roc_auc = {}
+        pr_auc = {}
 
         for label_class in unique_classes:
             y_test_binarized = (y_test_col == label_class).astype(int)
@@ -58,11 +61,21 @@ def generate_results(y_test, y_score, y_pred, feat_import):
                 y_test_binarized, y_score_col[:, label_class]
             )
             roc_auc[label_class] = auc(fpr[label_class], tpr[label_class])
+            pr_auc[label_class] = average_precision_score(
+                y_test_binarized, y_score_col[:, label_class]
+            )
 
         accuracy = accuracy_score(y_test_col, y_pred_col)
 
         result_dic[col] = ResultDTO(
-            fpr, tpr, roc_auc, accuracy, y_pred_col, y_score_col, feat_import[col_index]
+            fpr,
+            tpr,
+            roc_auc,
+            pr_auc,
+            accuracy,
+            y_pred_col,
+            y_score_col,
+            feat_import[col_index],
         )
 
     return result_dic
@@ -74,7 +87,7 @@ def run_random_forest(preprocessed_data):
     y = preprocessed_data.merged_input[preprocessed_data.target_cols]
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+        X, y, test_size=0.5, random_state=42
     )
 
     rf_models = {}
@@ -84,7 +97,7 @@ def run_random_forest(preprocessed_data):
 
     for col in y_train.columns:
         model = RandomForestClassifier(
-            n_estimators=100, class_weight="balanced", random_state=42
+            n_estimators=10, class_weight="balanced", random_state=42
         )
         model.fit(X_train, y_train[col])
 
@@ -107,8 +120,15 @@ def run_random_forest(preprocessed_data):
         forest_importances = pd.Series(importances, index=X_train.columns)
         feature_importance_list.append(forest_importances.sort_values(ascending=False))
 
+    for col in y_test.columns:
+        print(f"Label distribution for {col}:")
+        print(y_test[col].value_counts())
+
     y_pred = np.array(y_pred_list).T
-    return generate_results(y_test, y_score_list, y_pred, feature_importance_list)
+    return (
+        generate_results(y_test, y_score_list, y_pred, feature_importance_list),
+        y_test,
+    )
 
 
 def load_dataset_paths(path_file):
@@ -125,8 +145,8 @@ def load_dataset_paths(path_file):
     return path_df
 
 
-def display_results(results_dto, print_feat_imp):
-    evaluation_df = pd.DataFrame(columns=["Accuracy", "ROC_Mean"])
+def display_results(results_dto, print_feat_imp, y_test_input):
+    evaluation_df = pd.DataFrame(columns=["Accuracy", "ROC_Mean", "PR_Mean"])
     reverse_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
     with PdfPages("rf_roc_report.pdf") as pdf:
         for name in results_dto:
@@ -155,7 +175,10 @@ def display_results(results_dto, print_feat_imp):
                         break
 
             roc_auth_mean = np.array(list(result.roc_auc.values())).mean()
-            evaluation_df.loc[name] = [result.accuracy] + [roc_auth_mean]
+            pr_auth_mean = np.array(list(result.pr_auc.values())).mean()
+            evaluation_df.loc[name] = (
+                [result.accuracy] + [roc_auth_mean] + [pr_auth_mean]
+            )
             for class_label in result.roc_auc:
                 if np.isnan(result.roc_auc[class_label]):
                     continue
@@ -176,9 +199,11 @@ def display_results(results_dto, print_feat_imp):
                 pdf.savefig(fig)
                 plt.close(fig)
         print(statistics.median(evaluation_df["Accuracy"].values))
-        evaluation_df.loc["Median"] = [
-            statistics.median(evaluation_df["Accuracy"].values)
-        ] + [statistics.median(evaluation_df["ROC_Mean"].values)]
+        evaluation_df.loc["Median"] = (
+            [statistics.median(evaluation_df["Accuracy"].values)]
+            + [statistics.median(evaluation_df["ROC_Mean"].values)]
+            + [statistics.median(evaluation_df["PR_Mean"].values)]
+        )
         print(evaluation_df)
         os.makedirs("Evaluation", exist_ok=True)
         evaluation_df.to_csv("Evaluation/Evaluation.csv", index=True, header=True)
@@ -196,6 +221,7 @@ if __name__ == "__main__":
     data_loader = preprocessing.DataLoader()
     preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
-    rf_results = run_random_forest(preprocessed_data_input)
+    rf_results, y_test = run_random_forest(preprocessed_data_input)
 
-    display_results(rf_results, False)
+    # TODO Split display and save?
+    display_results(rf_results, False, y_test)
