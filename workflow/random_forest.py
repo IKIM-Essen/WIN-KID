@@ -36,11 +36,11 @@ class ResultDTO:
     feature_importance: dict
 
 
-def generate_results(y_test, y_score, y_pred, feat_import):
+def generate_results(y_test_results, y_score, y_pred, feat_import):
     result_dic = {}
 
-    for col_index, col in enumerate(y_test.columns):
-        y_test_col = y_test[col]
+    for col_index, col in enumerate(y_test_results.columns):
+        y_test_col = y_test_results[col]
         y_pred_col = y_pred[:, col_index]
         y_score_col = y_score[col_index]
 
@@ -145,17 +145,7 @@ def load_dataset_paths(path_file):
     return path_df
 
 
-def display_results(results_dto, print_feat_imp, y_test_input):
-    evaluation_df = pd.DataFrame(
-        columns=[
-            "Accuracy",
-            "ROC_Mean",
-            "PR_Mean",
-            "Test_Count_S",
-            "Test_Count_I",
-            "Test_Count_R",
-        ]
-    )
+def display_results(results_dto, print_feat_imp):
     reverse_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
     with PdfPages("rf_roc_report.pdf") as pdf:
         for name in results_dto:
@@ -182,19 +172,6 @@ def display_results(results_dto, print_feat_imp, y_test_input):
                             + str(target_value_sum)
                         )
                         break
-
-            label_counts = y_test_input[name].value_counts()
-            count_s = label_counts.get(0, 0)
-            count_i = label_counts.get(1, 0)
-            count_r = label_counts.get(2, 0)
-            evaluation_df.loc[name] = [
-                result.accuracy,
-                np.array(list(result.roc_auc.values())).mean(),
-                np.array(list(result.pr_auc.values())).mean(),
-                count_s,
-                count_i,
-                count_r,
-            ]
             for class_label in result.roc_auc:
                 if np.isnan(result.roc_auc[class_label]):
                     continue
@@ -214,21 +191,47 @@ def display_results(results_dto, print_feat_imp, y_test_input):
 
                 pdf.savefig(fig)
                 plt.close(fig)
-        print(statistics.median(evaluation_df["Accuracy"].values))
-        evaluation_df.loc["Median"] = (
-            [statistics.median(evaluation_df["Accuracy"].values)]
-            + [statistics.median(evaluation_df["ROC_Mean"].values)]
-            + [statistics.median(evaluation_df["PR_Mean"].values)]
-            + [pd.NA]
-            + [pd.NA]
-            + [pd.NA]
-        )
-        evaluation_df[["Test_Count_S", "Test_Count_I", "Test_Count_R"]] = evaluation_df[
-            ["Test_Count_S", "Test_Count_I", "Test_Count_R"]
-        ].astype("Int64")
-        print(evaluation_df)
-        os.makedirs("Evaluation", exist_ok=True)
-        evaluation_df.to_csv("Evaluation/Evaluation.csv", index=True, header=True)
+
+
+def evaluation_to_csv(results_dto, y_test_input):
+    evaluation_df = pd.DataFrame(
+        columns=[
+            "Accuracy",
+            "ROC_Mean",
+            "PR_Mean",
+            "Test_Count_S",
+            "Test_Count_I",
+            "Test_Count_R",
+        ]
+    )
+    for name in results_dto:
+        result = results_dto[name]
+        label_counts = y_test_input[name].value_counts()
+        count_s = label_counts.get(0, 0)
+        count_i = label_counts.get(1, 0)
+        count_r = label_counts.get(2, 0)
+        evaluation_df.loc[name] = [
+            result.accuracy,
+            np.array(list(result.roc_auc.values())).mean(),
+            np.array(list(result.pr_auc.values())).mean(),
+            count_s,
+            count_i,
+            count_r,
+        ]
+    evaluation_df.loc["Median"] = (
+        [statistics.median(evaluation_df["Accuracy"].values)]
+        + [statistics.median(evaluation_df["ROC_Mean"].values)]
+        + [statistics.median(evaluation_df["PR_Mean"].values)]
+        + [pd.NA]
+        + [pd.NA]
+        + [pd.NA]
+    )
+    print(evaluation_df)
+    evaluation_df[["Test_Count_S", "Test_Count_I", "Test_Count_R"]] = evaluation_df[
+        ["Test_Count_S", "Test_Count_I", "Test_Count_R"]
+    ].astype("Int64")
+    os.makedirs("Evaluation", exist_ok=True)
+    evaluation_df.to_csv("Evaluation/Evaluation.csv", index=True, header=True)
 
 
 if __name__ == "__main__":
@@ -243,7 +246,7 @@ if __name__ == "__main__":
     data_loader = preprocessing.DataLoader()
     preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
-    rf_results, y_test = run_random_forest(preprocessed_data_input)
+    rf_results, y_test_output = run_random_forest(preprocessed_data_input)
 
-    # TODO Split display and save?
-    display_results(rf_results, False, y_test)
+    display_results(rf_results, True)
+    evaluation_to_csv(rf_results, y_test_output)
