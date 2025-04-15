@@ -36,12 +36,15 @@ class ResultDTO:
     feature_importance: dict
 
 
-def generate_results(y_test_results, y_score, y_pred, feat_import):
+def generate_results(target_cols, y_test_results, y_score, y_pred_list, feat_import):
     result_dic = {}
-
-    for col_index, col in enumerate(y_test_results.columns):
-        y_test_col = y_test_results[col]
-        y_pred_col = y_pred[:, col_index]
+    # TODO: fix:
+    # /projects/envs/conda/jzander/envs/WIN-KID_env/lib/python3.13/site-packages/sklearn/metrics/_ranking.py:1188: UndefinedMetricWarning: No positive samples in y_true, true positive value should be meaningless
+    # warnings.warn(
+    # /projects/envs/conda/jzander/envs/WIN-KID_env/lib/python3.13/site-packages/sklearn/metrics/_ranking.py:1033: UserWarning: No positive class found in y_true, recall is set to one for all thresholds.
+    for col_index, col in enumerate(target_cols):
+        y_test_col = y_test_results[col_index]
+        y_pred_col = y_pred_list[col_index]
         y_score_col = y_score[col_index]
 
         unique_classes = np.unique(y_test_col)
@@ -51,12 +54,13 @@ def generate_results(y_test_results, y_score, y_pred, feat_import):
         roc_auc = {}
         pr_auc = {}
 
+        unique_classes = [1, 2, 3]
         for label_class in unique_classes:
             y_test_binarized = (y_test_col == label_class).astype(int)
             if label_class >= y_score_col.shape[1]:  # Safety check
                 print(f"Skipping class {label_class} for {col}, not in predictions")
                 continue
-
+            y_score_col = np.array(y_score_col)
             fpr[label_class], tpr[label_class], _ = roc_curve(
                 y_test_binarized, y_score_col[:, label_class]
             )
@@ -83,23 +87,29 @@ def generate_results(y_test_results, y_score, y_pred, feat_import):
 
 def run_random_forest(preprocessed_data):
 
-    X = preprocessed_data.merged_input[preprocessed_data.feature_cols]
-    y = preprocessed_data.merged_input[preprocessed_data.target_cols]
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.5, random_state=42
-    )
-
     rf_models = {}
     y_pred_list = []
     y_score_list = []
     feature_importance_list = []
+    y_test_list = []
+    target_cols = preprocessed_data.target_cols
+    for col in preprocessed_data.target_cols:
+        # TODO: Exclude classes with low count (Often I)
+        merged_filtered_input = preprocessed_data.merged_input
+        merged_filtered_input = merged_filtered_input[merged_filtered_input[col] != 0]
+        X = merged_filtered_input[preprocessed_data.feature_cols]
+        y = merged_filtered_input[col]
 
-    for col in y_train.columns:
+        # TODO Cluster train/test Data
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.5, random_state=42
+        )
+        y_test_list.append(y_test)
+
         model = RandomForestClassifier(
             n_estimators=10, class_weight="balanced", random_state=42
         )
-        model.fit(X_train, y_train[col])
+        model.fit(X_train, y_train)
 
         y_pred_list.append(model.predict(X_test))
 
@@ -107,8 +117,8 @@ def run_random_forest(preprocessed_data):
         unique_classes = model.classes_  # Extract classes learned by RF
         y_proba = model.predict_proba(X_test)
 
-        # Create a full 3-column probability array, filling missing classes with 0
-        proba_full = np.zeros((y_proba.shape[0], 3))  # Shape (samples, 3 classes)
+        # Create a full 4-column probability array, filling missing classes with 0
+        proba_full = np.zeros((y_proba.shape[0], 4))  # Shape (samples, 3 classes)
         for idx, class_label in enumerate(unique_classes):
             proba_full[:, class_label] = y_proba[:, idx]  # Map existing probabilities
 
@@ -120,14 +130,14 @@ def run_random_forest(preprocessed_data):
         forest_importances = pd.Series(importances, index=X_train.columns)
         feature_importance_list.append(forest_importances.sort_values(ascending=False))
 
-    for col in y_test.columns:
         print(f"Label distribution for {col}:")
-        print(y_test[col].value_counts())
+        print(y_test.value_counts())
 
-    y_pred = np.array(y_pred_list).T
     return (
-        generate_results(y_test, y_score_list, y_pred, feature_importance_list),
-        y_test,
+        generate_results(
+            target_cols, y_test_list, y_score_list, y_pred_list, feature_importance_list
+        ),
+        y_test_list,
     )
 
 
@@ -204,20 +214,22 @@ def evaluation_to_csv(results_dto, y_test_input):
             "Test_Count_R",
         ]
     )
+    counter = 0
     for name in results_dto:
         result = results_dto[name]
-        label_counts = y_test_input[name].value_counts()
-        count_s = label_counts.get(0, 0)
-        count_i = label_counts.get(1, 0)
-        count_r = label_counts.get(2, 0)
+        label_counts = y_test_input[counter].value_counts()
+        count_s = label_counts.get(1, 0)
+        count_i = label_counts.get(2, 0)
+        count_r = label_counts.get(3, 0)
         evaluation_df.loc[name] = [
             result.accuracy,
-            np.array(list(result.roc_auc.values())).mean(),
-            np.array(list(result.pr_auc.values())).mean(),
+            np.nanmean(list(result.roc_auc.values())),
+            np.nanmean(list(result.pr_auc.values())),
             count_s,
             count_i,
             count_r,
         ]
+        counter = counter + 1
     evaluation_df.loc["Median"] = (
         [statistics.median(evaluation_df["Accuracy"].values)]
         + [statistics.median(evaluation_df["ROC_Mean"].values)]
@@ -248,5 +260,5 @@ if __name__ == "__main__":
 
     rf_results, y_test_output = run_random_forest(preprocessed_data_input)
 
-    display_results(rf_results, True)
+    display_results(rf_results, False)
     evaluation_to_csv(rf_results, y_test_output)
