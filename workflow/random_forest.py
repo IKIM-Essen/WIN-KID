@@ -18,6 +18,9 @@ from sklearn.metrics import (
     RocCurveDisplay,
     accuracy_score,
     average_precision_score,
+    precision_score,
+    recall_score,
+    f1_score,
 )
 from sklearn.cluster import KMeans
 import preprocessing
@@ -32,6 +35,9 @@ class ResultDTO:
     roc_auc: dict
     pr_auc: dict
     accuracy: float
+    precision: dict
+    recall: dict
+    f1: dict
     y_pred: np.ndarray
     y_score: np.ndarray
     feature_importance: dict
@@ -39,6 +45,7 @@ class ResultDTO:
 
 def generate_results(target_cols, y_test_results, y_score, y_pred_list, feat_import):
     result_dic = {}
+
     for col_index, col in enumerate(target_cols):
         y_test_col = y_test_results[col_index]
         y_pred_col = y_pred_list[col_index]
@@ -50,32 +57,50 @@ def generate_results(target_cols, y_test_results, y_score, y_pred_list, feat_imp
         tpr = {}
         roc_auc = {}
         pr_auc = {}
+        precision = {}
+        recall = {}
+        f1 = {}
 
         for label_class in unique_classes:
             y_test_binarized = (y_test_col == label_class).astype(int)
-            if label_class >= y_score_col.shape[1]:  # Safety check
+            y_pred_binarized = (y_pred_col == label_class).astype(int)
+
+            if label_class >= y_score_col.shape[1]:
                 print(f"Skipping class {label_class} for {col}, not in predictions")
                 continue
-            y_score_col = np.array(y_score_col)
+
             fpr[label_class], tpr[label_class], _ = roc_curve(
                 y_test_binarized, y_score_col[:, label_class]
             )
             roc_auc[label_class] = auc(fpr[label_class], tpr[label_class])
-            pr_auc[label_class] = average_precision_score(  # Precision Recall
+            pr_auc[label_class] = average_precision_score(
                 y_test_binarized, y_score_col[:, label_class]
+            )
+
+            precision[label_class] = precision_score(
+                y_test_binarized, y_pred_binarized, zero_division=0
+            )
+            recall[label_class] = recall_score(
+                y_test_binarized, y_pred_binarized, zero_division=0
+            )
+            f1[label_class] = f1_score(
+                y_test_binarized, y_pred_binarized, zero_division=0
             )
 
         accuracy = accuracy_score(y_test_col, y_pred_col)
 
         result_dic[col] = ResultDTO(
-            fpr,
-            tpr,
-            roc_auc,
-            pr_auc,
-            accuracy,
-            y_pred_col,
-            y_score_col,
-            feat_import[col_index],
+            fpr=fpr,
+            tpr=tpr,
+            roc_auc=roc_auc,
+            pr_auc=pr_auc,
+            accuracy=accuracy,
+            precision=precision,
+            recall=recall,
+            f1=f1,
+            y_pred=y_pred_col,
+            y_score=y_score_col,
+            feature_importance=feat_import[col_index],
         )
 
     return result_dic
@@ -223,45 +248,56 @@ def display_results(results_dto, print_feat_imp):
 
 
 def evaluation_to_csv(results_dto, y_test_input):
-    # TODO: Add Precission, Recall, F1 and Accuracy
     evaluation_df = pd.DataFrame(
         columns=[
             "Accuracy",
             "ROC_Mean",
             "PR_Mean",
+            "Precision_Mean",
+            "Recall_Mean",
+            "F1_Mean",
             "Test_Count_S",
             "Test_Count_I",
             "Test_Count_R",
         ]
     )
-    counter = 0
-    for name in results_dto:
+    for counter, name in enumerate(results_dto):
         result = results_dto[name]
         label_counts = y_test_input[counter].value_counts()
         count_s = label_counts.get(1, 0)
         count_i = label_counts.get(2, 0)
         count_r = label_counts.get(3, 0)
+
         evaluation_df.loc[name] = [
             result.accuracy,
             np.nanmean(list(result.roc_auc.values())),
             np.nanmean(list(result.pr_auc.values())),
+            np.nanmean(list(result.precision.values())),
+            np.nanmean(list(result.recall.values())),
+            np.nanmean(list(result.f1.values())),
             count_s,
             count_i,
             count_r,
         ]
-        counter = counter + 1
-    evaluation_df.loc["Median"] = (
-        [statistics.median(evaluation_df["Accuracy"].values)]
-        + [statistics.median(evaluation_df["ROC_Mean"].values)]
-        + [statistics.median(evaluation_df["PR_Mean"].values)]
-        + [pd.NA]
-        + [pd.NA]
-        + [pd.NA]
-    )
+
+    evaluation_df.loc["Median"] = [
+        statistics.median(evaluation_df["Accuracy"].dropna()),
+        statistics.median(evaluation_df["ROC_Mean"].dropna()),
+        statistics.median(evaluation_df["PR_Mean"].dropna()),
+        statistics.median(evaluation_df["Precision_Mean"].dropna()),
+        statistics.median(evaluation_df["Recall_Mean"].dropna()),
+        statistics.median(evaluation_df["F1_Mean"].dropna()),
+        pd.NA,
+        pd.NA,
+        pd.NA,
+    ]
+
     print(evaluation_df)
+
     evaluation_df[["Test_Count_S", "Test_Count_I", "Test_Count_R"]] = evaluation_df[
         ["Test_Count_S", "Test_Count_I", "Test_Count_R"]
     ].astype("Int64")
+
     os.makedirs("Evaluation", exist_ok=True)
     evaluation_df.to_csv("Evaluation/Evaluation.csv", index=True, header=True)
 
