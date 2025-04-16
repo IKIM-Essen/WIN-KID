@@ -113,6 +113,7 @@ def run_random_forest(preprocessed_data):
     y_score_list = []
     feature_importance_list = []
     y_test_list = []
+    y_train_list = []
     target_cols = preprocessed_data.target_cols
     for col in preprocessed_data.target_cols:
         merged_filtered_input = preprocessed_data.merged_input
@@ -149,9 +150,11 @@ def run_random_forest(preprocessed_data):
         #     test_size=0.5,  # Not splitting further, just rebalancing
         #     stratify=X["Organism_Code"],
         # )
+
         # TODO: Check that Organism classes are distributed evenly
         # TODO: Check that target class ratios are the same in train / test
         y_test_list.append(y_test)
+        y_train_list.append(y_train)
 
         model = RandomForestClassifier(
             n_estimators=10, class_weight="balanced", random_state=42
@@ -182,6 +185,7 @@ def run_random_forest(preprocessed_data):
             target_cols, y_test_list, y_score_list, y_pred_list, feature_importance_list
         ),
         y_test_list,
+        y_train_list,
     )
 
 
@@ -247,7 +251,7 @@ def display_results(results_dto, print_feat_imp):
                 plt.close(fig)
 
 
-def evaluation_to_csv(results_dto, y_test_input):
+def evaluation_to_csv(results_dto, y_test_input, y_train_input):
     evaluation_df = pd.DataFrame(
         columns=[
             "Accuracy",
@@ -259,14 +263,15 @@ def evaluation_to_csv(results_dto, y_test_input):
             "Test_Count_S",
             "Test_Count_I",
             "Test_Count_R",
+            "Train_Count_S",
+            "Train_Count_I",
+            "Train_Count_R",
         ]
     )
     for counter, name in enumerate(results_dto):
         result = results_dto[name]
-        label_counts = y_test_input[counter].value_counts()
-        count_s = label_counts.get(1, 0)
-        count_i = label_counts.get(2, 0)
-        count_r = label_counts.get(3, 0)
+        test_label_counts = y_test_input[counter].value_counts()
+        train_label_counts = y_train_input[counter].value_counts()
 
         evaluation_df.loc[name] = [
             result.accuracy,
@@ -275,9 +280,12 @@ def evaluation_to_csv(results_dto, y_test_input):
             np.nanmean(list(result.precision.values())),
             np.nanmean(list(result.recall.values())),
             np.nanmean(list(result.f1.values())),
-            count_s,
-            count_i,
-            count_r,
+            test_label_counts.get(1, 0),
+            test_label_counts.get(2, 0),
+            test_label_counts.get(3, 0),
+            train_label_counts.get(1, 0),
+            train_label_counts.get(2, 0),
+            train_label_counts.get(3, 0),
         ]
 
     evaluation_df.loc["Median"] = [
@@ -287,6 +295,9 @@ def evaluation_to_csv(results_dto, y_test_input):
         statistics.median(evaluation_df["Precision_Mean"].dropna()),
         statistics.median(evaluation_df["Recall_Mean"].dropna()),
         statistics.median(evaluation_df["F1_Mean"].dropna()),
+        pd.NA,
+        pd.NA,
+        pd.NA,
         pd.NA,
         pd.NA,
         pd.NA,
@@ -314,7 +325,10 @@ if __name__ == "__main__":
     data_loader = preprocessing.DataLoader()
     preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
-    rf_results, y_test_output = run_random_forest(preprocessed_data_input)
+    rf_results, y_test_output, y_train_output = run_random_forest(
+        preprocessed_data_input
+    )
 
+    # TODO: Split display to different class
     display_results(rf_results, False)
-    evaluation_to_csv(rf_results, y_test_output)
+    evaluation_to_csv(rf_results, y_test_output, y_train_output)
