@@ -19,6 +19,7 @@ from sklearn.metrics import (
     accuracy_score,
     average_precision_score,
 )
+from sklearn.cluster import KMeans
 import preprocessing
 
 from constants import RESISTANCE_MAPPING
@@ -94,10 +95,37 @@ def run_random_forest(preprocessed_data):
         X = merged_filtered_input[preprocessed_data.feature_cols]
         y = merged_filtered_input[col]
 
-        # TODO Cluster train/test Data
+        # Clusterd split
+        # cluster_labels = KMeans(
+        #     n_clusters=int((len(merged_filtered_input) / 10)), random_state=42
+        # ).fit_predict(X)
+        # unique_clusters = np.unique(cluster_labels)
+        # train_clusters, test_clusters = train_test_split(
+        #     unique_clusters, test_size=0.5, random_state=42
+        # )
+
+        # train_idx = np.isin(cluster_labels, train_clusters)
+        # test_idx = ~train_idx
+
+        # X_train = X[train_idx]
+        # X_test = X[test_idx]
+        # y_train = y[train_idx]
+        # y_test = y[test_idx]
+
+        # Random split
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.5, random_state=42
         )
+
+        # TODO: Fix stratisfied split
+        # X_train, X_test, y_train, y_test = train_test_split(
+        #     X,
+        #     y,
+        #     test_size=0.5,  # Not splitting further, just rebalancing
+        #     stratify=X["Organism_Code"],
+        # )
+        # TODO: Check that Organism classes are distributed evenly
+        # TODO: Check that target class ratios are the same in train / test
         y_test_list.append(y_test)
 
         model = RandomForestClassifier(
@@ -195,6 +223,7 @@ def display_results(results_dto, print_feat_imp):
 
 
 def evaluation_to_csv(results_dto, y_test_input):
+    # TODO: Add Precission, Recall, F1 and Accuracy
     evaluation_df = pd.DataFrame(
         columns=[
             "Accuracy",
