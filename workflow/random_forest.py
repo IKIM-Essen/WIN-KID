@@ -38,10 +38,6 @@ class ResultDTO:
 
 def generate_results(target_cols, y_test_results, y_score, y_pred_list, feat_import):
     result_dic = {}
-    # TODO: fix:
-    # /projects/envs/conda/jzander/envs/WIN-KID_env/lib/python3.13/site-packages/sklearn/metrics/_ranking.py:1188: UndefinedMetricWarning: No positive samples in y_true, true positive value should be meaningless
-    # warnings.warn(
-    # /projects/envs/conda/jzander/envs/WIN-KID_env/lib/python3.13/site-packages/sklearn/metrics/_ranking.py:1033: UserWarning: No positive class found in y_true, recall is set to one for all thresholds.
     for col_index, col in enumerate(target_cols):
         y_test_col = y_test_results[col_index]
         y_pred_col = y_pred_list[col_index]
@@ -54,7 +50,6 @@ def generate_results(target_cols, y_test_results, y_score, y_pred_list, feat_imp
         roc_auc = {}
         pr_auc = {}
 
-        unique_classes = [1, 2, 3]
         for label_class in unique_classes:
             y_test_binarized = (y_test_col == label_class).astype(int)
             if label_class >= y_score_col.shape[1]:  # Safety check
@@ -65,7 +60,7 @@ def generate_results(target_cols, y_test_results, y_score, y_pred_list, feat_imp
                 y_test_binarized, y_score_col[:, label_class]
             )
             roc_auc[label_class] = auc(fpr[label_class], tpr[label_class])
-            pr_auc[label_class] = average_precision_score(
+            pr_auc[label_class] = average_precision_score(  # Precision Recall
                 y_test_binarized, y_score_col[:, label_class]
             )
 
@@ -94,7 +89,6 @@ def run_random_forest(preprocessed_data):
     y_test_list = []
     target_cols = preprocessed_data.target_cols
     for col in preprocessed_data.target_cols:
-        # TODO: Exclude classes with low count (Often I)
         merged_filtered_input = preprocessed_data.merged_input
         merged_filtered_input = merged_filtered_input[merged_filtered_input[col] != 0]
         X = merged_filtered_input[preprocessed_data.feature_cols]
@@ -129,9 +123,6 @@ def run_random_forest(preprocessed_data):
         importances = model.feature_importances_
         forest_importances = pd.Series(importances, index=X_train.columns)
         feature_importance_list.append(forest_importances.sort_values(ascending=False))
-
-        print(f"Label distribution for {col}:")
-        print(y_test.value_counts())
 
     return (
         generate_results(
