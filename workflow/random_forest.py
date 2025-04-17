@@ -118,9 +118,18 @@ def run_random_forest(preprocessed_data):
     for col in preprocessed_data.target_cols:
         merged_filtered_input = preprocessed_data.merged_input
         merged_filtered_input = merged_filtered_input[merged_filtered_input[col] != 0]
+
+        # Drop rows of Organisms that occur only once
+        value_counts = merged_filtered_input["Organism_Code"].value_counts()
+        rare_values = value_counts[value_counts == 1].index
+        merged_filtered_input = merged_filtered_input[
+            ~merged_filtered_input["Organism_Code"].isin(rare_values)
+        ]
+
         X = merged_filtered_input[preprocessed_data.feature_cols]
         y = merged_filtered_input[col]
 
+        # TODO: Why is that whorse
         # Clusterd split
         # cluster_labels = KMeans(
         #     n_clusters=int((len(merged_filtered_input) / 10)), random_state=42
@@ -143,7 +152,7 @@ def run_random_forest(preprocessed_data):
             X, y, test_size=0.5, random_state=42
         )
 
-        # TODO: Fix stratisfied split
+        # Stratisfied split
         # X_train, X_test, y_train, y_test = train_test_split(
         #     X,
         #     y,
@@ -151,7 +160,6 @@ def run_random_forest(preprocessed_data):
         #     stratify=X["Organism_Code"],
         # )
 
-        # TODO: Check that Organism classes are distributed evenly
         # TODO: Check that target class ratios are the same in train / test
         y_test_list.append(y_test)
         y_train_list.append(y_train)
