@@ -10,6 +10,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from sklearn.model_selection import KFold, StratifiedKFold
+from collections import defaultdict
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
@@ -23,6 +25,8 @@ from sklearn.metrics import (
     f1_score,
 )
 from sklearn.cluster import KMeans
+from statistics import mean
+from statistics import median
 import preprocessing
 
 from constants import RESISTANCE_MAPPING
@@ -106,9 +110,60 @@ def generate_results(target_cols, y_test_results, y_score, y_pred_list, feat_imp
     return result_dic
 
 
+def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import):
+    unique_classes = np.unique(y_test_col)
+
+    fpr = {}
+    tpr = {}
+    roc_auc = {}
+    pr_auc = {}
+    precision = {}
+    recall = {}
+    f1 = {}
+
+    for label_class in unique_classes:
+        y_test_binarized = (y_test_col == label_class).astype(int)
+        y_pred_binarized = (y_pred_col == label_class).astype(int)
+
+        if label_class >= y_score_col.shape[1]:
+            print(f"Skipping class {label_class} for {target_col}, not in predictions")
+            continue
+
+        fpr[label_class], tpr[label_class], _ = roc_curve(
+            y_test_binarized, y_score_col[:, label_class]
+        )
+        roc_auc[label_class] = auc(fpr[label_class], tpr[label_class])
+        pr_auc[label_class] = average_precision_score(
+            y_test_binarized, y_score_col[:, label_class]
+        )
+
+        precision[label_class] = precision_score(
+            y_test_binarized, y_pred_binarized, zero_division=0
+        )
+        recall[label_class] = recall_score(
+            y_test_binarized, y_pred_binarized, zero_division=0
+        )
+        f1[label_class] = f1_score(y_test_binarized, y_pred_binarized, zero_division=0)
+
+    accuracy = accuracy_score(y_test_col, y_pred_col)
+
+    return ResultDTO(
+        fpr=fpr,
+        tpr=tpr,
+        roc_auc=roc_auc,
+        pr_auc=pr_auc,
+        accuracy=accuracy,
+        precision=precision,
+        recall=recall,
+        f1=f1,
+        y_pred=y_pred_col,
+        y_score=y_score_col,
+        feature_importance=feat_import,
+    )
+
+
 def run_random_forest(preprocessed_data):
 
-    rf_models = {}
     y_pred_list = []
     y_score_list = []
     feature_importance_list = []
@@ -182,8 +237,6 @@ def run_random_forest(preprocessed_data):
 
         y_score_list.append(proba_full)  # Store correctly ordered probabilities
 
-        rf_models[col] = model
-
         importances = model.feature_importances_
         forest_importances = pd.Series(importances, index=X_train.columns)
         feature_importance_list.append(forest_importances.sort_values(ascending=False))
@@ -209,6 +262,173 @@ def load_dataset_paths(path_file):
         )
 
     return path_df
+
+
+def run_cross_validated_random_forest(
+    preprocessed_data, n_splits=5, split_strategy="random"
+):
+    from sklearn.model_selection import StratifiedKFold, KFold
+
+    target_cols = preprocessed_data.target_cols
+
+    results_per_target = {}
+    test_label_count_dict = {}
+    train_label_count_dict = {}
+
+    for col in target_cols:
+        merged_filtered_input = preprocessed_data.merged_input
+        merged_filtered_input = merged_filtered_input[merged_filtered_input[col] != 0]
+
+        # Drop rows of Organisms that occur only once
+        value_counts = merged_filtered_input["Organism_Code"].value_counts()
+        rare_values = value_counts[value_counts == 1].index
+        merged_filtered_input = merged_filtered_input[
+            ~merged_filtered_input["Organism_Code"].isin(rare_values)
+        ]
+
+        X = merged_filtered_input[preprocessed_data.feature_cols]
+        y = merged_filtered_input[col]
+
+        stratify_col = merged_filtered_input["Organism_Code"]
+
+        # Prepare cross-validation
+        if split_strategy == "stratified":
+            kf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+            split_iterator = kf.split(X, stratify_col)
+        elif split_strategy == "random":
+            kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+            split_iterator = kf.split(X)
+        elif split_strategy == "clustered":
+            cluster_labels = KMeans(
+                n_clusters=int((len(X) / 10)), random_state=42
+            ).fit_predict(X)
+            unique_clusters = np.unique(cluster_labels)
+            kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+            split_iterator = (
+                (
+                    np.where(np.isin(cluster_labels, unique_clusters[train_idx]))[0],
+                    np.where(np.isin(cluster_labels, unique_clusters[test_idx]))[0],
+                )
+                for train_idx, test_idx in kf.split(unique_clusters)
+            )
+        else:
+            raise ValueError("Invalid split_strategy")
+
+        # Collect results from all folds
+        fold_results = []
+
+        test_label_count_list = []
+        train_label_count_list = []
+        for train_idx, test_idx in split_iterator:
+            X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+            y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+            test_label_count_list.append(y_test.value_counts())
+            train_label_count_list.append(y_train.value_counts())
+            print("TEST?")
+            print(y_test.value_counts())
+            print(y_train.value_counts())
+
+            model = RandomForestClassifier(
+                n_estimators=10, class_weight="balanced", random_state=42
+            )
+            model.fit(X_train, y_train)
+
+            y_pred = model.predict(X_test)
+            y_proba = model.predict_proba(X_test)
+
+            # Map to 4-class output for y_score
+            proba_full = np.zeros((y_proba.shape[0], 4))
+            for idx, class_label in enumerate(model.classes_):
+                proba_full[:, class_label] = y_proba[:, idx]
+
+            importances = model.feature_importances_
+            forest_importances = pd.Series(importances, index=X_train.columns)
+
+            single_result = generate_result(
+                col,
+                y_test,
+                proba_full,
+                y_pred,
+                forest_importances.sort_values(ascending=False),
+            )
+            print("single_result")
+            print(single_result.precision)
+            fold_results.append(single_result)
+
+        # combined_results_dict[col] = fold_results
+        # print("combined_results_dict")
+        # print(combined_results_dict.keys())
+        # Average metrics across folds
+        results_per_target[col] = average_result_dtos(fold_results)
+
+        test_label_dict_list = [
+            s.to_dict() if isinstance(s, pd.Series) else s
+            for s in test_label_count_list
+        ]
+        test_label_transposed = {
+            key: [d[key] for d in test_label_dict_list]
+            for key in test_label_dict_list[0]
+        }
+        test_label_count_dict[col] = {
+            key: mean(values) for key, values in test_label_transposed.items()
+        }
+        train_label_dict_list = [
+            s.to_dict() if isinstance(s, pd.Series) else s
+            for s in train_label_count_list
+        ]
+        train_label_transposed = {
+            key: [d[key] for d in train_label_dict_list]
+            for key in train_label_dict_list[0]
+        }
+        train_label_count_dict[col] = {
+            key: mean(values) for key, values in train_label_transposed.items()
+        }
+
+    return results_per_target, test_label_count_dict, train_label_count_dict
+
+
+def average_result_dtos(result_dtos):
+    pr_auc_dict = {}
+    roc_auc_dict = {}
+    accuracy_list = []
+    precision_dict = {}
+    recall_dict = {}
+    f1_dict = {}
+    for dict_key in result_dtos[0].fpr.keys():
+        pr_auc_list = []
+        roc_auc_list = []
+        precision_list = []
+        recall_list = []
+        f1_list = []
+        for result_dto in result_dtos:
+            pr_auc_list.append(result_dto.pr_auc[dict_key])
+            roc_auc_list.append(result_dto.roc_auc[dict_key])
+            precision_list.append(result_dto.precision[dict_key])
+            recall_list.append(result_dto.recall[dict_key])
+            f1_list.append(result_dto.f1[dict_key])
+        pr_auc_dict[dict_key] = np.mean(pr_auc_list, axis=0)
+        roc_auc_dict[dict_key] = np.mean(roc_auc_list, axis=0)
+        precision_dict[dict_key] = np.mean(precision_list, axis=0)
+        recall_dict[dict_key] = np.mean(recall_list, axis=0)
+        f1_dict[dict_key] = np.mean(f1_list, axis=0)
+    for result_dto in result_dtos:
+        accuracy_list.append(result_dto.accuracy)
+    return ResultDTO(
+        fpr=result_dtos[
+            0
+        ].fpr,  # TODO: Should be mean size of S/R/I Set changes with every fold -> fpr size changes as well
+        tpr=result_dtos[0].tpr,  # TODO: Should be mean
+        roc_auc=roc_auc_dict,
+        pr_auc=pr_auc_dict,
+        accuracy=np.mean(accuracy_list),
+        precision=precision_dict,
+        recall=recall_dict,
+        f1=f1_dict,
+        y_pred=result_dtos[0].y_pred,  # TODO: Should be mean
+        y_score=result_dtos[0].y_score,  # TODO: Should be mean
+        feature_importance=result_dtos[0].feature_importance,  # TODO: Should be mean
+    )
 
 
 def display_results(results_dto, print_feat_imp):
@@ -278,8 +498,8 @@ def evaluation_to_csv(results_dto, y_test_input, y_train_input):
     )
     for counter, name in enumerate(results_dto):
         result = results_dto[name]
-        test_label_counts = y_test_input[counter].value_counts()
-        train_label_counts = y_train_input[counter].value_counts()
+        test_label_counts = y_test_input[name]
+        train_label_counts = y_train_input[name]
 
         evaluation_df.loc[name] = [
             result.accuracy,
@@ -313,10 +533,6 @@ def evaluation_to_csv(results_dto, y_test_input, y_train_input):
 
     print(evaluation_df)
 
-    evaluation_df[["Test_Count_S", "Test_Count_I", "Test_Count_R"]] = evaluation_df[
-        ["Test_Count_S", "Test_Count_I", "Test_Count_R"]
-    ].astype("Int64")
-
     os.makedirs("Evaluation", exist_ok=True)
     evaluation_df.to_csv("Evaluation/Evaluation.csv", index=True, header=True)
 
@@ -333,10 +549,10 @@ if __name__ == "__main__":
     data_loader = preprocessing.DataLoader()
     preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
-    rf_results, y_test_output, y_train_output = run_random_forest(
-        preprocessed_data_input
+    rf_results, y_test_count, y_train_count = run_cross_validated_random_forest(
+        preprocessed_data_input, 3  # TODO: Why does >2 Fail
     )
 
     # TODO: Split display to different class
     display_results(rf_results, False)
-    evaluation_to_csv(rf_results, y_test_output, y_train_output)
+    evaluation_to_csv(rf_results, y_test_count, y_train_count)
