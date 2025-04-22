@@ -494,8 +494,8 @@ def evaluation_to_csv(results_dto, y_test_input, y_train_input):
 
 
 if __name__ == "__main__":
-    CROSS_VALIDATE = False
-    SPLIT_STRATEGY = "clustered"
+    CROSS_VALIDATE = True
+    SPLIT_STRATEGY = "random"
     NUMBER_OF_FOLDS = 5
     TEST_SIZE = 0.5
 
@@ -513,18 +513,23 @@ if __name__ == "__main__":
     if CROSS_VALIDATE is True:
         # display not possible with CV.
         # S/R/I Set changes with every fold -> fpr size changes as well
-        rf_results, y_test_count_result, y_train_count_result = (
-            run_cross_validated_random_forest(
-                preprocessed_data_input, NUMBER_OF_FOLDS, SPLIT_STRATEGY
-            )
+        (
+            rf_results,
+            y_test_count_result,
+            y_train_count_result,
+        ) = run_cross_validated_random_forest(
+            preprocessed_data_input, NUMBER_OF_FOLDS, SPLIT_STRATEGY
         )
     else:
 
-        rf_results, y_test_count_result, y_train_count_result = (
-            run_splitted_random_forest(
-                preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY
-            )
+        (
+            rf_results,
+            y_test_count_result,
+            y_train_count_result,
+        ) = run_splitted_random_forest(
+            preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY
         )
+
         display_results(rf_results, False)
 
     evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
