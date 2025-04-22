@@ -2,17 +2,15 @@
 # Licensed under the MIT License
 # This file may be copied, modified, and distributed under the terms of the MIT License.
 
-from dataclasses import dataclass
 import argparse
 import os
 import statistics
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+from dataclasses import dataclass
+from statistics import mean
+from collections import Counter
 from matplotlib.backends.backend_pdf import PdfPages
-from sklearn.model_selection import KFold, StratifiedKFold
-from collections import defaultdict, Counter
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
+from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
     roc_curve,
@@ -24,11 +22,10 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
 )
-from sklearn.cluster import KMeans
-from statistics import mean
-from statistics import median
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 import preprocessing
-
 from constants import RESISTANCE_MAPPING
 
 
@@ -229,7 +226,7 @@ def run_splitted_random_forest(preprocessed_data, test_size, split_strategy):
                 unique_clusters, test_size=test_size, random_state=42
             )
             train_idx = np.isin(cluster_labels, train_clusters)
-            test_idx = ~train_idx
+            test_idx = np.isin(cluster_labels, test_clusters)
             X_train, X_test, y_train, y_test = (
                 X[train_idx],
                 X[test_idx],
@@ -265,119 +262,105 @@ def load_dataset_paths(path_file):
     return path_df
 
 
-def run_cross_validated_random_forest(preprocessed_data, n_splits, split_strategy):
-    target_cols = preprocessed_data.target_cols
-
-    results_per_target, test_label_count_dict, train_label_count_dict = ({}, {}, {})
-
-    for col in target_cols:
-        merged_filtered_input = preprocessed_data.merged_input
-        merged_filtered_input = merged_filtered_input[merged_filtered_input[col] != 0]
-
-        # Drop rows of Organisms that occur only once
-        value_counts = merged_filtered_input["Organism_Code"].value_counts()
-        rare_values = value_counts[value_counts == 1].index
-        merged_filtered_input = merged_filtered_input[
-            ~merged_filtered_input["Organism_Code"].isin(rare_values)
-        ]
-
-        X = merged_filtered_input[preprocessed_data.feature_cols]
-        y = merged_filtered_input[col]
-
-        stratify_col = merged_filtered_input["Organism_Code"]
-
-        # Prepare cross-validation
-        if split_strategy == "stratified":
-            kf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-            split_iterator = kf.split(X, stratify_col)
-        elif split_strategy == "random":
-            kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
-            split_iterator = kf.split(X)
-        elif split_strategy == "clustered":
-            cluster_labels = KMeans(
-                n_clusters=int((len(X) / 10)), random_state=42
-            ).fit_predict(X)
-            unique_clusters = np.unique(cluster_labels)
-            kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
-            split_iterator = (
-                (
-                    np.where(np.isin(cluster_labels, unique_clusters[train_idx]))[0],
-                    np.where(np.isin(cluster_labels, unique_clusters[test_idx]))[0],
-                )
-                for train_idx, test_idx in kf.split(unique_clusters)
+def get_split_iterator(X, stratify_col, strategy, n_splits):
+    if strategy == "stratified":
+        return StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42).split(
+            X, stratify_col
+        )
+    elif strategy == "random":
+        return KFold(n_splits=n_splits, shuffle=True, random_state=42).split(X)
+    elif strategy == "clustered":
+        cluster_labels = KMeans(
+            n_clusters=int(len(X) / 10), random_state=42
+        ).fit_predict(X)
+        unique_clusters = np.unique(cluster_labels)
+        kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+        return (
+            (
+                np.where(np.isin(cluster_labels, unique_clusters[train_idx]))[0],
+                np.where(np.isin(cluster_labels, unique_clusters[test_idx]))[0],
             )
-        else:
-            raise ValueError("Invalid split_strategy")
+            for train_idx, test_idx in kf.split(unique_clusters)
+        )
+    else:
+        raise ValueError("Invalid split_strategy")
 
-        # Collect results from all folds
+
+def compute_label_distribution(label_counts_list):
+    dict_list = [
+        s.to_dict() if isinstance(s, pd.Series) else s for s in label_counts_list
+    ]
+    transposed = {key: [d[key] for d in dict_list] for key in dict_list[0]}
+    return {key: mean(values) for key, values in transposed.items()}
+
+
+def run_cross_validated_random_forest(preprocessed_data, n_splits, split_strategy):
+    results_per_target = {}
+    test_label_count_dict = {}
+    train_label_count_dict = {}
+
+    for col in preprocessed_data.target_cols:
+
+        # Remove rows with label 0 (unlabeled)
+        df = preprocessed_data.merged_input[preprocessed_data.merged_input[col] != 0]
+        # Remove rare Organism_Code values (only occur once)
+        organism_counts = df["Organism_Code"].value_counts()
+        common_organisms = organism_counts[organism_counts > 1].index
+        df = df[df["Organism_Code"].isin(common_organisms)]
+
+        X = df[preprocessed_data.feature_cols]
+        y = df[col]
+        stratify_col = df["Organism_Code"]
+
+        split_iterator = get_split_iterator(X, stratify_col, split_strategy, n_splits)
+
         fold_results = []
+        test_label_counts = []
+        train_label_counts = []
 
-        test_label_count_list = []
-        train_label_count_list = []
         for train_idx, test_idx in split_iterator:
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-            if len(Counter(y_train)) != len(Counter(y_test)):
+
+            if set(y_train.unique()) != set(y_test.unique()):
                 print(
-                    "WARNING: Skipped fold at "
-                    + col
-                    + " because y_train and y_test contain different classes"
+                    f"Skipped fold for {col}: y_train and y_test have different classes."
                 )
                 continue
 
-            test_label_count_list.append(y_test.value_counts())
-            train_label_count_list.append(y_train.value_counts())
+            test_label_counts.append(y_test.value_counts())
+            train_label_counts.append(y_train.value_counts())
 
-            single_result = run_random_forest(X_train, y_train, X_test, y_test, col)
+            result = run_random_forest(X_train, y_train, X_test, y_test, col)
+            fold_results.append(result)
 
-            fold_results.append(single_result)
-
-        # Average metrics across folds
-        results_per_target[col] = average_result_dtos(fold_results)
-
-        test_label_dict_list = [
-            s.to_dict() if isinstance(s, pd.Series) else s
-            for s in test_label_count_list
-        ]
-        test_label_transposed = {
-            key: [d[key] for d in test_label_dict_list]
-            for key in test_label_dict_list[0]
-        }
-        test_label_count_dict[col] = {
-            key: mean(values) for key, values in test_label_transposed.items()
-        }
-        train_label_dict_list = [
-            s.to_dict() if isinstance(s, pd.Series) else s
-            for s in train_label_count_list
-        ]
-        train_label_transposed = {
-            key: [d[key] for d in train_label_dict_list]
-            for key in train_label_dict_list[0]
-        }
-        train_label_count_dict[col] = {
-            key: mean(values) for key, values in train_label_transposed.items()
-        }
+        if fold_results:
+            results_per_target[col] = average_result_dtos(fold_results)
+            test_label_count_dict[col] = compute_label_distribution(test_label_counts)
+            train_label_count_dict[col] = compute_label_distribution(train_label_counts)
 
     return results_per_target, test_label_count_dict, train_label_count_dict
 
 
 def average_result_dtos(result_dtos):
-    pr_auc_dict = {}
-    roc_auc_dict = {}
+    pr_auc_dict, roc_auc_dict, precision_dict, recall_dict, f1_dict = (
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
     accuracy_list = []
-    precision_dict = {}
-    recall_dict = {}
-    f1_dict = {}
     for dict_key in result_dtos[0].pr_auc.keys():
-        pr_auc_list = []
-        roc_auc_list = []
-        precision_list = []
-        recall_list = []
-        f1_list = []
+        pr_auc_list, roc_auc_list, precision_list, recall_list, f1_list = (
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
         for result_dto in result_dtos:
-            pr_auc_list.append(
-                result_dto.pr_auc[dict_key]
-            )  # TODO:     pr_auc_list.append(result_dto.pr_auc[dict_key]) KeyError: np.int64(1)
+            pr_auc_list.append(result_dto.pr_auc[dict_key])
             roc_auc_list.append(result_dto.roc_auc[dict_key])
             precision_list.append(result_dto.precision[dict_key])
             recall_list.append(result_dto.recall[dict_key])
@@ -390,19 +373,17 @@ def average_result_dtos(result_dtos):
     for result_dto in result_dtos:
         accuracy_list.append(result_dto.accuracy)
     return ResultDTO(
-        fpr=result_dtos[
-            0
-        ].fpr,  # TODO: Should be mean size of S/R/I Set changes with every fold -> fpr size changes as well
-        tpr=result_dtos[0].tpr,  # TODO: Should be mean
+        None,  # Should be mean size. S/R/I Set changes with every fold -> fpr size changes as well
+        None,
         roc_auc=roc_auc_dict,
         pr_auc=pr_auc_dict,
         accuracy=np.mean(accuracy_list),
         precision=precision_dict,
         recall=recall_dict,
         f1=f1_dict,
-        y_pred=result_dtos[0].y_pred,  # TODO: Should be mean
-        y_score=result_dtos[0].y_score,  # TODO: Should be mean
-        feature_importance=result_dtos[0].feature_importance,  # TODO: Should be mean
+        y_pred=None,
+        y_score=None,
+        feature_importance=None,
     )
 
 
@@ -471,7 +452,7 @@ def evaluation_to_csv(results_dto, y_test_input, y_train_input):
             "Train_Count_R",
         ]
     )
-    for counter, name in enumerate(results_dto):
+    for _, name in enumerate(results_dto):
         result = results_dto[name]
         test_label_counts = y_test_input[name]
         train_label_counts = y_train_input[name]
@@ -513,6 +494,11 @@ def evaluation_to_csv(results_dto, y_test_input, y_train_input):
 
 
 if __name__ == "__main__":
+    CROSS_VALIDATE = False
+    SPLIT_STRATEGY = "clustered"
+    NUMBER_OF_FOLDS = 5
+    TEST_SIZE = 0.5
+
     parser = argparse.ArgumentParser(
         description="Run RF on multiple datasets from a settings file"
     )
@@ -524,14 +510,21 @@ if __name__ == "__main__":
     data_loader = preprocessing.DataLoader()
     preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
-    # rf_results, y_test_count_result, y_train_count_result = run_cross_validated_random_forest(
-    #     preprocessed_data_input, 5, "random"
-    # )
+    if CROSS_VALIDATE is True:
+        # display not possible with CV.
+        # S/R/I Set changes with every fold -> fpr size changes as well
+        rf_results, y_test_count_result, y_train_count_result = (
+            run_cross_validated_random_forest(
+                preprocessed_data_input, NUMBER_OF_FOLDS, SPLIT_STRATEGY
+            )
+        )
+    else:
 
-    rf_results, y_test_count_result, y_train_count_result = run_splitted_random_forest(
-        preprocessed_data_input, 0.5, "random"
-    )
+        rf_results, y_test_count_result, y_train_count_result = (
+            run_splitted_random_forest(
+                preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY
+            )
+        )
+        display_results(rf_results, False)
 
-    # TODO: Split display to different class
-    display_results(rf_results, False)
     evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
