@@ -162,15 +162,39 @@ def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import
     )
 
 
-def run_random_forest(preprocessed_data):
+def run_random_forest(
+    X_train_input, y_train_input, X_test_input, y_test_input, target_input
+):
+    model = RandomForestClassifier(
+        n_estimators=10, class_weight="balanced", random_state=42
+    )
+    model.fit(X_train_input, y_train_input)
 
-    y_pred_list = []
-    y_score_list = []
-    feature_importance_list = []
-    y_test_list = []
-    y_test_count = {}
-    y_train_count = {}
-    target_cols = preprocessed_data.target_cols
+    y_pred = model.predict(X_test_input)
+    y_proba = model.predict_proba(X_test_input)
+
+    # Map to 4-class output for y_score
+    proba_full = np.zeros((y_proba.shape[0], 4))
+    for idx, class_label in enumerate(model.classes_):
+        proba_full[:, class_label] = y_proba[:, idx]
+
+    importances = model.feature_importances_
+    forest_importances = pd.Series(importances, index=X_train_input.columns)
+
+    return generate_result(
+        target_input,
+        y_test_input,
+        proba_full,
+        y_pred,
+        forest_importances.sort_values(ascending=False),
+    )
+
+
+def run_splitted_random_forest(preprocessed_data, test_size, split_strategy):
+
+    y_test_count, y_train_count, result_dic = ({}, {}, {})
+    y_test, y_train, X_test, X_train, y_test_list = ([], [], [], [], [])
+
     for col in preprocessed_data.target_cols:
         merged_filtered_input = preprocessed_data.merged_input
         merged_filtered_input = merged_filtered_input[merged_filtered_input[col] != 0]
@@ -185,68 +209,43 @@ def run_random_forest(preprocessed_data):
         X = merged_filtered_input[preprocessed_data.feature_cols]
         y = merged_filtered_input[col]
 
-        # TODO: Why is that whorse
-        # Clusterd split
-        # cluster_labels = KMeans(
-        #     n_clusters=int((len(merged_filtered_input) / 10)), random_state=42
-        # ).fit_predict(X)
-        # unique_clusters = np.unique(cluster_labels)
-        # train_clusters, test_clusters = train_test_split(
-        #     unique_clusters, test_size=0.5, random_state=42
-        # )
+        if split_strategy == "stratisfied":
+            X_train, X_test, y_train, y_test = train_test_split(
+                X,
+                y,
+                test_size=test_size,  # Not splitting further, just rebalancing
+                stratify=X["Organism_Code"],
+            )
+        elif split_strategy == "random":
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=test_size, random_state=42
+            )
+        elif split_strategy == "clustered":
+            cluster_labels = KMeans(
+                n_clusters=int((len(merged_filtered_input) / 10)), random_state=42
+            ).fit_predict(X)
+            unique_clusters = np.unique(cluster_labels)
+            train_clusters, test_clusters = train_test_split(
+                unique_clusters, test_size=test_size, random_state=42
+            )
+            train_idx = np.isin(cluster_labels, train_clusters)
+            test_idx = ~train_idx
+            X_train, X_test, y_train, y_test = (
+                X[train_idx],
+                X[test_idx],
+                y[train_idx],
+                y[test_idx],
+            )
 
-        # train_idx = np.isin(cluster_labels, train_clusters)
-        # test_idx = ~train_idx
-
-        # X_train = X[train_idx]
-        # X_test = X[test_idx]
-        # y_train = y[train_idx]
-        # y_test = y[test_idx]
-
-        # Random split
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.5, random_state=42
-        )
-
-        # Stratisfied split
-        # X_train, X_test, y_train, y_test = train_test_split(
-        #     X,
-        #     y,
-        #     test_size=0.5,  # Not splitting further, just rebalancing
-        #     stratify=X["Organism_Code"],
-        # )
-
-        # TODO: Check that target class ratios are the same in train / test
         y_test_list.append(y_test)
         y_test_count[col] = Counter(y_test)
         y_train_count[col] = Counter(y_train)
 
-        model = RandomForestClassifier(
-            n_estimators=10, class_weight="balanced", random_state=42
-        )
-        model.fit(X_train, y_train)
-
-        y_pred_list.append(model.predict(X_test))
-
-        # Ensure consistent ordering of probabilities (0=S, 1=I, 2=R)
-        unique_classes = model.classes_  # Extract classes learned by RF
-        y_proba = model.predict_proba(X_test)
-
-        # Create a full 4-column probability array, filling missing classes with 0
-        proba_full = np.zeros((y_proba.shape[0], 4))  # Shape (samples, 3 classes)
-        for idx, class_label in enumerate(unique_classes):
-            proba_full[:, class_label] = y_proba[:, idx]  # Map existing probabilities
-
-        y_score_list.append(proba_full)  # Store correctly ordered probabilities
-
-        importances = model.feature_importances_
-        forest_importances = pd.Series(importances, index=X_train.columns)
-        feature_importance_list.append(forest_importances.sort_values(ascending=False))
+        sinlge_result = run_random_forest(X_train, y_train, X_test, y_test, col)
+        result_dic[col] = sinlge_result
 
     return (
-        generate_results(
-            target_cols, y_test_list, y_score_list, y_pred_list, feature_importance_list
-        ),
+        result_dic,
         y_test_count,
         y_test_count,
     )
@@ -269,9 +268,7 @@ def load_dataset_paths(path_file):
 def run_cross_validated_random_forest(preprocessed_data, n_splits, split_strategy):
     target_cols = preprocessed_data.target_cols
 
-    results_per_target = {}
-    test_label_count_dict = {}
-    train_label_count_dict = {}
+    results_per_target, test_label_count_dict, train_label_count_dict = ({}, {}, {})
 
     for col in target_cols:
         merged_filtered_input = preprocessed_data.merged_input
@@ -331,29 +328,8 @@ def run_cross_validated_random_forest(preprocessed_data, n_splits, split_strateg
             test_label_count_list.append(y_test.value_counts())
             train_label_count_list.append(y_train.value_counts())
 
-            model = RandomForestClassifier(
-                n_estimators=10, class_weight="balanced", random_state=42
-            )
-            model.fit(X_train, y_train)
+            single_result = run_random_forest(X_train, y_train, X_test, y_test, col)
 
-            y_pred = model.predict(X_test)
-            y_proba = model.predict_proba(X_test)
-
-            # Map to 4-class output for y_score
-            proba_full = np.zeros((y_proba.shape[0], 4))
-            for idx, class_label in enumerate(model.classes_):
-                proba_full[:, class_label] = y_proba[:, idx]
-
-            importances = model.feature_importances_
-            forest_importances = pd.Series(importances, index=X_train.columns)
-
-            single_result = generate_result(
-                col,
-                y_test,
-                proba_full,
-                y_pred,
-                forest_importances.sort_values(ascending=False),
-            )
             fold_results.append(single_result)
 
         # Average metrics across folds
@@ -548,12 +524,14 @@ if __name__ == "__main__":
     data_loader = preprocessing.DataLoader()
     preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
-    rf_results, y_test_count, y_train_count = run_cross_validated_random_forest(
-        preprocessed_data_input, 5, "random"
-    )
+    # rf_results, y_test_count_result, y_train_count_result = run_cross_validated_random_forest(
+    #     preprocessed_data_input, 5, "random"
+    # )
 
-    # rf_results, y_test_count, y_train_count = run_random_forest(preprocessed_data_input)
+    rf_results, y_test_count_result, y_train_count_result = run_splitted_random_forest(
+        preprocessed_data_input, 0.5, "random"
+    )
 
     # TODO: Split display to different class
     display_results(rf_results, False)
-    evaluation_to_csv(rf_results, y_test_count, y_train_count)
+    evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
