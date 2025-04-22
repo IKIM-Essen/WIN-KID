@@ -264,9 +264,7 @@ def load_dataset_paths(path_file):
     return path_df
 
 
-def run_cross_validated_random_forest(
-    preprocessed_data, n_splits=5, split_strategy="random"
-):
+def run_cross_validated_random_forest(preprocessed_data, n_splits, split_strategy):
     target_cols = preprocessed_data.target_cols
 
     results_per_target = {}
@@ -322,7 +320,9 @@ def run_cross_validated_random_forest(
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
             if len(Counter(y_train)) != len(Counter(y_test)):
                 print(
-                    "WARNING: Skipped fold because y_train and y_test contain different classes"
+                    "WARNING: Skipped fold at "
+                    + col
+                    + " because y_train and y_test contain different classes"
                 )
                 continue
 
@@ -547,7 +547,7 @@ if __name__ == "__main__":
     preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
     rf_results, y_test_count, y_train_count = run_cross_validated_random_forest(
-        preprocessed_data_input, 5
+        preprocessed_data_input, 5, "random"
     )
 
     # TODO: Split display to different class
