@@ -205,7 +205,7 @@ class DataLoader:
             ),
         ].reset_index(drop=True)
 
-        input_phenotype.fillna("S", inplace=True)
+        input_phenotype.fillna(next(iter(RESISTANCE_MAPPING)), inplace=True)
         return input_phenotype
 
     def preprocess_genotype_data(self, dataset_list):
@@ -214,9 +214,8 @@ class DataLoader:
             raw_gff_data = load_genotypes(genotype_file_row)
             raw_gff_list.append(raw_gff_data)
         raw_gff_df = pd.concat(raw_gff_list, ignore_index=True)
-        raw_gff_df.fillna("0", inplace=True)
 
-        attribute_single_features = ["Name", "ResistanceMechanism", "ORF"]
+        attribute_single_features = ["Name", "ORF"]
         extracted_single_pd = extract_single_features(
             raw_gff_df, attribute_single_features
         )

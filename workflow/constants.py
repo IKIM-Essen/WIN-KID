@@ -19,4 +19,4 @@ GFF_COLUMNS = [
     "Attributes",
 ]
 
-RESISTANCE_MAPPING = {"S": 0, "I": 1, "R": 2}
+RESISTANCE_MAPPING = {"NA": 0, "S": 1, "I": 2, "R": 3}
