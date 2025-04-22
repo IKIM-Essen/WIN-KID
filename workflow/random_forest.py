@@ -168,7 +168,8 @@ def run_random_forest(preprocessed_data):
     y_score_list = []
     feature_importance_list = []
     y_test_list = []
-    y_train_list = []
+    y_test_count = {}
+    y_train_count = {}
     target_cols = preprocessed_data.target_cols
     for col in preprocessed_data.target_cols:
         merged_filtered_input = preprocessed_data.merged_input
@@ -217,7 +218,8 @@ def run_random_forest(preprocessed_data):
 
         # TODO: Check that target class ratios are the same in train / test
         y_test_list.append(y_test)
-        y_train_list.append(y_train)
+        y_test_count[col] = Counter(y_test)
+        y_train_count[col] = Counter(y_train)
 
         model = RandomForestClassifier(
             n_estimators=10, class_weight="balanced", random_state=42
@@ -245,8 +247,8 @@ def run_random_forest(preprocessed_data):
         generate_results(
             target_cols, y_test_list, y_score_list, y_pred_list, feature_importance_list
         ),
-        y_test_list,
-        y_train_list,
+        y_test_count,
+        y_test_count,
     )
 
 
@@ -549,6 +551,8 @@ if __name__ == "__main__":
     rf_results, y_test_count, y_train_count = run_cross_validated_random_forest(
         preprocessed_data_input, 5, "random"
     )
+
+    # rf_results, y_test_count, y_train_count = run_random_forest(preprocessed_data_input)
 
     # TODO: Split display to different class
     display_results(rf_results, False)
