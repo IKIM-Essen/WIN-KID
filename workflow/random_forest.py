@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.model_selection import KFold, StratifiedKFold
-from collections import defaultdict
+from collections import defaultdict, Counter
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
@@ -267,8 +267,6 @@ def load_dataset_paths(path_file):
 def run_cross_validated_random_forest(
     preprocessed_data, n_splits=5, split_strategy="random"
 ):
-    from sklearn.model_selection import StratifiedKFold, KFold
-
     target_cols = preprocessed_data.target_cols
 
     results_per_target = {}
@@ -322,12 +320,14 @@ def run_cross_validated_random_forest(
         for train_idx, test_idx in split_iterator:
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+            if len(Counter(y_train)) != len(Counter(y_test)):
+                print(
+                    "WARNING: Skipped fold because y_train and y_test contain different classes"
+                )
+                continue
 
             test_label_count_list.append(y_test.value_counts())
             train_label_count_list.append(y_train.value_counts())
-            print("TEST?")
-            print(y_test.value_counts())
-            print(y_train.value_counts())
 
             model = RandomForestClassifier(
                 n_estimators=10, class_weight="balanced", random_state=42
@@ -352,13 +352,8 @@ def run_cross_validated_random_forest(
                 y_pred,
                 forest_importances.sort_values(ascending=False),
             )
-            print("single_result")
-            print(single_result.precision)
             fold_results.append(single_result)
 
-        # combined_results_dict[col] = fold_results
-        # print("combined_results_dict")
-        # print(combined_results_dict.keys())
         # Average metrics across folds
         results_per_target[col] = average_result_dtos(fold_results)
 
@@ -395,14 +390,16 @@ def average_result_dtos(result_dtos):
     precision_dict = {}
     recall_dict = {}
     f1_dict = {}
-    for dict_key in result_dtos[0].fpr.keys():
+    for dict_key in result_dtos[0].pr_auc.keys():
         pr_auc_list = []
         roc_auc_list = []
         precision_list = []
         recall_list = []
         f1_list = []
         for result_dto in result_dtos:
-            pr_auc_list.append(result_dto.pr_auc[dict_key])
+            pr_auc_list.append(
+                result_dto.pr_auc[dict_key]
+            )  # TODO:     pr_auc_list.append(result_dto.pr_auc[dict_key]) KeyError: np.int64(1)
             roc_auc_list.append(result_dto.roc_auc[dict_key])
             precision_list.append(result_dto.precision[dict_key])
             recall_list.append(result_dto.recall[dict_key])
@@ -550,7 +547,7 @@ if __name__ == "__main__":
     preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
     rf_results, y_test_count, y_train_count = run_cross_validated_random_forest(
-        preprocessed_data_input, 3  # TODO: Why does >2 Fail
+        preprocessed_data_input, 5
     )
 
     # TODO: Split display to different class
