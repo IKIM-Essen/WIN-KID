@@ -168,10 +168,26 @@ def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import
 
 
 def run_random_forest(
-    X_train_input, y_train_input, X_test_input, y_test_input, target_input
+    X_train_input,
+    y_train_input,
+    X_test_input,
+    y_test_input,
+    target_input,
+    n_estimators=10,
+    class_weight="balanced",
+    max_depth=None,
+    min_samples_split=2,
+    max_features="sqrt",
+    bootstrap="True",
 ):
     model = RandomForestClassifier(
-        n_estimators=10, class_weight="balanced", random_state=42
+        random_state=42,
+        n_estimators=n_estimators,
+        class_weight=class_weight,
+        max_depth=max_depth,
+        min_samples_split=min_samples_split,
+        max_features=max_features,
+        bootstrap=bootstrap,
     )
     model.fit(X_train_input, y_train_input)
 
@@ -302,7 +318,17 @@ def compute_label_distribution(label_counts_list):
     return {key: mean(values) for key, values in transposed.items()}
 
 
-def run_cross_validated_random_forest(preprocessed_data, n_splits, split_strategy):
+def run_cross_validated_random_forest(
+    preprocessed_data,
+    n_splits,
+    split_strategy,
+    n_estimators=10,
+    class_weight="balanced",
+    max_depth=None,
+    min_samples_split=2,
+    max_features="sqrt",
+    bootstrap="True",
+):
     results_per_target = {}
     test_label_count_dict = {}
     train_label_count_dict = {}
@@ -339,7 +365,19 @@ def run_cross_validated_random_forest(preprocessed_data, n_splits, split_strateg
             test_label_counts.append(y_test.value_counts())
             train_label_counts.append(y_train.value_counts())
 
-            result = run_random_forest(X_train, y_train, X_test, y_test, col)
+            result = run_random_forest(
+                X_train,
+                y_train,
+                X_test,
+                y_test,
+                col,
+                n_estimators=n_estimators,
+                class_weight=class_weight,
+                max_depth=max_depth,
+                min_samples_split=min_samples_split,
+                max_features=max_features,
+                bootstrap=bootstrap,
+            )
             fold_results.append(result)
 
         if fold_results:
@@ -503,13 +541,20 @@ def evaluation_to_csv(results_dto, y_test_input, y_train_input):
 
 def tune_hyperparameter(preprocessed_data, number_of_folds):
     param_grid = {
-        # "n_estimators": [50, 100, 200, 500],
-        # "max_depth": [None, 10, 20, 50],
-        # "min_samples_split": [2, 5, 10],
-        # "min_samples_leaf": [1, 2, 4],
-        # "max_features": ["sqrt", "log2", 0.3, 0.5, None],
-        # "class_weight": ["balanced", "balanced_subsample"],
-        # "bootstrap": [True, False],
+        "n_estimators": [10, 50, 100, 200, 500],
+        "max_depth": [None, 10, 20, 50],
+        "min_samples_split": [2, 5, 10],
+        "min_samples_leaf": [1, 2, 4],
+        "max_features": ["sqrt", "log2", 0.3, 0.5, None],
+        "class_weight": [None, "balanced", "balanced_subsample"],
+        "bootstrap": [True, False],
+        # "n_estimators": [10, 50, 100, 200, 500],
+        # "max_depth": [None],
+        # "min_samples_split": [2],
+        # "min_samples_leaf": [1],
+        # "max_features": ["sqrt"],
+        # "class_weight": [None],
+        # "bootstrap": [False],
         "split_strategy": list(SplitStrategy),
     }
 
@@ -530,7 +575,15 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
             y_test_count_result_tune,
             y_train_count_result_tune,
         ) = run_cross_validated_random_forest(
-            preprocessed_data, number_of_folds, SplitStrategy(combo["split_strategy"])
+            preprocessed_data,
+            number_of_folds,
+            SplitStrategy(combo["split_strategy"]),
+            n_estimators=combo["n_estimators"],
+            class_weight=combo["class_weight"],
+            max_depth=combo["max_depth"],
+            min_samples_split=combo["min_samples_split"],
+            max_features=combo["max_features"],
+            bootstrap=combo["bootstrap"],
         )
 
         accuracy_list, roc_list, pr_list, precision_list, recall_list, f1_list = (
