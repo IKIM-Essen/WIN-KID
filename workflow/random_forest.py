@@ -6,6 +6,7 @@ import argparse
 import os
 import statistics
 import itertools
+import math
 from dataclasses import dataclass
 from enum import Enum
 from statistics import mean
@@ -24,6 +25,7 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
 )
+from sklearn.preprocessing import OrdinalEncoder
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -177,6 +179,7 @@ def run_random_forest(
     class_weight="balanced",
     max_depth=None,
     min_samples_split=2,
+    min_samples_leaf=1,
     max_features="sqrt",
     bootstrap="True",
 ):
@@ -186,6 +189,7 @@ def run_random_forest(
         class_weight=class_weight,
         max_depth=max_depth,
         min_samples_split=min_samples_split,
+        min_samples_leaf=min_samples_leaf,
         max_features=max_features,
         bootstrap=bootstrap,
     )
@@ -326,6 +330,7 @@ def run_cross_validated_random_forest(
     class_weight="balanced",
     max_depth=None,
     min_samples_split=2,
+    min_samples_leaf=1,
     max_features="sqrt",
     bootstrap="True",
 ):
@@ -375,6 +380,7 @@ def run_cross_validated_random_forest(
                 class_weight=class_weight,
                 max_depth=max_depth,
                 min_samples_split=min_samples_split,
+                min_samples_leaf=min_samples_leaf,
                 max_features=max_features,
                 bootstrap=bootstrap,
             )
@@ -545,78 +551,102 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
         "max_depth": [None, 10, 20, 50],
         "min_samples_split": [2, 5, 10],
         "min_samples_leaf": [1, 2, 4],
-        "max_features": ["sqrt", "log2", 0.3, 0.5, None],
+        "max_features": ["sqrt", "log2", 0.3, None],
         "class_weight": [None, "balanced", "balanced_subsample"],
         "bootstrap": [True, False],
-        # "n_estimators": [10, 50, 100, 200, 500],
-        # "max_depth": [None],
-        # "min_samples_split": [2],
-        # "min_samples_leaf": [1],
-        # "max_features": ["sqrt"],
-        # "class_weight": [None],
-        # "bootstrap": [False],
         "split_strategy": list(SplitStrategy),
     }
 
+    # --- Step 1: Generate all combinations ---
     keys, values = zip(*param_grid.items())
     combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
 
-    for combo in combinations:
-        combo["split_strategy"] = combo["split_strategy"].value
-
     df_combinations = pd.DataFrame(combinations)
     accuracies, rocs, prs, precisions, recalls, f1s = [], [], [], [], [], []
-    counter = 1
-    for combo in combinations:
-        print(str(counter) + " of " + str(len(combinations)) + " combinations")
-        counter = counter + 1
-        (
-            rf_results_tune,
-            y_test_count_result_tune,
-            y_train_count_result_tune,
-        ) = run_cross_validated_random_forest(
+    all_combos = [dict(zip(keys, v)) for v in itertools.product(*values)]
+    df_all = pd.DataFrame(all_combos)
+
+    # Step 2: Encode enums and strings for clustering
+    df_encoded = df_all.copy()
+    df_encoded["split_strategy"] = df_encoded["split_strategy"].apply(lambda x: x.value)
+
+    # Replace None values with a string placeholder
+    df_encoded = df_encoded.astype(str)
+    # Encode non-numeric columns
+    obj_cols = df_encoded.select_dtypes(include=["object", "bool"]).columns
+    encoder = OrdinalEncoder()
+    df_encoded[obj_cols] = encoder.fit_transform(df_encoded[obj_cols])
+
+    # Step 3: Cluster and sample 200 representatives
+    kmeans = KMeans(
+        n_clusters=300, random_state=42, n_init="auto"
+    )  # TODO: Warum seiht das so seltsam verteilt aus?
+    df_encoded["cluster"] = kmeans.fit_predict(df_encoded)
+    df_representatives = df_all.loc[
+        df_encoded.groupby("cluster").head(1).index
+    ].reset_index(drop=True)
+    print(df_representatives["max_depth"])
+    print(type(df_representatives["class_weight"]))
+
+    df_representatives = df_representatives.applymap(lambda x: None if x != x else x)
+    # df_representatives = df_representatives.applymap(
+    #     lambda x: None if x == "NaN" else x
+    # )
+    df_representatives["max_depth"] = df_representatives["max_depth"].apply(
+        lambda x: None if x != x else x
+    )
+    # --- Step 4: Evaluation ---
+    metrics = {
+        "Accuracy": [],
+        "ROC_AUC": [],
+        "PR_AUC": [],
+        "Precision": [],
+        "Recall": [],
+        "f1": [],
+    }
+
+    pd.set_option("display.max_rows", None)
+    print(df_representatives)
+    for i, combo in df_combinations.iterrows():
+        print(f"{i+1} of {len(df_representatives)} combinations")
+
+        max_depth_value = combo["max_depth"]
+        if combo["max_depth"] != combo["max_depth"]:
+            max_depth_value = None
+
+        rf_results, _, _ = run_cross_validated_random_forest(
             preprocessed_data,
             number_of_folds,
-            SplitStrategy(combo["split_strategy"]),
+            SplitStrategy(combo["split_strategy"].value),
             n_estimators=combo["n_estimators"],
             class_weight=combo["class_weight"],
-            max_depth=combo["max_depth"],
+            max_depth=max_depth_value,
             min_samples_split=combo["min_samples_split"],
+            min_samples_leaf=combo["min_samples_leaf"],
             max_features=combo["max_features"],
             bootstrap=combo["bootstrap"],
         )
 
-        accuracy_list, roc_list, pr_list, precision_list, recall_list, f1_list = (
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
-        for result in rf_results_tune.values():
-            accuracy_list.append(result.accuracy)
-            roc_list.append(np.nanmean(list(result.roc_auc.values())))
-            pr_list.append(np.nanmean(list(result.pr_auc.values())))
-            precision_list.append(np.nanmean(list(result.precision.values())))
-            recall_list.append(np.nanmean(list(result.recall.values())))
-            f1_list.append(np.nanmean(list(result.f1.values())))
+        accs, rocs, prs, precs, recs, f1s = [], [], [], [], [], []
+        for result in rf_results.values():
+            accs.append(result.accuracy)
+            rocs.append(np.nanmean(list(result.roc_auc.values())))
+            prs.append(np.nanmean(list(result.pr_auc.values())))
+            precs.append(np.nanmean(list(result.precision.values())))
+            recs.append(np.nanmean(list(result.recall.values())))
+            f1s.append(np.nanmean(list(result.f1.values())))
 
-        accuracies.append(statistics.median(accuracy_list))
-        rocs.append(statistics.median(roc_list))
-        prs.append(statistics.median(pr_list))
-        precisions.append(statistics.median(precision_list))
-        recalls.append(statistics.median(recall_list))
-        f1s.append(statistics.median(f1_list))
+        metrics["Accuracy"].append(statistics.median(accs))
+        metrics["ROC_AUC"].append(statistics.median(rocs))
+        metrics["PR_AUC"].append(statistics.median(prs))
+        metrics["Precision"].append(statistics.median(precs))
+        metrics["Recall"].append(statistics.median(recs))
+        metrics["f1"].append(statistics.median(f1s))
 
-    df_combinations["Accuracy"] = accuracies
-    df_combinations["ROC_AUC"] = rocs
-    df_combinations["PR_AUC"] = prs
-    df_combinations["Precision"] = precisions
-    df_combinations["Recall"] = recalls
-    df_combinations["f1"] = f1s
-    print(df_combinations.head())
-    df_combinations.to_csv("Evaluation/Hyperparameter.csv", index=True, header=True)
+    for key, values in metrics.items():
+        df_representatives[key] = values
+
+    df_representatives.to_csv("Evaluation/Hyperparameter.csv", index=True, header=True)
 
 
 if __name__ == "__main__":
@@ -637,7 +667,7 @@ if __name__ == "__main__":
     data_loader = preprocessing.DataLoader()
     preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
-    if TUNE_HYPERPARAMETER is True:
+    if TUNE_HYPERPARAMETER is True:  # TODO: Wie nutzt man das?
         tune_hyperparameter(preprocessed_data_input, NUMBER_OF_FOLDS)
 
     else:
@@ -663,4 +693,6 @@ if __name__ == "__main__":
 
             display_results(rf_results, False)
 
-        evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
+        evaluation_to_csv(
+            rf_results, y_test_count_result, y_train_count_result
+        )  # TODO: Add meta info to csv
