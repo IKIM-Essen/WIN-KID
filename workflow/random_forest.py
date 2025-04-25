@@ -7,6 +7,7 @@ import os
 import statistics
 import itertools
 import math
+import random
 from dataclasses import dataclass
 from enum import Enum
 from statistics import mean
@@ -26,6 +27,8 @@ from sklearn.metrics import (
     f1_score,
 )
 from sklearn.preprocessing import OrdinalEncoder
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -557,35 +560,11 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
         "split_strategy": list(SplitStrategy),
     }
 
-    # --- Step 1: Generate all combinations ---
     keys, values = zip(*param_grid.items())
-    all_combos = [dict(zip(keys, v)) for v in itertools.product(*values)]
-    df_all = pd.DataFrame(all_combos)
+    combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
 
-    # Step 2: Encode enums and strings for clustering
-    df_encoded = df_all.copy()
-    df_encoded["split_strategy"] = df_encoded["split_strategy"].apply(lambda x: x.value)
+    combinations_subsample = random.sample(combinations, min(200, len(combinations)))
 
-    # Replace None values with a string placeholder
-    df_encoded = df_encoded.astype(str)
-    # Encode non-numeric columns
-    obj_cols = df_encoded.select_dtypes(include=["object", "bool"]).columns
-    encoder = OrdinalEncoder()
-    df_encoded[obj_cols] = encoder.fit_transform(df_encoded[obj_cols])
-
-    # Step 3: Cluster and sample  representatives
-    kmeans = KMeans(
-        n_clusters=300, random_state=42, n_init="auto"
-    )  # TODO: Warum seiht das so seltsam verteilt aus?
-    df_encoded["cluster"] = kmeans.fit_predict(df_encoded)
-    df_representatives = df_all.loc[
-        df_encoded.groupby("cluster").head(1).index
-    ].reset_index(drop=True)
-
-    df_representatives["max_depth"] = df_representatives["max_depth"].astype("Int64")
-    df_representatives["max_depth"] = df_representatives["max_depth"].astype("object")
-    df_representatives["max_depth"] = df_representatives["max_depth"].dropna()
-    # --- Step 4: Evaluation ---
     metrics = {
         "Accuracy": [],
         "ROC_AUC": [],
@@ -595,10 +574,11 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
         "f1": [],
     }
 
-    pd.set_option("display.max_rows", None)
-    print(df_representatives)
-    for i, combo in df_representatives.iterrows():
-        print(f"{i+1} of {len(df_representatives)} combinations")
+    combinations_subsample_df = pd.DataFrame(combinations_subsample)
+    counter = 1
+    for combo in combinations_subsample:
+        print(f"{counter} of {len(combinations_subsample)} subsampled combinations")
+        counter = counter + 1
 
         max_depth_value = combo["max_depth"]
         if combo["max_depth"] != combo["max_depth"]:
@@ -634,9 +614,11 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
         metrics["f1"].append(statistics.median(f1s))
 
     for key, values in metrics.items():
-        df_representatives[key] = values
+        combinations_subsample_df[key] = values
 
-    df_representatives.to_csv("Evaluation/Hyperparameter.csv", index=True, header=True)
+    combinations_subsample_df.to_csv(
+        "Evaluation/Hyperparameter.csv", index=True, header=True
+    )
 
 
 if __name__ == "__main__":
