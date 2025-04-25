@@ -2,7 +2,7 @@
 
 ## Parser UME
 
-- Run via: `python directory/vitek.csv directory/output/file.csv` with test data at `resources/test_data`
+- Run via: `python directory/vitek.csv directory/vitek.csv directory/output/file.csv` with test data at `resources/test_data`
 - works with tab seperated csv files only
 - Removes unnecessary columns
 - specify output FILE for the parsed vitek file
@@ -17,6 +17,7 @@
 
 ## Parser BVBCR
 
+- Run via: `python workflow/vitek_parser_bvbcr.py Prospective_Jan25/MHKs_prospective_Jan25_parsed.csv Prospective_Jan25/MHKs_prospective_Jan25_interpreted.csv` with test data at `resources/test_data`
 - Run via: `python workflow/vitek_parser_bvbcr.py directory/vitek.csv directory/output/file.csv` with test data at `resources/test_data`
 - Splits the Vitek file by bacteria name and replaces them with bactia code (see names.csv)
 - Removes unnecessary data and restructures the file
@@ -26,7 +27,7 @@
 ## Interpreter
 
 - Run mic_interpreter.py to interpret any parsed files:
-  `python workflow/mic_interpreter.py directory/input/files directory/output/files/`
+  `python workflow/mic_interpreter.py Prospective_Jan25/Interpreted Prospective_Jan25`
 - Can handle single and multiple Input files and can handle multiple organisms in one file
 - Antibiotics from a vitek file that can not be matched to an EUCAST antibiotic are skipped and logged via print
 - Antibiotics with missing EUCAST Values (e.g.: '"S <=": "-",') are removed from the interpreted table
@@ -43,7 +44,7 @@
 
 ## GFF3 formatter
 
-- Run via: `python gff3_formatter.py /path/to/input_folder /path/to/output_folder`
+- Run via: `python gff3_formatter.py /groups/ds/Win-KID/UKM_Sciebo/Prospective_Jan25/card /groups/ds/Win-KID/UKM_Sciebo/Prospective_Jan25/gff_card`
 - Transforms card annotation txt files in gff3 files
 
 ## Settings
@@ -60,7 +61,8 @@
 `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
 
 ## ToDo
+- Add RF Hyperparameter via score optimization -> score tbd
+- Add RF test
 - Differentiate between oral and non oral?
 - What shall happen with EUCAST values that are doublets (e.g.: due extra information)
-- long term solution for phenotype data NaNs (currently -> S)
 - long term solution for genotype data NaNs (currently -> 0)

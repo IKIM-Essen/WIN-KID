@@ -6,7 +6,6 @@ import argparse
 import os
 import statistics
 import itertools
-import math
 import random
 from dataclasses import dataclass
 from enum import Enum
@@ -26,14 +25,17 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
 )
-from sklearn.preprocessing import OrdinalEncoder
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.compose import ColumnTransformer
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import preprocessing
 from constants import RESISTANCE_MAPPING
+
+
+class SplitStrategy(Enum):
+    RANDOM = "random"
+    STRATIFY = "stratify"
+    CLUSTER = "cluster"
 
 
 @dataclass
@@ -51,10 +53,15 @@ class ResultDTO:
     feature_importance: dict
 
 
-class SplitStrategy(Enum):
-    RANDOM = "random"
-    STRATIFY = "stratify"
-    CLUSTER = "cluster"
+@dataclass
+class RandomForestSettings:
+    n_estimators: int
+    class_weight: str
+    max_depth: object
+    min_samples_split: int
+    min_samples_leaf: int
+    max_features: str
+    bootstrap: bool
 
 
 def generate_results(target_cols, y_test_results, y_score, y_pred_list, feat_import):
@@ -178,23 +185,17 @@ def run_random_forest(
     X_test_input,
     y_test_input,
     target_input,
-    n_estimators=10,
-    class_weight="balanced",
-    max_depth=None,
-    min_samples_split=2,
-    min_samples_leaf=1,
-    max_features="sqrt",
-    bootstrap="True",
+    settings_input,
 ):
     model = RandomForestClassifier(
         random_state=42,
-        n_estimators=n_estimators,
-        class_weight=class_weight,
-        max_depth=max_depth,
-        min_samples_split=min_samples_split,
-        min_samples_leaf=min_samples_leaf,
-        max_features=max_features,
-        bootstrap=bootstrap,
+        n_estimators=settings_input.n_estimators,
+        class_weight=settings_input.class_weight,
+        max_depth=settings_input.max_depth,
+        min_samples_split=settings_input.min_samples_split,
+        min_samples_leaf=settings_input.min_samples_leaf,
+        max_features=settings_input.max_features,
+        bootstrap=settings_input.bootstrap,
     )
     model.fit(X_train_input, y_train_input)
 
@@ -218,7 +219,9 @@ def run_random_forest(
     )
 
 
-def run_splitted_random_forest(preprocessed_data, test_size, split_strategy):
+def run_splitted_random_forest(
+    preprocessed_data, test_size, split_strategy, rf_settings
+):
 
     y_test_count, y_train_count, result_dic = ({}, {}, {})
     y_test, y_train, X_test, X_train, y_test_list = ([], [], [], [], [])
@@ -269,7 +272,9 @@ def run_splitted_random_forest(preprocessed_data, test_size, split_strategy):
         y_test_count[col] = Counter(y_test)
         y_train_count[col] = Counter(y_train)
 
-        sinlge_result = run_random_forest(X_train, y_train, X_test, y_test, col)
+        sinlge_result = run_random_forest(
+            X_train, y_train, X_test, y_test, col, rf_settings
+        )
         result_dic[col] = sinlge_result
 
     return (
@@ -326,16 +331,7 @@ def compute_label_distribution(label_counts_list):
 
 
 def run_cross_validated_random_forest(
-    preprocessed_data,
-    n_splits,
-    split_strategy,
-    n_estimators=10,
-    class_weight="balanced",
-    max_depth=None,
-    min_samples_split=2,
-    min_samples_leaf=1,
-    max_features="sqrt",
-    bootstrap="True",
+    preprocessed_data, n_splits, split_strategy, rf_settings_cv
 ):
     results_per_target = {}
     test_label_count_dict = {}
@@ -374,18 +370,7 @@ def run_cross_validated_random_forest(
             train_label_counts.append(y_train.value_counts())
 
             result = run_random_forest(
-                X_train,
-                y_train,
-                X_test,
-                y_test,
-                col,
-                n_estimators=n_estimators,
-                class_weight=class_weight,
-                max_depth=max_depth,
-                min_samples_split=min_samples_split,
-                min_samples_leaf=min_samples_leaf,
-                max_features=max_features,
-                bootstrap=bootstrap,
+                X_train, y_train, X_test, y_test, col, rf_settings_cv
             )
             fold_results.append(result)
 
@@ -563,7 +548,7 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
     keys, values = zip(*param_grid.items())
     combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
 
-    combinations_subsample = random.sample(combinations, min(200, len(combinations)))
+    combinations_subsample = random.sample(combinations, min(3, len(combinations)))
 
     metrics = {
         "Accuracy": [],
@@ -584,10 +569,7 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
         if combo["max_depth"] != combo["max_depth"]:
             max_depth_value = None
 
-        rf_results, _, _ = run_cross_validated_random_forest(
-            preprocessed_data,
-            number_of_folds,
-            SplitStrategy(combo["split_strategy"].value),
+        rf_settings = RandomForestSettings(
             n_estimators=combo["n_estimators"],
             class_weight=combo["class_weight"],
             max_depth=max_depth_value,
@@ -597,8 +579,15 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
             bootstrap=combo["bootstrap"],
         )
 
+        rf_cv_results, _, _ = run_cross_validated_random_forest(
+            preprocessed_data,
+            number_of_folds,
+            SplitStrategy(combo["split_strategy"].value),
+            rf_settings,
+        )
+
         accs, rocs, prs, precs, recs, f1s = [], [], [], [], [], []
-        for result in rf_results.values():
+        for result in rf_cv_results.values():
             accs.append(result.accuracy)
             rocs.append(np.nanmean(list(result.roc_auc.values())))
             prs.append(np.nanmean(list(result.pr_auc.values())))
@@ -622,11 +611,22 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
 
 
 if __name__ == "__main__":
-    TUNE_HYPERPARAMETER = True
+    TUNE_HYPERPARAMETER = False
     CROSS_VALIDATE = True
-    SPLIT_STRATEGY = SplitStrategy.RANDOM
+
     NUMBER_OF_FOLDS = 5
     TEST_SIZE = 0.3
+
+    SPLIT_STRATEGY = SplitStrategy.RANDOM
+    rf_settings_input = RandomForestSettings(
+        n_estimators=10,
+        class_weight="balanced",
+        max_depth=None,
+        min_samples_split=2,
+        min_samples_leaf=1,
+        max_features="sqrt",
+        bootstrap=True,
+    )
 
     parser = argparse.ArgumentParser(
         description="Run RF on multiple datasets from a settings file"
@@ -639,7 +639,7 @@ if __name__ == "__main__":
     data_loader = preprocessing.DataLoader()
     preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
-    if TUNE_HYPERPARAMETER is True:  # TODO: Wie nutzt man das?
+    if TUNE_HYPERPARAMETER is True:
         tune_hyperparameter(preprocessed_data_input, NUMBER_OF_FOLDS)
 
     else:
@@ -651,7 +651,10 @@ if __name__ == "__main__":
                 y_test_count_result,
                 y_train_count_result,
             ) = run_cross_validated_random_forest(
-                preprocessed_data_input, NUMBER_OF_FOLDS, SPLIT_STRATEGY
+                preprocessed_data_input,
+                NUMBER_OF_FOLDS,
+                SPLIT_STRATEGY,
+                rf_settings_input,
             )
         else:
 
@@ -660,11 +663,9 @@ if __name__ == "__main__":
                 y_test_count_result,
                 y_train_count_result,
             ) = run_splitted_random_forest(
-                preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY
+                preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY, rf_settings_input
             )
 
             display_results(rf_results, False)
 
-        evaluation_to_csv(
-            rf_results, y_test_count_result, y_train_count_result
-        )  # TODO: Add meta info to csv
+        evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
