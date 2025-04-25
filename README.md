@@ -2,7 +2,7 @@
 
 ## Parser UME
 
-- Run via: `python directory/vitek.csv directory/output/file.csv` with test data at `resources/test_data`
+- Run via: `python workflow/vitek_parser_ume.py directory/vitek.csv directory/output/file.csv` with test data at `resources/test_data`
 - works with tab seperated csv files only
 - Removes unnecessary columns
 - specify output FILE for the parsed vitek file
