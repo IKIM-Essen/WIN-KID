@@ -559,10 +559,6 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
 
     # --- Step 1: Generate all combinations ---
     keys, values = zip(*param_grid.items())
-    combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
-
-    df_combinations = pd.DataFrame(combinations)
-    accuracies, rocs, prs, precisions, recalls, f1s = [], [], [], [], [], []
     all_combos = [dict(zip(keys, v)) for v in itertools.product(*values)]
     df_all = pd.DataFrame(all_combos)
 
@@ -577,7 +573,7 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
     encoder = OrdinalEncoder()
     df_encoded[obj_cols] = encoder.fit_transform(df_encoded[obj_cols])
 
-    # Step 3: Cluster and sample 200 representatives
+    # Step 3: Cluster and sample  representatives
     kmeans = KMeans(
         n_clusters=300, random_state=42, n_init="auto"
     )  # TODO: Warum seiht das so seltsam verteilt aus?
@@ -585,16 +581,10 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
     df_representatives = df_all.loc[
         df_encoded.groupby("cluster").head(1).index
     ].reset_index(drop=True)
-    print(df_representatives["max_depth"])
-    print(type(df_representatives["class_weight"]))
 
-    df_representatives = df_representatives.applymap(lambda x: None if x != x else x)
-    # df_representatives = df_representatives.applymap(
-    #     lambda x: None if x == "NaN" else x
-    # )
-    df_representatives["max_depth"] = df_representatives["max_depth"].apply(
-        lambda x: None if x != x else x
-    )
+    df_representatives["max_depth"] = df_representatives["max_depth"].astype("Int64")
+    df_representatives["max_depth"] = df_representatives["max_depth"].astype("object")
+    df_representatives["max_depth"] = df_representatives["max_depth"].dropna()
     # --- Step 4: Evaluation ---
     metrics = {
         "Accuracy": [],
@@ -607,7 +597,7 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
 
     pd.set_option("display.max_rows", None)
     print(df_representatives)
-    for i, combo in df_combinations.iterrows():
+    for i, combo in df_representatives.iterrows():
         print(f"{i+1} of {len(df_representatives)} combinations")
 
         max_depth_value = combo["max_depth"]
