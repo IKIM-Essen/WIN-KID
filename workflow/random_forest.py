@@ -5,7 +5,10 @@
 import argparse
 import os
 import statistics
+import itertools
+import random
 from dataclasses import dataclass
+from enum import Enum
 from statistics import mean
 from collections import Counter
 from matplotlib.backends.backend_pdf import PdfPages
@@ -29,6 +32,12 @@ import preprocessing
 from constants import RESISTANCE_MAPPING
 
 
+class SplitStrategy(Enum):
+    RANDOM = "random"
+    STRATIFY = "stratify"
+    CLUSTER = "cluster"
+
+
 @dataclass
 class ResultDTO:
     fpr: dict
@@ -42,6 +51,17 @@ class ResultDTO:
     y_pred: np.ndarray
     y_score: np.ndarray
     feature_importance: dict
+
+
+@dataclass
+class RandomForestSettings:
+    n_estimators: int
+    class_weight: str
+    max_depth: object
+    min_samples_split: int
+    min_samples_leaf: int
+    max_features: str
+    bootstrap: bool
 
 
 def generate_results(target_cols, y_test_results, y_score, y_pred_list, feat_import):
@@ -160,10 +180,22 @@ def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import
 
 
 def run_random_forest(
-    X_train_input, y_train_input, X_test_input, y_test_input, target_input
+    X_train_input,
+    y_train_input,
+    X_test_input,
+    y_test_input,
+    target_input,
+    settings_input,
 ):
     model = RandomForestClassifier(
-        n_estimators=10, class_weight="balanced", random_state=42
+        random_state=42,
+        n_estimators=settings_input.n_estimators,
+        class_weight=settings_input.class_weight,
+        max_depth=settings_input.max_depth,
+        min_samples_split=settings_input.min_samples_split,
+        min_samples_leaf=settings_input.min_samples_leaf,
+        max_features=settings_input.max_features,
+        bootstrap=settings_input.bootstrap,
     )
     model.fit(X_train_input, y_train_input)
 
@@ -187,7 +219,9 @@ def run_random_forest(
     )
 
 
-def run_splitted_random_forest(preprocessed_data, test_size, split_strategy):
+def run_splitted_random_forest(
+    preprocessed_data, test_size, split_strategy, rf_settings
+):
 
     y_test_count, y_train_count, result_dic = ({}, {}, {})
     y_test, y_train, X_test, X_train, y_test_list = ([], [], [], [], [])
@@ -206,18 +240,18 @@ def run_splitted_random_forest(preprocessed_data, test_size, split_strategy):
         X = merged_filtered_input[preprocessed_data.feature_cols]
         y = merged_filtered_input[col]
 
-        if split_strategy == "stratisfied":
+        if split_strategy == SplitStrategy.STRATIFY:
             X_train, X_test, y_train, y_test = train_test_split(
                 X,
                 y,
                 test_size=test_size,  # Not splitting further, just rebalancing
                 stratify=X["Organism_Code"],
             )
-        elif split_strategy == "random":
+        elif split_strategy == SplitStrategy.RANDOM:
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=test_size, random_state=42
             )
-        elif split_strategy == "clustered":
+        elif split_strategy == SplitStrategy.CLUSTER:
             cluster_labels = KMeans(
                 n_clusters=int((len(merged_filtered_input) / 10)), random_state=42
             ).fit_predict(X)
@@ -238,7 +272,9 @@ def run_splitted_random_forest(preprocessed_data, test_size, split_strategy):
         y_test_count[col] = Counter(y_test)
         y_train_count[col] = Counter(y_train)
 
-        sinlge_result = run_random_forest(X_train, y_train, X_test, y_test, col)
+        sinlge_result = run_random_forest(
+            X_train, y_train, X_test, y_test, col, rf_settings
+        )
         result_dic[col] = sinlge_result
 
     return (
@@ -263,13 +299,13 @@ def load_dataset_paths(path_file):
 
 
 def get_split_iterator(X, stratify_col, strategy, n_splits):
-    if strategy == "stratified":
+    if strategy == SplitStrategy.STRATIFY:
         return StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42).split(
             X, stratify_col
         )
-    elif strategy == "random":
+    elif strategy == SplitStrategy.RANDOM:
         return KFold(n_splits=n_splits, shuffle=True, random_state=42).split(X)
-    elif strategy == "clustered":
+    elif strategy == SplitStrategy.CLUSTER:
         cluster_labels = KMeans(
             n_clusters=int(len(X) / 10), random_state=42
         ).fit_predict(X)
@@ -294,7 +330,9 @@ def compute_label_distribution(label_counts_list):
     return {key: mean(values) for key, values in transposed.items()}
 
 
-def run_cross_validated_random_forest(preprocessed_data, n_splits, split_strategy):
+def run_cross_validated_random_forest(
+    preprocessed_data, n_splits, split_strategy, rf_settings_cv
+):
     results_per_target = {}
     test_label_count_dict = {}
     train_label_count_dict = {}
@@ -331,7 +369,9 @@ def run_cross_validated_random_forest(preprocessed_data, n_splits, split_strateg
             test_label_counts.append(y_test.value_counts())
             train_label_counts.append(y_train.value_counts())
 
-            result = run_random_forest(X_train, y_train, X_test, y_test, col)
+            result = run_random_forest(
+                X_train, y_train, X_test, y_test, col, rf_settings_cv
+            )
             fold_results.append(result)
 
         if fold_results:
@@ -493,11 +533,100 @@ def evaluation_to_csv(results_dto, y_test_input, y_train_input):
     evaluation_df.to_csv("Evaluation/Evaluation.csv", index=True, header=True)
 
 
+def tune_hyperparameter(preprocessed_data, number_of_folds):
+    param_grid = {
+        "n_estimators": [10, 50, 100, 200, 500],
+        "max_depth": [None, 10, 20, 50],
+        "min_samples_split": [2, 5, 10],
+        "min_samples_leaf": [1, 2, 4],
+        "max_features": ["sqrt", "log2", 0.3, None],
+        "class_weight": [None, "balanced", "balanced_subsample"],
+        "bootstrap": [True, False],
+        "split_strategy": list(SplitStrategy),
+    }
+
+    keys, values = zip(*param_grid.items())
+    combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
+
+    combinations_subsample = random.sample(combinations, min(3, len(combinations)))
+
+    metrics = {
+        "Accuracy": [],
+        "ROC_AUC": [],
+        "PR_AUC": [],
+        "Precision": [],
+        "Recall": [],
+        "f1": [],
+    }
+
+    combinations_subsample_df = pd.DataFrame(combinations_subsample)
+    counter = 1
+    for combo in combinations_subsample:
+        print(f"{counter} of {len(combinations_subsample)} subsampled combinations")
+        counter = counter + 1
+
+        max_depth_value = combo["max_depth"]
+        if combo["max_depth"] != combo["max_depth"]:
+            max_depth_value = None
+
+        rf_settings = RandomForestSettings(
+            n_estimators=combo["n_estimators"],
+            class_weight=combo["class_weight"],
+            max_depth=max_depth_value,
+            min_samples_split=combo["min_samples_split"],
+            min_samples_leaf=combo["min_samples_leaf"],
+            max_features=combo["max_features"],
+            bootstrap=combo["bootstrap"],
+        )
+
+        rf_cv_results, _, _ = run_cross_validated_random_forest(
+            preprocessed_data,
+            number_of_folds,
+            SplitStrategy(combo["split_strategy"].value),
+            rf_settings,
+        )
+
+        accs, rocs, prs, precs, recs, f1s = [], [], [], [], [], []
+        for result in rf_cv_results.values():
+            accs.append(result.accuracy)
+            rocs.append(np.nanmean(list(result.roc_auc.values())))
+            prs.append(np.nanmean(list(result.pr_auc.values())))
+            precs.append(np.nanmean(list(result.precision.values())))
+            recs.append(np.nanmean(list(result.recall.values())))
+            f1s.append(np.nanmean(list(result.f1.values())))
+
+        metrics["Accuracy"].append(statistics.median(accs))
+        metrics["ROC_AUC"].append(statistics.median(rocs))
+        metrics["PR_AUC"].append(statistics.median(prs))
+        metrics["Precision"].append(statistics.median(precs))
+        metrics["Recall"].append(statistics.median(recs))
+        metrics["f1"].append(statistics.median(f1s))
+
+    for key, values in metrics.items():
+        combinations_subsample_df[key] = values
+
+    combinations_subsample_df.to_csv(
+        "Evaluation/Hyperparameter.csv", index=True, header=True
+    )
+
+
 if __name__ == "__main__":
+    TUNE_HYPERPARAMETER = False
     CROSS_VALIDATE = True
-    SPLIT_STRATEGY = "random"
+
     NUMBER_OF_FOLDS = 5
-    TEST_SIZE = 0.5
+    TEST_SIZE = 0.3
+
+    SPLIT_STRATEGY = SplitStrategy.RANDOM
+    rf_settings_input = RandomForestSettings(
+        n_estimators=10,
+        class_weight="balanced",
+        max_depth=None,
+        min_samples_split=2,
+        min_samples_leaf=1,
+        max_features="sqrt",
+        bootstrap=True,
+    )
 
     parser = argparse.ArgumentParser(
         description="Run RF on multiple datasets from a settings file"
@@ -510,26 +639,33 @@ if __name__ == "__main__":
     data_loader = preprocessing.DataLoader()
     preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
-    if CROSS_VALIDATE is True:
-        # display not possible with CV.
-        # S/R/I Set changes with every fold -> fpr size changes as well
-        (
-            rf_results,
-            y_test_count_result,
-            y_train_count_result,
-        ) = run_cross_validated_random_forest(
-            preprocessed_data_input, NUMBER_OF_FOLDS, SPLIT_STRATEGY
-        )
+    if TUNE_HYPERPARAMETER is True:
+        tune_hyperparameter(preprocessed_data_input, NUMBER_OF_FOLDS)
+
     else:
+        if CROSS_VALIDATE is True:
+            # display not possible with CV.
+            # S/R/I Set changes with every fold -> fpr size changes as well
+            (
+                rf_results,
+                y_test_count_result,
+                y_train_count_result,
+            ) = run_cross_validated_random_forest(
+                preprocessed_data_input,
+                NUMBER_OF_FOLDS,
+                SPLIT_STRATEGY,
+                rf_settings_input,
+            )
+        else:
 
-        (
-            rf_results,
-            y_test_count_result,
-            y_train_count_result,
-        ) = run_splitted_random_forest(
-            preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY
-        )
+            (
+                rf_results,
+                y_test_count_result,
+                y_train_count_result,
+            ) = run_splitted_random_forest(
+                preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY, rf_settings_input
+            )
 
-        display_results(rf_results, False)
+            display_results(rf_results, False)
 
-    evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
+        evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
