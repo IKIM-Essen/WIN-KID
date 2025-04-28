@@ -5,15 +5,19 @@
 import os
 import re
 from dataclasses import dataclass
-import pandas as pd
 from warnings import simplefilter
+from itertools import combinations
+import pandas as pd
+from fuzzywuzzy import fuzz
+from constants import GFF_COLUMNS
+from constants import RESISTANCE_MAPPING
+
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
-from constants import GFF_COLUMNS
-
 
 GFF_DIR = "resources/genotype"
 ID_COLUMN = "Sample_ID_IfH"
+ORGANISM_COLUMN = "Organism_Code"
 
 
 def extract_gene_attribute(attribute_string, key):
@@ -82,8 +86,9 @@ def clean_and_split(value):
     return [v.strip() for v in cleaned_values if v.strip()]
 
 
-def load_genotypes(directory):
+def load_genotypes(directory_row):
     data = []
+    directory = directory_row["PathToGff"]
 
     for gff_file in os.listdir(directory):
         if gff_file.endswith(".gff"):
@@ -96,6 +101,9 @@ def load_genotypes(directory):
 
             data.append(gff_df)
 
+    print(
+        str(len(data)) + " input genotype samples from " + directory_row["DataSetName"]
+    )
     genotype_df = pd.concat(data, ignore_index=True) if data else pd.DataFrame()
 
     return genotype_df
@@ -126,12 +134,48 @@ def one_hot_encode_list(df, feature):
     return df
 
 
+def find_similar_columns(df, threshold=90):
+    columns = df.columns
+    for col1, col2 in combinations(columns, 2):
+        score = fuzz.ratio(col1, col2)
+        if score >= threshold:
+            print(f"⚠️ Similar columns: '{col1}' ↔ '{col2}' (Score: {score})")
+
+
 class DataLoader:
     def __init__(self):
         self.merged_input = None
 
-    def preprocess_phenotype_data(self, phenotype_file_path):
-        input_phenotype = pd.read_csv(phenotype_file_path)
+    def preprocess_phenotype_data(self, dataset_list):
+        seen_once = set()
+        duplicates = set()
+        input_phenotype_list = []
+        for _, phenotype_file_row in dataset_list.iterrows():
+            input_phenotype_data = pd.read_csv(phenotype_file_row["PathToCsv"])
+            print(
+                str(len(input_phenotype_data))
+                + " input phenotype samples from "
+                + phenotype_file_row["DataSetName"]
+            )
+
+            # Check for duplicates across datasets
+            ids_in_current = set(input_phenotype_data[ID_COLUMN])
+            common_ids = ids_in_current & seen_once
+            if common_ids:
+                duplicates.update(common_ids)
+            seen_once.update(ids_in_current)
+            input_phenotype_data.columns = list(input_phenotype_data.columns[:2]) + [
+                col.capitalize() for col in input_phenotype_data.columns[2:]
+            ]
+            input_phenotype_list.append(input_phenotype_data)
+
+        if duplicates:
+            raise ValueError(
+                f"Duplicate IDs found across datasets: {sorted(duplicates)}"
+            )
+        input_phenotype = pd.concat(input_phenotype_list, ignore_index=True)
+        find_similar_columns(input_phenotype)
+        print(str(len(input_phenotype)) + " input phenotype samples overall")
 
         while True:
             rows_to_remove = set()
@@ -155,63 +199,81 @@ class DataLoader:
 
         input_phenotype = input_phenotype.loc[
             :,
-            ["Sample_ID_IfH", "Organism_Code"]
+            [ID_COLUMN, ORGANISM_COLUMN]
             + list(
                 input_phenotype.columns[2:][input_phenotype.iloc[:, 2:].nunique() > 1]
             ),
         ].reset_index(drop=True)
 
-        input_phenotype.fillna("S", inplace=True)
+        input_phenotype.fillna(next(iter(RESISTANCE_MAPPING)), inplace=True)
         return input_phenotype
 
-    def preprocess_genotype_data(self, genotype_dir_path):
-        raw_gff_df = load_genotypes(genotype_dir_path)
-        raw_gff_df.fillna("0", inplace=True)
+    def preprocess_genotype_data(self, dataset_list):
+        raw_gff_list = []
+        for _, genotype_file_row in dataset_list.iterrows():
+            raw_gff_data = load_genotypes(genotype_file_row)
+            raw_gff_list.append(raw_gff_data)
+        raw_gff_df = pd.concat(raw_gff_list, ignore_index=True)
 
-        attribute_single_features = ["Name", "ResistanceMechanism"]
+        attribute_single_features = ["Name", "ORF"]
         extracted_single_pd = extract_single_features(
             raw_gff_df, attribute_single_features
         )
         extracted_single_pd.drop(columns=GFF_COLUMNS, inplace=True)
 
-        attribute_list_features = ["Antibiotic"]
+        attribute_list_features = ["Antibiotic", "DrugClass", "AMRGeneFamily"]
         extracted_list_pd = extract_list_features(raw_gff_df, attribute_list_features)
         extracted_list_pd.drop(columns=GFF_COLUMNS, inplace=True)
 
-        input_genotype = pd.merge(
+        input_genotype_combined = pd.merge(
             extracted_single_pd,
             extracted_list_pd,
             on=ID_COLUMN,
             how="inner",
         )
+        print(str(len(input_genotype_combined)) + " input genotype samples overall")
 
-        return input_genotype
+        return input_genotype_combined
 
-    def get_preprocessed_data(self, phenotype_file_path, genotype_dir_path):
-        input_phenotype = self.preprocess_phenotype_data(phenotype_file_path)
-        input_genotype = self.preprocess_genotype_data(genotype_dir_path)
+    def get_preprocessed_data(self, dataset_list):
+        input_phenotype = self.preprocess_phenotype_data(dataset_list)
+        input_genotype = self.preprocess_genotype_data(dataset_list)
 
-        input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].str.strip()
-        input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].str.strip()
+        input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].astype(str).str.strip()
+        input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].astype(str).str.strip()
 
+        # Encode Organism Code as ints
+        input_phenotype[ORGANISM_COLUMN] = (
+            input_phenotype[ORGANISM_COLUMN].astype("category").cat.codes
+        )
+        # Encode target values as specific ints
+        for col in input_phenotype.columns[2:]:
+            input_phenotype[col] = (
+                input_phenotype[col].map(RESISTANCE_MAPPING).fillna(-1).astype(int)
+            )
+
+        # Make target columns distinguishable from feature
+        input_phenotype.columns = list(input_phenotype.columns[:2]) + [
+            f"{col}_AB" for col in input_phenotype.columns[2:]
+        ]
         self.merged_input = pd.merge(
             input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
         )
-
         num_phenotype_cols = input_phenotype.shape[1]
 
-        mapping = {"S": 0, "I": 1, "R": 2}
-
-        for col in self.merged_input.columns[2:22]:
-            self.merged_input[col] = (
-                self.merged_input[col].map(mapping).fillna(-1).astype(int)
-            )
+        feature_cols_merged = list(self.merged_input.columns[num_phenotype_cols:])
+        feature_cols_merged.append(ORGANISM_COLUMN)
 
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
             self.merged_input.columns[2:num_phenotype_cols],
-            self.merged_input.columns[num_phenotype_cols:],
+            feature_cols_merged,
         )
+        print(
+            "Number of preprocessed merged samples: "
+            + str(len(preprocessed_data.merged_input))
+        )
+
         return preprocessed_data
 
 
