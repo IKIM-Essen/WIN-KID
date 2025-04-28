@@ -4,12 +4,11 @@
 
 import argparse
 import os
-import statistics
 import itertools
 import random
 from dataclasses import dataclass
 from enum import Enum
-from statistics import mean
+from statistics import mean, median
 from collections import Counter
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
@@ -62,69 +61,6 @@ class RandomForestSettings:
     min_samples_leaf: int
     max_features: str
     bootstrap: bool
-
-
-def generate_results(target_cols, y_test_results, y_score, y_pred_list, feat_import):
-    result_dic = {}
-
-    for col_index, col in enumerate(target_cols):
-        y_test_col = y_test_results[col_index]
-        y_pred_col = y_pred_list[col_index]
-        y_score_col = y_score[col_index]
-
-        unique_classes = np.unique(y_test_col)
-
-        fpr = {}
-        tpr = {}
-        roc_auc = {}
-        pr_auc = {}
-        precision = {}
-        recall = {}
-        f1 = {}
-
-        for label_class in unique_classes:
-            y_test_binarized = (y_test_col == label_class).astype(int)
-            y_pred_binarized = (y_pred_col == label_class).astype(int)
-
-            if label_class >= y_score_col.shape[1]:
-                print(f"Skipping class {label_class} for {col}, not in predictions")
-                continue
-
-            fpr[label_class], tpr[label_class], _ = roc_curve(
-                y_test_binarized, y_score_col[:, label_class]
-            )
-            roc_auc[label_class] = auc(fpr[label_class], tpr[label_class])
-            pr_auc[label_class] = average_precision_score(
-                y_test_binarized, y_score_col[:, label_class]
-            )
-
-            precision[label_class] = precision_score(
-                y_test_binarized, y_pred_binarized, zero_division=0
-            )
-            recall[label_class] = recall_score(
-                y_test_binarized, y_pred_binarized, zero_division=0
-            )
-            f1[label_class] = f1_score(
-                y_test_binarized, y_pred_binarized, zero_division=0
-            )
-
-        accuracy = accuracy_score(y_test_col, y_pred_col)
-
-        result_dic[col] = ResultDTO(
-            fpr=fpr,
-            tpr=tpr,
-            roc_auc=roc_auc,
-            pr_auc=pr_auc,
-            accuracy=accuracy,
-            precision=precision,
-            recall=recall,
-            f1=f1,
-            y_pred=y_pred_col,
-            y_score=y_score_col,
-            feature_importance=feat_import[col_index],
-        )
-
-    return result_dic
 
 
 def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import):
@@ -280,7 +216,7 @@ def run_splitted_random_forest(
     return (
         result_dic,
         y_test_count,
-        y_test_count,
+        y_train_count,
     )
 
 
@@ -513,12 +449,12 @@ def evaluation_to_csv(results_dto, y_test_input, y_train_input):
         ]
 
     evaluation_df.loc["Median"] = [
-        statistics.median(evaluation_df["Accuracy"].dropna()),
-        statistics.median(evaluation_df["ROC_Mean"].dropna()),
-        statistics.median(evaluation_df["PR_Mean"].dropna()),
-        statistics.median(evaluation_df["Precision_Mean"].dropna()),
-        statistics.median(evaluation_df["Recall_Mean"].dropna()),
-        statistics.median(evaluation_df["F1_Mean"].dropna()),
+        median(evaluation_df["Accuracy"].dropna()),
+        median(evaluation_df["ROC_Mean"].dropna()),
+        median(evaluation_df["PR_Mean"].dropna()),
+        median(evaluation_df["Precision_Mean"].dropna()),
+        median(evaluation_df["Recall_Mean"].dropna()),
+        median(evaluation_df["F1_Mean"].dropna()),
         pd.NA,
         pd.NA,
         pd.NA,
@@ -595,12 +531,12 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
             recs.append(np.nanmean(list(result.recall.values())))
             f1s.append(np.nanmean(list(result.f1.values())))
 
-        metrics["Accuracy"].append(statistics.median(accs))
-        metrics["ROC_AUC"].append(statistics.median(rocs))
-        metrics["PR_AUC"].append(statistics.median(prs))
-        metrics["Precision"].append(statistics.median(precs))
-        metrics["Recall"].append(statistics.median(recs))
-        metrics["f1"].append(statistics.median(f1s))
+        metrics["Accuracy"].append(median(accs))
+        metrics["ROC_AUC"].append(median(rocs))
+        metrics["PR_AUC"].append(median(prs))
+        metrics["Precision"].append(median(precs))
+        metrics["Recall"].append(median(recs))
+        metrics["f1"].append(median(f1s))
 
     for key, values in metrics.items():
         combinations_subsample_df[key] = values
