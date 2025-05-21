@@ -553,14 +553,14 @@ if __name__ == "__main__":
     NUMBER_OF_FOLDS = 5
     TEST_SIZE = 0.3
 
-    SPLIT_STRATEGY = SplitStrategy.RANDOM
+    SPLIT_STRATEGY = SplitStrategy.STRATIFY
     rf_settings_input = RandomForestSettings(
-        n_estimators=10,
-        class_weight="balanced",
-        max_depth=None,
+        n_estimators=100,
+        class_weight="balanced_subsample",
+        max_depth=20,
         min_samples_split=2,
-        min_samples_leaf=1,
-        max_features="sqrt",
+        min_samples_leaf=2,
+        max_features=0.3,
         bootstrap=True,
     )
 
