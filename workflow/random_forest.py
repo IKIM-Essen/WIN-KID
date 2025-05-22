@@ -31,6 +31,12 @@ import preprocessing
 from constants import RESISTANCE_MAPPING
 
 
+class ModelStrategy(Enum):
+    CROSS_VALIDATE = "cross_validate"
+    STACKED = "stacked"
+    SPLIT = "split"
+
+
 class SplitStrategy(Enum):
     RANDOM = "random"
     STRATIFY = "stratify"
@@ -212,6 +218,75 @@ def run_splitted_random_forest(
             X_train, y_train, X_test, y_test, col, rf_settings
         )
         result_dic[col] = sinlge_result
+
+    return (
+        result_dic,
+        y_test_count,
+        y_train_count,
+    )
+
+
+def run_stacked_random_forest(
+    preprocessed_data, test_size, split_strategy, rf_settings
+):
+
+    y_test_count, y_train_count, result_dic = ({}, {}, {})
+    y_test, y_train, X_test, X_train, y_test_list = ([], [], [], [], [])
+
+    # merged_filtered_input = preprocessed_data.merged_input
+    # merged_filtered_input = merged_filtered_input[merged_filtered_input[target] != 0]
+
+    # # Drop rows of Organisms that occur only once
+    # value_counts = preprocessed_data.merged_input["Organism_Code"].value_counts()
+    # rare_values = value_counts[value_counts == 1].index
+    # merged_filtered_input = merged_filtered_input[
+    #     ~merged_filtered_input["Organism_Code"].isin(rare_values)
+    # ]
+
+    X = preprocessed_data.merged_input[preprocessed_data.feature_cols]
+    y = preprocessed_data.merged_input[preprocessed_data.target_cols]
+
+    if split_strategy == SplitStrategy.STRATIFY:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            test_size=test_size,  # Not splitting further, just rebalancing
+            stratify=X["Organism_Code"],
+        )
+    elif split_strategy == SplitStrategy.RANDOM:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=42
+        )
+    elif split_strategy == SplitStrategy.CLUSTER:
+        cluster_labels = KMeans(
+            n_clusters=int((len(preprocessed_data.merged_input) / 10)), random_state=42
+        ).fit_predict(X)
+        unique_clusters = np.unique(cluster_labels)
+        train_clusters, test_clusters = train_test_split(
+            unique_clusters, test_size=test_size, random_state=42
+        )
+        train_idx = np.isin(cluster_labels, train_clusters)
+        test_idx = np.isin(cluster_labels, test_clusters)
+        X_train, X_test, y_train, y_test = (
+            X[train_idx],
+            X[test_idx],
+            y[train_idx],
+            y[test_idx],
+        )
+
+    for target in preprocessed_data.target_cols:
+
+        y_train_target = y_train[target]
+        y_test_target = y_test[target]
+
+        y_test_list.append(y_test_target)
+        y_test_count[target] = Counter(y_test_target)
+        y_train_count[target] = Counter(y_train_target)
+
+        sinlge_result = run_random_forest(
+            X_train, y_train_target, X_test, y_test_target, target, rf_settings
+        )
+        result_dic[target] = sinlge_result
 
     return (
         result_dic,
@@ -548,7 +623,7 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
 
 if __name__ == "__main__":
     TUNE_HYPERPARAMETER = False
-    CROSS_VALIDATE = True
+    MODEL_STRATEGY = ModelStrategy.STACKED
 
     NUMBER_OF_FOLDS = 5
     TEST_SIZE = 0.3
@@ -579,7 +654,7 @@ if __name__ == "__main__":
         tune_hyperparameter(preprocessed_data_input, NUMBER_OF_FOLDS)
 
     else:
-        if CROSS_VALIDATE is True:
+        if MODEL_STRATEGY is ModelStrategy.CROSS_VALIDATE:
             # display not possible with CV.
             # S/R/I Set changes with every fold -> fpr size changes as well
             (
@@ -592,7 +667,16 @@ if __name__ == "__main__":
                 SPLIT_STRATEGY,
                 rf_settings_input,
             )
-        else:
+        elif MODEL_STRATEGY is ModelStrategy.STACKED:
+            (
+                rf_results,
+                y_test_count_result,
+                y_train_count_result,
+            ) = run_stacked_random_forest(
+                preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY, rf_settings_input
+            )
+
+        elif MODEL_STRATEGY is ModelStrategy.SPLIT:
 
             (
                 rf_results,
@@ -603,5 +687,8 @@ if __name__ == "__main__":
             )
 
             display_results(rf_results, False)
+
+        else:
+            print("Set MODEL_STRATEGY to valid value")
 
         evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
