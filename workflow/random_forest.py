@@ -128,6 +128,7 @@ def run_random_forest(
     y_test_input,
     target_input,
     settings_input,
+    output_training=False,
 ):
     model = RandomForestClassifier(
         random_state=42,
@@ -141,24 +142,45 @@ def run_random_forest(
     )
     model.fit(X_train_input, y_train_input)
 
-    y_pred = model.predict(X_test_input)
-    y_proba = model.predict_proba(X_test_input)
-
-    # Map to 4-class output for y_score
-    proba_full = np.zeros((y_proba.shape[0], 4))
-    for idx, class_label in enumerate(model.classes_):
-        proba_full[:, class_label] = y_proba[:, idx]
-
     importances = model.feature_importances_
     forest_importances = pd.Series(importances, index=X_train_input.columns)
 
-    return generate_result(
+    y_pred_test = model.predict(X_test_input)
+    y_proba_test = model.predict_proba(X_test_input)
+
+    # Map to 4-class output for y_score
+    proba_full_test = np.zeros((y_proba_test.shape[0], 4))
+    for idx, class_label in enumerate(model.classes_):
+        proba_full_test[:, class_label] = y_proba_test[:, idx]
+
+    result_test = generate_result(
         target_input,
         y_test_input,
-        proba_full,
-        y_pred,
+        proba_full_test,
+        y_pred_test,
         forest_importances.sort_values(ascending=False),
     )
+
+    if output_training == False:
+        return result_test
+    else:
+
+        y_pred_train = model.predict(X_train_input)
+        y_proba_train = model.predict_proba(X_train_input)
+
+        # Map to 4-class output for y_score
+        proba_full_train = np.zeros((y_proba_train.shape[0], 4))
+        for idx, class_label in enumerate(model.classes_):
+            proba_full_train[:, class_label] = y_proba_train[:, idx]
+
+        result_train = generate_result(
+            target_input,
+            y_train_input,
+            proba_full_train,
+            y_pred_train,
+            forest_importances.sort_values(ascending=False),
+        )
+        return result_test, result_train
 
 
 def run_splitted_random_forest(
@@ -283,8 +305,8 @@ def run_stacked_random_forest(
         y_test_count[target] = Counter(y_test_target)
         y_train_count[target] = Counter(y_train_target)
 
-        sinlge_result = run_random_forest(
-            X_train, y_train_target, X_test, y_test_target, target, rf_settings
+        sinlge_result, train_result = run_random_forest(
+            X_train, y_train_target, X_test, y_test_target, target, rf_settings, True
         )
         result_dic[target] = sinlge_result
 
