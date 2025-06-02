@@ -18,5 +18,6 @@ GFF_COLUMNS = [
     "Phase",
     "Attributes",
 ]
+ID_COLUMN = "Sample_ID_IfH"
 
 RESISTANCE_MAPPING = {"NA": 0, "S": 1, "I": 2, "R": 3}

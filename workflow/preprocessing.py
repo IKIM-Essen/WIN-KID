@@ -11,12 +11,12 @@ import pandas as pd
 from fuzzywuzzy import fuzz
 from constants import GFF_COLUMNS
 from constants import RESISTANCE_MAPPING
+from constants import ID_COLUMN
 
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 GFF_DIR = "resources/genotype"
-ID_COLUMN = "Sample_ID_IfH"
 ORGANISM_COLUMN = "Organism_Code"
 
 

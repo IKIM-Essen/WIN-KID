@@ -29,6 +29,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import preprocessing
 from constants import RESISTANCE_MAPPING
+from constants import ID_COLUMN
 
 
 class ModelStrategy(Enum):
@@ -128,7 +129,6 @@ def run_random_forest(
     y_test_input,
     target_input,
     settings_input,
-    output_training=False,
 ):
     model = RandomForestClassifier(
         random_state=42,
@@ -142,16 +142,63 @@ def run_random_forest(
     )
     model.fit(X_train_input, y_train_input)
 
+    y_pred = model.predict(X_test_input)
+    y_proba = model.predict_proba(X_test_input)
+
+    # Map to 4-class output for y_score
+    proba_full = np.zeros((y_proba.shape[0], 4))
+    for idx, class_label in enumerate(model.classes_):
+        proba_full[:, class_label] = y_proba[:, idx]
+
+    importances = model.feature_importances_
+    forest_importances = pd.Series(importances, index=X_train_input.columns)
+
+    return generate_result(
+        target_input,
+        y_test_input,
+        proba_full,
+        y_pred,
+        forest_importances.sort_values(ascending=False),
+    )
+
+
+def run_layer_one_random_forest(
+    X_train_input,
+    y_train_input,
+    X_test_input,
+    y_test_input,
+    target_input,
+    settings_input,
+):
+    model = RandomForestClassifier(
+        random_state=42,
+        n_estimators=settings_input.n_estimators,
+        class_weight=settings_input.class_weight,
+        max_depth=settings_input.max_depth,
+        min_samples_split=settings_input.min_samples_split,
+        min_samples_leaf=settings_input.min_samples_leaf,
+        max_features=settings_input.max_features,
+        bootstrap=settings_input.bootstrap,
+    )
+
+    # TODO: Filter out all columns with 0 (NaN) in y
+    model.fit(X_train_input, y_train_input)
+
     importances = model.feature_importances_
     forest_importances = pd.Series(importances, index=X_train_input.columns)
 
     y_pred_test = model.predict(X_test_input)
     y_proba_test = model.predict_proba(X_test_input)
 
+    print("probas")
+    print(y_proba_test.shape[1])  # Shall be 2 or 3 and not 4
+
     # Map to 4-class output for y_score
     proba_full_test = np.zeros((y_proba_test.shape[0], 4))
     for idx, class_label in enumerate(model.classes_):
         proba_full_test[:, class_label] = y_proba_test[:, idx]
+
+    print(proba_full_test)  # First column shall be 0
 
     result_test = generate_result(
         target_input,
@@ -161,26 +208,10 @@ def run_random_forest(
         forest_importances.sort_values(ascending=False),
     )
 
-    if output_training == False:
-        return result_test
-    else:
+    y_pred_train = model.predict(X_train_input)
+    y_proba_train = model.predict_proba(X_train_input)
 
-        y_pred_train = model.predict(X_train_input)
-        y_proba_train = model.predict_proba(X_train_input)
-
-        # Map to 4-class output for y_score
-        proba_full_train = np.zeros((y_proba_train.shape[0], 4))
-        for idx, class_label in enumerate(model.classes_):
-            proba_full_train[:, class_label] = y_proba_train[:, idx]
-
-        result_train = generate_result(
-            target_input,
-            y_train_input,
-            proba_full_train,
-            y_pred_train,
-            forest_importances.sort_values(ascending=False),
-        )
-        return result_test, result_train
+    return result_test, y_proba_train, y_proba_test
 
 
 def run_splitted_random_forest(
@@ -255,18 +286,19 @@ def run_stacked_random_forest(
     y_test_count, y_train_count, result_dic = ({}, {}, {})
     y_test, y_train, X_test, X_train, y_test_list = ([], [], [], [], [])
 
-    # merged_filtered_input = preprocessed_data.merged_input
-    # merged_filtered_input = merged_filtered_input[merged_filtered_input[target] != 0]
+    merged_filtered_input = preprocessed_data.merged_input
+    # Drop rows of Organisms that occur only once
+    value_counts = preprocessed_data.merged_input["Organism_Code"].value_counts()
+    rare_values = value_counts[value_counts == 1].index
+    merged_filtered_input = merged_filtered_input[
+        ~merged_filtered_input["Organism_Code"].isin(rare_values)
+    ]
 
-    # # Drop rows of Organisms that occur only once
-    # value_counts = preprocessed_data.merged_input["Organism_Code"].value_counts()
-    # rare_values = value_counts[value_counts == 1].index
-    # merged_filtered_input = merged_filtered_input[
-    #     ~merged_filtered_input["Organism_Code"].isin(rare_values)
-    # ]
-
+    # TODO: Check that ID does not caus trouble at splitting
+    preprocessed_data.feature_cols.append(ID_COLUMN)
     X = preprocessed_data.merged_input[preprocessed_data.feature_cols]
     y = preprocessed_data.merged_input[preprocessed_data.target_cols]
+    print(X.columns)
 
     if split_strategy == SplitStrategy.STRATIFY:
         X_train, X_test, y_train, y_test = train_test_split(
@@ -296,6 +328,11 @@ def run_stacked_random_forest(
             y[test_idx],
         )
 
+    X_id_train = X_train[ID_COLUMN]
+    X_id_test = X_test[ID_COLUMN]
+    X_train = X_train.drop(ID_COLUMN, axis=1)
+    X_test = X_test.drop(ID_COLUMN, axis=1)
+
     for target in preprocessed_data.target_cols:
 
         y_train_target = y_train[target]
@@ -305,8 +342,8 @@ def run_stacked_random_forest(
         y_test_count[target] = Counter(y_test_target)
         y_train_count[target] = Counter(y_train_target)
 
-        sinlge_result, train_result = run_random_forest(
-            X_train, y_train_target, X_test, y_test_target, target, rf_settings, True
+        sinlge_result, proba_train, proba_test = run_layer_one_random_forest(
+            X_train, y_train_target, X_test, y_test_target, target, rf_settings
         )
         result_dic[target] = sinlge_result
 
