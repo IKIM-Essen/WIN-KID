@@ -190,8 +190,8 @@ def run_layer_one_random_forest(
     y_pred_test = model.predict(X_test_input)
     y_proba_test = model.predict_proba(X_test_input)
 
-    print("probas")
-    print(y_proba_test.shape[1])  # Shall be 2 or 3 and not 4
+    # print("probas")
+    # print(y_proba_test.shape[1])  # Shall be 2 or 3 and not 4
 
     # Map to 4-class output for y_score
     proba_full_test = np.zeros((y_proba_test.shape[0], 4))
@@ -328,22 +328,34 @@ def run_stacked_random_forest(
             y[test_idx],
         )
 
-    X_id_train = X_train[ID_COLUMN]
-    X_id_test = X_test[ID_COLUMN]
-    X_train = X_train.drop(ID_COLUMN, axis=1)
-    X_test = X_test.drop(ID_COLUMN, axis=1)
-
     for target in preprocessed_data.target_cols:
 
         y_train_target = y_train[target]
         y_test_target = y_test[target]
+
+        mask_train = y_train_target != 0
+        y_train_target = y_train_target[mask_train]
+        X_train_target = X_train[mask_train]
+        mask_test = y_test_target != 0
+        y_test_target = y_test_target[mask_test]
+        X_test_target = X_test[mask_test]
+
+        X_train_target_id = X_train_target[ID_COLUMN]
+        X_test_target_id = X_test_target[ID_COLUMN]
+        X_train_target = X_train_target.drop(ID_COLUMN, axis=1)
+        X_test_target = X_test_target.drop(ID_COLUMN, axis=1)
 
         y_test_list.append(y_test_target)
         y_test_count[target] = Counter(y_test_target)
         y_train_count[target] = Counter(y_train_target)
 
         sinlge_result, proba_train, proba_test = run_layer_one_random_forest(
-            X_train, y_train_target, X_test, y_test_target, target, rf_settings
+            X_train_target,
+            y_train_target,
+            X_test_target,
+            y_test_target,
+            target,
+            rf_settings,
         )
         result_dic[target] = sinlge_result
 
