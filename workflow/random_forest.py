@@ -181,7 +181,6 @@ def run_layer_one_random_forest(
         bootstrap=settings_input.bootstrap,
     )
 
-    # TODO: Filter out all columns with 0 (NaN) in y
     model.fit(X_train_input, y_train_input)
 
     importances = model.feature_importances_
@@ -190,15 +189,10 @@ def run_layer_one_random_forest(
     y_pred_test = model.predict(X_test_input)
     y_proba_test = model.predict_proba(X_test_input)
 
-    # print("probas")
-    # print(y_proba_test.shape[1])  # Shall be 2 or 3 and not 4
-
     # Map to 4-class output for y_score
     proba_full_test = np.zeros((y_proba_test.shape[0], 4))
     for idx, class_label in enumerate(model.classes_):
         proba_full_test[:, class_label] = y_proba_test[:, idx]
-
-    print(proba_full_test)  # First column shall be 0
 
     result_test = generate_result(
         target_input,
@@ -208,10 +202,17 @@ def run_layer_one_random_forest(
         forest_importances.sort_values(ascending=False),
     )
 
-    y_pred_train = model.predict(X_train_input)
     y_proba_train = model.predict_proba(X_train_input)
 
-    return result_test, y_proba_train, y_proba_test
+    proba_full_train = np.zeros((y_proba_train.shape[0], 4))
+    for idx, class_label in enumerate(model.classes_):
+        proba_full_train[:, class_label] = y_proba_train[:, idx]
+
+    column_names = [f"{res}_{target_input}" for res in RESISTANCE_MAPPING.keys()]
+    proba_full_train_df = pd.DataFrame(proba_full_train, columns=column_names)
+    proba_full_test_df = pd.DataFrame(proba_full_test, columns=column_names)
+
+    return result_test, proba_full_train_df, proba_full_test_df
 
 
 def run_splitted_random_forest(
@@ -328,6 +329,8 @@ def run_stacked_random_forest(
             y[test_idx],
         )
 
+    proba_train_joined = pd.DataFrame([])
+    proba_test_joined = pd.DataFrame([])
     for target in preprocessed_data.target_cols:
 
         y_train_target = y_train[target]
@@ -349,15 +352,64 @@ def run_stacked_random_forest(
         y_test_count[target] = Counter(y_test_target)
         y_train_count[target] = Counter(y_train_target)
 
-        sinlge_result, proba_train, proba_test = run_layer_one_random_forest(
-            X_train_target,
-            y_train_target,
-            X_test_target,
-            y_test_target,
-            target,
-            rf_settings,
+        single_result, proba_train_target, proba_test_target = (
+            run_layer_one_random_forest(
+                X_train_target,
+                y_train_target,
+                X_test_target,
+                y_test_target,
+                target,
+                rf_settings,
+            )
         )
-        result_dic[target] = sinlge_result
+
+        proba_train_target = proba_train_target.drop(
+            proba_train_target.columns[0], axis=1
+        )
+        proba_test_target = proba_test_target.drop(proba_test_target.columns[0], axis=1)
+        proba_train_target[ID_COLUMN] = X_train_target_id.reset_index(drop=True)
+        proba_test_target[ID_COLUMN] = X_test_target_id.reset_index(drop=True)
+
+        if len(proba_train_joined) == 0:
+            proba_train_joined = proba_train_target
+            proba_test_joined = proba_test_target
+        else:
+            proba_train_joined = pd.merge(
+                proba_train_joined, proba_train_target, on=ID_COLUMN, how="outer"
+            )
+            proba_test_joined = pd.merge(
+                proba_test_joined, proba_test_target, on=ID_COLUMN, how="outer"
+            )
+
+        result_dic[target] = single_result
+    # TODO: Why is the combined list of all pro shorter than y_train / y_test
+    print(
+        "Joined length("
+        + str(len(proba_test_joined))
+        + ") and total length("
+        + str(len(y_test))
+        + ") shall be even!"
+    )
+
+    y_proba_train = merged_filtered_input[
+        merged_filtered_input[ID_COLUMN].isin(proba_train_joined[ID_COLUMN]).copy()
+    ]
+    proba_train_joined = proba_train_joined.sort_values(by=[ID_COLUMN])
+    y_proba_train = y_proba_train.sort_values(by=[ID_COLUMN])
+    y_proba_train = y_proba_train[preprocessed_data.target_cols]
+    X_proba_train = proba_train_joined.drop(ID_COLUMN, axis=1)
+    print(X_proba_train)
+    print(y_proba_train)
+
+    y_proba_test = merged_filtered_input[
+        merged_filtered_input[ID_COLUMN].isin(proba_test_joined[ID_COLUMN]).copy()
+    ]
+    proba_test_joined = proba_test_joined.sort_values(by=[ID_COLUMN])
+    y_proba_test = y_proba_test.sort_values(by=[ID_COLUMN])
+    y_proba_test = y_proba_test[preprocessed_data.target_cols]
+    X_proba_test = proba_test_joined.drop(ID_COLUMN, axis=1)
+    print(X_proba_test)
+    print(y_proba_test)
 
     return (
         result_dic,
