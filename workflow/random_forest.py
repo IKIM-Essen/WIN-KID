@@ -381,7 +381,7 @@ def run_stacked_random_forest(
                 proba_test_joined, proba_test_target, on=ID_COLUMN, how="outer"
             )
 
-        result_dic[target] = single_result
+        # result_dic[target] = single_result
     # TODO: Why is the combined list of all pro shorter than y_train / y_test
     print(
         "Joined length("
@@ -398,8 +398,6 @@ def run_stacked_random_forest(
     y_proba_train = y_proba_train.sort_values(by=[ID_COLUMN])
     y_proba_train = y_proba_train[preprocessed_data.target_cols]
     X_proba_train = proba_train_joined.drop(ID_COLUMN, axis=1)
-    print(X_proba_train)
-    print(y_proba_train)
 
     y_proba_test = merged_filtered_input[
         merged_filtered_input[ID_COLUMN].isin(proba_test_joined[ID_COLUMN]).copy()
@@ -408,8 +406,19 @@ def run_stacked_random_forest(
     y_proba_test = y_proba_test.sort_values(by=[ID_COLUMN])
     y_proba_test = y_proba_test[preprocessed_data.target_cols]
     X_proba_test = proba_test_joined.drop(ID_COLUMN, axis=1)
-    print(X_proba_test)
-    print(y_proba_test)
+    # TODO: Try zero instead of NaN for unpredicted ABs
+
+    # LAYER 2
+    for target in preprocessed_data.target_cols:
+        second_layer_result = run_random_forest(
+            X_proba_train,
+            y_proba_train[target],
+            X_proba_test,
+            y_proba_test[target],
+            target,
+            rf_settings,
+        )
+        result_dic[target] = second_layer_result
 
     return (
         result_dic,
