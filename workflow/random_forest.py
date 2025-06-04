@@ -280,6 +280,7 @@ def run_splitted_random_forest(
     )
 
 
+# TODO: refactor
 def run_stacked_random_forest(
     preprocessed_data, test_size, split_strategy, rf_settings
 ):
@@ -295,11 +296,9 @@ def run_stacked_random_forest(
         ~merged_filtered_input["Organism_Code"].isin(rare_values)
     ]
 
-    # TODO: Check that ID does not caus trouble at splitting
     preprocessed_data.feature_cols.append(ID_COLUMN)
     X = preprocessed_data.merged_input[preprocessed_data.feature_cols]
     y = preprocessed_data.merged_input[preprocessed_data.target_cols]
-    print(X.columns)
 
     if split_strategy == SplitStrategy.STRATIFY:
         X_train, X_test, y_train, y_test = train_test_split(
@@ -313,21 +312,23 @@ def run_stacked_random_forest(
             X, y, test_size=test_size, random_state=42
         )
     elif split_strategy == SplitStrategy.CLUSTER:
+        # ID_COLUMN shall not be used to cluster
+        X_clustering = X.drop(columns=[ID_COLUMN])  # Or multiple columns
+
         cluster_labels = KMeans(
-            n_clusters=int((len(preprocessed_data.merged_input) / 10)), random_state=42
-        ).fit_predict(X)
+            n_clusters=int(len(X) / 10), random_state=42
+        ).fit_predict(X_clustering)
+
         unique_clusters = np.unique(cluster_labels)
         train_clusters, test_clusters = train_test_split(
             unique_clusters, test_size=test_size, random_state=42
         )
         train_idx = np.isin(cluster_labels, train_clusters)
         test_idx = np.isin(cluster_labels, test_clusters)
-        X_train, X_test, y_train, y_test = (
-            X[train_idx],
-            X[test_idx],
-            y[train_idx],
-            y[test_idx],
-        )
+
+        # Now use full X (with ID_COLUMN) for model input/output
+        X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
     proba_train_joined = pd.DataFrame([])
     proba_test_joined = pd.DataFrame([])
@@ -381,16 +382,6 @@ def run_stacked_random_forest(
                 proba_test_joined, proba_test_target, on=ID_COLUMN, how="outer"
             )
 
-        # result_dic[target] = single_result
-    # TODO: Why is the combined list of all pro shorter than y_train / y_test
-    print(
-        "Joined length("
-        + str(len(proba_test_joined))
-        + ") and total length("
-        + str(len(y_test))
-        + ") shall be even!"
-    )
-
     y_proba_train = merged_filtered_input[
         merged_filtered_input[ID_COLUMN].isin(proba_train_joined[ID_COLUMN]).copy()
     ]
@@ -406,7 +397,12 @@ def run_stacked_random_forest(
     y_proba_test = y_proba_test.sort_values(by=[ID_COLUMN])
     y_proba_test = y_proba_test[preprocessed_data.target_cols]
     X_proba_test = proba_test_joined.drop(ID_COLUMN, axis=1)
-    # TODO: Try zero instead of NaN for unpredicted ABs
+
+    # TODO: Try zero instead of NaN for unpredicted ABs -> Does not seem to make a big difference
+    # print(X_proba_test)
+    # X_proba_train = X_proba_train.fillna(0.0)
+    # X_proba_test = X_proba_test.fillna(0.0)
+    # print(X_proba_test)
 
     # LAYER 2
     for target in preprocessed_data.target_cols:
@@ -800,6 +796,8 @@ if __name__ == "__main__":
                 rf_settings_input,
             )
         elif MODEL_STRATEGY is ModelStrategy.STACKED:
+            # TODO: Cross validate
+            # TODO: Tune Hyperparameters for each model
             (
                 rf_results,
                 y_test_count_result,
