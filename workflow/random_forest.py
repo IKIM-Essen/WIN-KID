@@ -169,6 +169,7 @@ def run_layer_one_random_forest(
     y_test_input,
     target_input,
     settings_input,
+    give_single_result=False,
 ):
     model = RandomForestClassifier(
         random_state=42,
@@ -194,14 +195,6 @@ def run_layer_one_random_forest(
     for idx, class_label in enumerate(model.classes_):
         proba_full_test[:, class_label] = y_proba_test[:, idx]
 
-    result_test = generate_result(
-        target_input,
-        y_test_input,
-        proba_full_test,
-        y_pred_test,
-        forest_importances.sort_values(ascending=False),
-    )
-
     y_proba_train = model.predict_proba(X_train_input)
 
     proba_full_train = np.zeros((y_proba_train.shape[0], 4))
@@ -212,7 +205,17 @@ def run_layer_one_random_forest(
     proba_full_train_df = pd.DataFrame(proba_full_train, columns=column_names)
     proba_full_test_df = pd.DataFrame(proba_full_test, columns=column_names)
 
-    return result_test, proba_full_train_df, proba_full_test_df
+    if give_single_result:
+        result_test = generate_result(
+            target_input,
+            y_test_input,
+            proba_full_test,
+            y_pred_test,
+            forest_importances.sort_values(ascending=False),
+        )
+        return result_test, proba_full_train_df, proba_full_test_df
+    else:
+        return proba_full_train_df, proba_full_test_df
 
 
 def run_splitted_random_forest(
@@ -220,7 +223,7 @@ def run_splitted_random_forest(
 ):
 
     y_test_count, y_train_count, result_dic = ({}, {}, {})
-    y_test, y_train, X_test, X_train, y_test_list = ([], [], [], [], [])
+    y_test, y_train, X_test, X_train = ([], [], [], [])
 
     for col in preprocessed_data.target_cols:
         merged_filtered_input = preprocessed_data.merged_input
@@ -264,7 +267,6 @@ def run_splitted_random_forest(
                 y[test_idx],
             )
 
-        y_test_list.append(y_test)
         y_test_count[col] = Counter(y_test)
         y_train_count[col] = Counter(y_train)
 
@@ -285,8 +287,8 @@ def run_stacked_random_forest(
     preprocessed_data, test_size, split_strategy, rf_settings
 ):
 
+    # Prepare first layer data
     y_test_count, y_train_count, result_dic = ({}, {}, {})
-    y_test, y_train, X_test, X_train, y_test_list = ([], [], [], [], [])
 
     merged_filtered_input = preprocessed_data.merged_input
     # Drop rows of Organisms that occur only once
@@ -300,6 +302,148 @@ def run_stacked_random_forest(
     X = preprocessed_data.merged_input[preprocessed_data.feature_cols]
     y = preprocessed_data.merged_input[preprocessed_data.target_cols]
 
+    # SPLITTING
+
+    y_test, y_train, X_test, X_train = split_sets_for_stacked(
+        test_size, split_strategy, X, y
+    )
+
+    proba_train_joined = pd.DataFrame([])
+    proba_test_joined = pd.DataFrame([])
+
+    # FIRST LAYER
+
+    proba_train_joined, proba_test_joined = run_first_layer(
+        preprocessed_data,
+        rf_settings,
+        y_test,
+        y_train,
+        X_test,
+        X_train,
+        proba_train_joined,
+        y_train_count,
+        y_test_count,
+    )
+
+    y_proba_train, X_proba_train, y_proba_test, X_proba_test = (
+        prepare_second_layer_data(
+            preprocessed_data,
+            merged_filtered_input,
+            proba_train_joined,
+            proba_test_joined,
+        )
+    )
+
+    # TODO: Try zero instead of NaN for unpredicted ABs -> Does not seem to make a big difference
+    # print(X_proba_test)
+    # X_proba_train = X_proba_train.fillna(0.0)
+    # X_proba_test = X_proba_test.fillna(0.0)
+    # print(X_proba_test)
+
+    # SECOND LAYER
+    for target in preprocessed_data.target_cols:
+        second_layer_result = run_random_forest(
+            X_proba_train,
+            y_proba_train[target],
+            X_proba_test,
+            y_proba_test[target],
+            target,
+            rf_settings,
+        )
+        result_dic[target] = second_layer_result
+
+    return (
+        result_dic,
+        y_test_count,
+        y_train_count,
+    )
+
+
+def prepare_second_layer_data(
+    preprocessed_data, merged_filtered_input, proba_train_joined, proba_test_joined
+):
+    y_proba_train = merged_filtered_input[
+        merged_filtered_input[ID_COLUMN].isin(proba_train_joined[ID_COLUMN]).copy()
+    ]
+    proba_train_joined = proba_train_joined.sort_values(by=[ID_COLUMN])
+    y_proba_train = y_proba_train.sort_values(by=[ID_COLUMN])
+    y_proba_train = y_proba_train[preprocessed_data.target_cols]
+    X_proba_train = proba_train_joined.drop(ID_COLUMN, axis=1)
+
+    y_proba_test = merged_filtered_input[
+        merged_filtered_input[ID_COLUMN].isin(proba_test_joined[ID_COLUMN]).copy()
+    ]
+    proba_test_joined = proba_test_joined.sort_values(by=[ID_COLUMN])
+    y_proba_test = y_proba_test.sort_values(by=[ID_COLUMN])
+    y_proba_test = y_proba_test[preprocessed_data.target_cols]
+    X_proba_test = proba_test_joined.drop(ID_COLUMN, axis=1)
+    return y_proba_train, X_proba_train, y_proba_test, X_proba_test
+
+
+def run_first_layer(
+    preprocessed_data,
+    rf_settings,
+    y_test,
+    y_train,
+    X_test,
+    X_train,
+    proba_train_joined,
+    y_train_count,
+    y_test_count,
+):
+    for target in preprocessed_data.target_cols:
+        y_train_target = y_train[target]
+        y_test_target = y_test[target]
+
+        mask_train = y_train_target != 0
+        y_train_target = y_train_target[mask_train]
+        X_train_target = X_train[mask_train]
+        mask_test = y_test_target != 0
+        y_test_target = y_test_target[mask_test]
+        X_test_target = X_test[mask_test]
+
+        X_train_target_id = X_train_target[ID_COLUMN]
+        X_train_target = X_train_target.drop(ID_COLUMN, axis=1)
+        X_test_target_id = X_test_target[ID_COLUMN]
+        X_test_target = X_test_target.drop(ID_COLUMN, axis=1)
+
+        y_train_count[target] = Counter(y_train_target)
+        y_test_count[target] = Counter(y_test_target)
+
+        proba_train_target, proba_test_target = run_layer_one_random_forest(
+            X_train_target,
+            y_train_target,
+            X_test_target,
+            y_test_target,
+            target,
+            rf_settings,
+        )
+
+        # Drop unused NaN column
+        proba_train_target = proba_train_target.drop(
+            proba_train_target.columns[0], axis=1
+        )
+        proba_test_target = proba_test_target.drop(proba_test_target.columns[0], axis=1)
+
+        # Add ID back again
+        proba_train_target[ID_COLUMN] = X_train_target_id.reset_index(drop=True)
+        proba_test_target[ID_COLUMN] = X_test_target_id.reset_index(drop=True)
+
+        if len(proba_train_joined) == 0:
+            proba_train_joined = proba_train_target
+            proba_test_joined = proba_test_target
+        else:
+            proba_train_joined = pd.merge(
+                proba_train_joined, proba_train_target, on=ID_COLUMN, how="outer"
+            )
+            proba_test_joined = pd.merge(
+                proba_test_joined, proba_test_target, on=ID_COLUMN, how="outer"
+            )
+
+    return proba_train_joined, proba_test_joined
+
+
+def split_sets_for_stacked(test_size, split_strategy, X, y):
     if split_strategy == SplitStrategy.STRATIFY:
         X_train, X_test, y_train, y_test = train_test_split(
             X,
@@ -329,98 +473,7 @@ def run_stacked_random_forest(
         # Now use full X (with ID_COLUMN) for model input/output
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-
-    proba_train_joined = pd.DataFrame([])
-    proba_test_joined = pd.DataFrame([])
-    for target in preprocessed_data.target_cols:
-
-        y_train_target = y_train[target]
-        y_test_target = y_test[target]
-
-        mask_train = y_train_target != 0
-        y_train_target = y_train_target[mask_train]
-        X_train_target = X_train[mask_train]
-        mask_test = y_test_target != 0
-        y_test_target = y_test_target[mask_test]
-        X_test_target = X_test[mask_test]
-
-        X_train_target_id = X_train_target[ID_COLUMN]
-        X_test_target_id = X_test_target[ID_COLUMN]
-        X_train_target = X_train_target.drop(ID_COLUMN, axis=1)
-        X_test_target = X_test_target.drop(ID_COLUMN, axis=1)
-
-        y_test_list.append(y_test_target)
-        y_test_count[target] = Counter(y_test_target)
-        y_train_count[target] = Counter(y_train_target)
-
-        single_result, proba_train_target, proba_test_target = (
-            run_layer_one_random_forest(
-                X_train_target,
-                y_train_target,
-                X_test_target,
-                y_test_target,
-                target,
-                rf_settings,
-            )
-        )
-
-        proba_train_target = proba_train_target.drop(
-            proba_train_target.columns[0], axis=1
-        )
-        proba_test_target = proba_test_target.drop(proba_test_target.columns[0], axis=1)
-        proba_train_target[ID_COLUMN] = X_train_target_id.reset_index(drop=True)
-        proba_test_target[ID_COLUMN] = X_test_target_id.reset_index(drop=True)
-
-        if len(proba_train_joined) == 0:
-            proba_train_joined = proba_train_target
-            proba_test_joined = proba_test_target
-        else:
-            proba_train_joined = pd.merge(
-                proba_train_joined, proba_train_target, on=ID_COLUMN, how="outer"
-            )
-            proba_test_joined = pd.merge(
-                proba_test_joined, proba_test_target, on=ID_COLUMN, how="outer"
-            )
-
-    y_proba_train = merged_filtered_input[
-        merged_filtered_input[ID_COLUMN].isin(proba_train_joined[ID_COLUMN]).copy()
-    ]
-    proba_train_joined = proba_train_joined.sort_values(by=[ID_COLUMN])
-    y_proba_train = y_proba_train.sort_values(by=[ID_COLUMN])
-    y_proba_train = y_proba_train[preprocessed_data.target_cols]
-    X_proba_train = proba_train_joined.drop(ID_COLUMN, axis=1)
-
-    y_proba_test = merged_filtered_input[
-        merged_filtered_input[ID_COLUMN].isin(proba_test_joined[ID_COLUMN]).copy()
-    ]
-    proba_test_joined = proba_test_joined.sort_values(by=[ID_COLUMN])
-    y_proba_test = y_proba_test.sort_values(by=[ID_COLUMN])
-    y_proba_test = y_proba_test[preprocessed_data.target_cols]
-    X_proba_test = proba_test_joined.drop(ID_COLUMN, axis=1)
-
-    # TODO: Try zero instead of NaN for unpredicted ABs -> Does not seem to make a big difference
-    # print(X_proba_test)
-    # X_proba_train = X_proba_train.fillna(0.0)
-    # X_proba_test = X_proba_test.fillna(0.0)
-    # print(X_proba_test)
-
-    # LAYER 2
-    for target in preprocessed_data.target_cols:
-        second_layer_result = run_random_forest(
-            X_proba_train,
-            y_proba_train[target],
-            X_proba_test,
-            y_proba_test[target],
-            target,
-            rf_settings,
-        )
-        result_dic[target] = second_layer_result
-
-    return (
-        result_dic,
-        y_test_count,
-        y_train_count,
-    )
+    return y_test, y_train, X_test, X_train
 
 
 def load_dataset_paths(path_file):
