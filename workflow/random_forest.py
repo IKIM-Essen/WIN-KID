@@ -169,7 +169,6 @@ def run_layer_one_random_forest(
     y_test_input,
     target_input,
     settings_input,
-    give_single_result=False,
 ):
     model = RandomForestClassifier(
         random_state=42,
@@ -205,17 +204,14 @@ def run_layer_one_random_forest(
     proba_full_train_df = pd.DataFrame(proba_full_train, columns=column_names)
     proba_full_test_df = pd.DataFrame(proba_full_test, columns=column_names)
 
-    if give_single_result:
-        result_test = generate_result(
-            target_input,
-            y_test_input,
-            proba_full_test,
-            y_pred_test,
-            forest_importances.sort_values(ascending=False),
-        )
-        return result_test, proba_full_train_df, proba_full_test_df
-    else:
-        return proba_full_train_df, proba_full_test_df
+    result_test = generate_result(
+        target_input,
+        y_test_input,
+        proba_full_test,
+        y_pred_test,
+        forest_importances.sort_values(ascending=False),
+    )
+    return result_test, proba_full_train_df, proba_full_test_df
 
 
 def run_splitted_random_forest(
@@ -282,7 +278,6 @@ def run_splitted_random_forest(
     )
 
 
-# TODO: refactor
 def run_stacked_random_forest(
     preprocessed_data, test_size, split_strategy, rf_settings
 ):
@@ -298,8 +293,9 @@ def run_stacked_random_forest(
         ~merged_filtered_input["Organism_Code"].isin(rare_values)
     ]
 
-    preprocessed_data.feature_cols.append(ID_COLUMN)
-    X = preprocessed_data.merged_input[preprocessed_data.feature_cols]
+    feature_cols_with_id = preprocessed_data.feature_cols
+    feature_cols_with_id.append(ID_COLUMN)
+    X = preprocessed_data.merged_input[feature_cols_with_id]
     y = preprocessed_data.merged_input[preprocessed_data.target_cols]
 
     # SPLITTING
@@ -410,7 +406,7 @@ def run_first_layer(
         y_train_count[target] = Counter(y_train_target)
         y_test_count[target] = Counter(y_test_target)
 
-        proba_train_target, proba_test_target = run_layer_one_random_forest(
+        _, proba_train_target, proba_test_target = run_layer_one_random_forest(
             X_train_target,
             y_train_target,
             X_test_target,
@@ -426,7 +422,9 @@ def run_first_layer(
         proba_test_target = proba_test_target.drop(proba_test_target.columns[0], axis=1)
 
         # Add ID back again
+        proba_train_target: pd.DataFrame
         proba_train_target[ID_COLUMN] = X_train_target_id.reset_index(drop=True)
+        proba_test_target: pd.DataFrame
         proba_test_target[ID_COLUMN] = X_test_target_id.reset_index(drop=True)
 
         if len(proba_train_joined) == 0:
@@ -473,6 +471,9 @@ def split_sets_for_stacked(test_size, split_strategy, X, y):
         # Now use full X (with ID_COLUMN) for model input/output
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+    else:
+        raise ValueError("Split strategy !" + str(split_strategy) + "! is invalid")
+
     return y_test, y_train, X_test, X_train
 
 
@@ -851,6 +852,7 @@ if __name__ == "__main__":
         elif MODEL_STRATEGY is ModelStrategy.STACKED:
             # TODO: Cross validate
             # TODO: Tune Hyperparameters for each model
+            # TODO: Add ID_COLUMN assertion
             (
                 rf_results,
                 y_test_count_result,
@@ -872,6 +874,6 @@ if __name__ == "__main__":
             display_results(rf_results, False)
 
         else:
-            print("Set MODEL_STRATEGY to valid value")
+            raise ValueError("Model strategy !" + str(MODEL_STRATEGY) + "! is invalid")
 
         evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
