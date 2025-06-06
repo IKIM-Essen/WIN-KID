@@ -14,6 +14,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import (
     roc_curve,
     auc,
@@ -165,8 +166,9 @@ def run_random_forest(
 def run_layer_one_random_forest(
     X_train_input,
     y_train_input,
+    X_val_input,
+    y_val_input,
     X_test_input,
-    y_test_input,
     target_input,
     settings_input,
 ):
@@ -186,32 +188,31 @@ def run_layer_one_random_forest(
     importances = model.feature_importances_
     forest_importances = pd.Series(importances, index=X_train_input.columns)
 
-    y_pred_test = model.predict(X_test_input)
+    y_pred_val = model.predict(X_val_input)
+    y_proba_val = model.predict_proba(X_val_input)
     y_proba_test = model.predict_proba(X_test_input)
 
+    # Map to 4-class output for y_score
+    proba_full_val = np.zeros((y_proba_val.shape[0], 4))
+    for idx, class_label in enumerate(model.classes_):
+        proba_full_val[:, class_label] = y_proba_val[:, idx]
     # Map to 4-class output for y_score
     proba_full_test = np.zeros((y_proba_test.shape[0], 4))
     for idx, class_label in enumerate(model.classes_):
         proba_full_test[:, class_label] = y_proba_test[:, idx]
 
-    y_proba_train = model.predict_proba(X_train_input)
-
-    proba_full_train = np.zeros((y_proba_train.shape[0], 4))
-    for idx, class_label in enumerate(model.classes_):
-        proba_full_train[:, class_label] = y_proba_train[:, idx]
-
     column_names = [f"{res}_{target_input}" for res in RESISTANCE_MAPPING.keys()]
-    proba_full_train_df = pd.DataFrame(proba_full_train, columns=column_names)
+    proba_full_val_df = pd.DataFrame(proba_full_val, columns=column_names)
     proba_full_test_df = pd.DataFrame(proba_full_test, columns=column_names)
 
     result_test = generate_result(
         target_input,
-        y_test_input,
-        proba_full_test,
-        y_pred_test,
+        y_val_input,
+        proba_full_val,
+        y_pred_val,
         forest_importances.sort_values(ascending=False),
     )
-    return result_test, proba_full_train_df, proba_full_test_df
+    return result_test, proba_full_val_df, proba_full_test_df
 
 
 def run_splitted_random_forest(
@@ -376,6 +377,7 @@ def prepare_second_layer_data(
     return y_proba_train, X_proba_train, y_proba_test, X_proba_test
 
 
+# TODO: Add Organism Code to Constants
 def run_first_layer(
     preprocessed_data,
     rf_settings,
@@ -387,6 +389,7 @@ def run_first_layer(
     y_train_count,
     y_test_count,
 ):
+    n_splits = 5
     for target in preprocessed_data.target_cols:
         y_train_target = y_train[target]
         y_test_target = y_test[target]
@@ -398,23 +401,37 @@ def run_first_layer(
         y_test_target = y_test_target[mask_test]
         X_test_target = X_test[mask_test]
 
-        X_train_target_id = X_train_target[ID_COLUMN]
-        X_train_target = X_train_target.drop(ID_COLUMN, axis=1)
         X_test_target_id = X_test_target[ID_COLUMN]
         X_test_target = X_test_target.drop(ID_COLUMN, axis=1)
 
         y_train_count[target] = Counter(y_train_target)
         y_test_count[target] = Counter(y_test_target)
 
-        _, proba_train_target, proba_test_target = run_layer_one_random_forest(
-            X_train_target,
-            y_train_target,
-            X_test_target,
-            y_test_target,
-            target,
-            rf_settings,
-        )
+        proba_train_target = pd.DataFrame([])
+        proba_test_list = []
+        skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        for train_idx, valid_idx in skf.split(X_train_target, y_train_target):
+            X_tr, X_val = X_train_target.iloc[train_idx], X_train_target.iloc[valid_idx]
+            y_tr, y_val = y_train_target.iloc[train_idx], y_train_target.iloc[valid_idx]
+            X_val_target_id = X_val[ID_COLUMN]
+            X_val = X_val.drop(ID_COLUMN, axis=1)
+            X_tr = X_tr.drop(ID_COLUMN, axis=1)
 
+            (_, fold_val_pred, fold_test_pred) = run_layer_one_random_forest(
+                X_tr, y_tr, X_val, y_val, X_test_target, target, rf_settings
+            )
+
+            fold_val_pred[ID_COLUMN] = X_val_target_id.reset_index(drop=True)
+
+            if len(proba_train_target) == 0:
+                proba_train_target = fold_val_pred
+            else:
+                proba_train_target = pd.concat(
+                    [proba_train_target, fold_val_pred], ignore_index=True
+                )
+            proba_test_list.append(fold_test_pred)
+        stacked_test = pd.concat(proba_test_list).groupby(level=0)
+        proba_test_target = stacked_test.median()
         # Drop unused NaN column
         proba_train_target = proba_train_target.drop(
             proba_train_target.columns[0], axis=1
@@ -422,8 +439,6 @@ def run_first_layer(
         proba_test_target = proba_test_target.drop(proba_test_target.columns[0], axis=1)
 
         # Add ID back again
-        proba_train_target: pd.DataFrame
-        proba_train_target[ID_COLUMN] = X_train_target_id.reset_index(drop=True)
         proba_test_target: pd.DataFrame
         proba_test_target[ID_COLUMN] = X_test_target_id.reset_index(drop=True)
 
