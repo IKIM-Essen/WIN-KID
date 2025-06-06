@@ -9,7 +9,7 @@ import random
 from dataclasses import dataclass
 from enum import Enum
 from statistics import mean, median
-from collections import Counter
+from collections import Counter, defaultdict
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.cluster import KMeans
@@ -280,11 +280,15 @@ def run_splitted_random_forest(
 
 
 def run_stacked_random_forest(
-    preprocessed_data, test_size, split_strategy, rf_settings
+    preprocessed_data,
+    test_size,
+    split_strategy,
+    rf_settings,
+    cross_validate=True,
+    number_of_folds=5,
 ):
 
     # Prepare first layer data
-    y_test_count, y_train_count, result_dic = ({}, {}, {})
 
     merged_filtered_input = preprocessed_data.merged_input
     # Drop rows of Organisms that occur only once
@@ -299,17 +303,92 @@ def run_stacked_random_forest(
     X = preprocessed_data.merged_input[feature_cols_with_id]
     y = preprocessed_data.merged_input[preprocessed_data.target_cols]
 
-    # SPLITTING
+    if cross_validate:
 
-    y_test, y_train, X_test, X_train = split_sets_for_stacked(
-        test_size, split_strategy, X, y
-    )
+        skf = StratifiedKFold(n_splits=number_of_folds, shuffle=True, random_state=42)
+        stratify_col = preprocessed_data.merged_input[ORGANISM_COLUMN]
+
+        cv_results = []
+        test_label_counts = []
+        train_label_counts = []
+        for train_idx, test_idx in skf.split(X, stratify_col):
+
+            X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+            y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+            result_dic, y_test_count, y_train_count = compute_stacked_random_forest(
+                preprocessed_data,
+                rf_settings,
+                merged_filtered_input,
+                X_train,
+                X_test,
+                y_train,
+                y_test,
+            )
+
+            cv_results.append(result_dic)
+            test_label_counts.append(y_test_count)
+            train_label_counts.append(y_train_count)
+
+        result_target_list = {key: [] for key in cv_results[0]}
+        for cv_result in cv_results:
+            for target, single_result in cv_result.items():
+                result_target_list[target].append(single_result)
+
+        average_result_dic = {}
+        for target, result_list in result_target_list.items():
+            print(target)
+            print(len(result_list))
+            average_result_dic[target] = average_result_dtos(result_list)
+
+        # TODO: Add average label count
+        # test_label_count_dict[col] = compute_label_distribution(test_label_counts)
+        # train_label_count_dict[col] = compute_label_distribution(train_label_counts)
+
+        # TODO: Fix average_result_dic
+        return (
+            average_result_dic,
+            y_test_count,
+            y_train_count,
+        )
+    else:
+        # SPLITTING
+        y_test, y_train, X_test, X_train = split_sets_for_stacked(
+            test_size, split_strategy, X, y
+        )
+
+        result_dic, y_test_count, y_train_count = compute_stacked_random_forest(
+            preprocessed_data,
+            rf_settings,
+            merged_filtered_input,
+            X_train,
+            X_test,
+            y_train,
+            y_test,
+        )
+
+        return (
+            result_dic,
+            y_test_count,
+            y_train_count,
+        )
+
+
+def compute_stacked_random_forest(
+    preprocessed_data,
+    rf_settings,
+    merged_filtered_input,
+    X_train,
+    X_test,
+    y_train,
+    y_test,
+):
+    y_test_count, y_train_count, result_dic = ({}, {}, {})
 
     proba_train_joined = pd.DataFrame([])
     proba_test_joined = pd.DataFrame([])
 
     # FIRST LAYER
-
     proba_train_joined, proba_test_joined = run_first_layer(
         preprocessed_data,
         rf_settings,
@@ -331,12 +410,6 @@ def run_stacked_random_forest(
         )
     )
 
-    # TODO: Try zero instead of NaN for unpredicted ABs -> Does not seem to make a big difference
-    # print(X_proba_test)
-    # X_proba_train = X_proba_train.fillna(0.0)
-    # X_proba_test = X_proba_test.fillna(0.0)
-    # print(X_proba_test)
-
     # SECOND LAYER
     for target in preprocessed_data.target_cols:
         second_layer_result = run_random_forest(
@@ -349,11 +422,7 @@ def run_stacked_random_forest(
         )
         result_dic[target] = second_layer_result
 
-    return (
-        result_dic,
-        y_test_count,
-        y_train_count,
-    )
+    return result_dic, y_test_count, y_train_count
 
 
 def prepare_second_layer_data(
@@ -377,7 +446,6 @@ def prepare_second_layer_data(
     return y_proba_train, X_proba_train, y_proba_test, X_proba_test
 
 
-# TODO: Add Organism Code to Constants
 def run_first_layer(
     preprocessed_data,
     rf_settings,
@@ -867,7 +935,6 @@ if __name__ == "__main__":
         elif MODEL_STRATEGY is ModelStrategy.STACKED:
             # TODO: Cross validate
             # TODO: Tune Hyperparameters for each model
-            # TODO: Add ID_COLUMN assertion
             (
                 rf_results,
                 y_test_count_result,
