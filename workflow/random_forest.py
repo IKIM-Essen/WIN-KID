@@ -14,7 +14,6 @@ from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import (
     roc_curve,
     auc,
@@ -31,6 +30,7 @@ import matplotlib.pyplot as plt
 import preprocessing
 from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
+from constants import ORGANISM_COLUMN
 
 
 class ModelStrategy(Enum):
@@ -227,10 +227,10 @@ def run_splitted_random_forest(
         merged_filtered_input = merged_filtered_input[merged_filtered_input[col] != 0]
 
         # Drop rows of Organisms that occur only once
-        value_counts = merged_filtered_input["Organism_Code"].value_counts()
+        value_counts = merged_filtered_input[ORGANISM_COLUMN].value_counts()
         rare_values = value_counts[value_counts == 1].index
         merged_filtered_input = merged_filtered_input[
-            ~merged_filtered_input["Organism_Code"].isin(rare_values)
+            ~merged_filtered_input[ORGANISM_COLUMN].isin(rare_values)
         ]
 
         X = merged_filtered_input[preprocessed_data.feature_cols]
@@ -241,7 +241,7 @@ def run_splitted_random_forest(
                 X,
                 y,
                 test_size=test_size,  # Not splitting further, just rebalancing
-                stratify=X["Organism_Code"],
+                stratify=X[ORGANISM_COLUMN],
             )
         elif split_strategy == SplitStrategy.RANDOM:
             X_train, X_test, y_train, y_test = train_test_split(
@@ -288,10 +288,10 @@ def run_stacked_random_forest(
 
     merged_filtered_input = preprocessed_data.merged_input
     # Drop rows of Organisms that occur only once
-    value_counts = preprocessed_data.merged_input["Organism_Code"].value_counts()
+    value_counts = preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts()
     rare_values = value_counts[value_counts == 1].index
     merged_filtered_input = merged_filtered_input[
-        ~merged_filtered_input["Organism_Code"].isin(rare_values)
+        ~merged_filtered_input[ORGANISM_COLUMN].isin(rare_values)
     ]
 
     feature_cols_with_id = preprocessed_data.feature_cols
@@ -462,7 +462,7 @@ def split_sets_for_stacked(test_size, split_strategy, X, y):
             X,
             y,
             test_size=test_size,  # Not splitting further, just rebalancing
-            stratify=X["Organism_Code"],
+            stratify=X[ORGANISM_COLUMN],
         )
     elif split_strategy == SplitStrategy.RANDOM:
         X_train, X_test, y_train, y_test = train_test_split(
@@ -550,13 +550,13 @@ def run_cross_validated_random_forest(
         # Remove rows with label 0 (unlabeled)
         df = preprocessed_data.merged_input[preprocessed_data.merged_input[col] != 0]
         # Remove rare Organism_Code values (only occur once)
-        organism_counts = df["Organism_Code"].value_counts()
+        organism_counts = df[ORGANISM_COLUMN].value_counts()
         common_organisms = organism_counts[organism_counts > 1].index
-        df = df[df["Organism_Code"].isin(common_organisms)]
+        df = df[df[ORGANISM_COLUMN].isin(common_organisms)]
 
         X = df[preprocessed_data.feature_cols]
         y = df[col]
-        stratify_col = df["Organism_Code"]
+        stratify_col = df[ORGANISM_COLUMN]
 
         split_iterator = get_split_iterator(X, stratify_col, split_strategy, n_splits)
 

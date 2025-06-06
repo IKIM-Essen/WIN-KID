@@ -12,12 +12,12 @@ from fuzzywuzzy import fuzz
 from constants import GFF_COLUMNS
 from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
+from constants import ORGANISM_COLUMN
 
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 GFF_DIR = "resources/genotype"
-ORGANISM_COLUMN = "Organism_Code"
 
 
 def extract_gene_attribute(attribute_string, key):
