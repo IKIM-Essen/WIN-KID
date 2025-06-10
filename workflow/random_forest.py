@@ -9,7 +9,7 @@ import random
 from dataclasses import dataclass
 from enum import Enum
 from statistics import mean, median
-from collections import Counter, defaultdict
+from collections import Counter
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.cluster import KMeans
@@ -298,10 +298,9 @@ def run_stacked_random_forest(
         ~merged_filtered_input[ORGANISM_COLUMN].isin(rare_values)
     ]
 
-    feature_cols_with_id = preprocessed_data.feature_cols
-    feature_cols_with_id.append(ID_COLUMN)
-    X = preprocessed_data.merged_input[feature_cols_with_id]
-    y = preprocessed_data.merged_input[preprocessed_data.target_cols]
+    feature_cols_with_id = preprocessed_data.feature_cols + [ID_COLUMN]
+    X = merged_filtered_input[feature_cols_with_id]
+    y = merged_filtered_input[preprocessed_data.target_cols]
 
     if cross_validate:
 
@@ -489,29 +488,9 @@ def run_first_layer(
         y_train_count[target] = Counter(y_train_target)
         y_test_count[target] = Counter(y_test_target)
 
-        proba_train_target = pd.DataFrame([])
-        proba_test_list = []
-        skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-        for train_idx, valid_idx in skf.split(X_train_target, y_train_target):
-            X_tr, X_val = X_train_target.iloc[train_idx], X_train_target.iloc[valid_idx]
-            y_tr, y_val = y_train_target.iloc[train_idx], y_train_target.iloc[valid_idx]
-            X_val_target_id = X_val[ID_COLUMN]
-            X_val = X_val.drop(ID_COLUMN, axis=1)
-            X_tr = X_tr.drop(ID_COLUMN, axis=1)
-
-            (_, fold_val_pred, fold_test_pred) = run_layer_one_random_forest(
-                X_tr, y_tr, X_val, y_val, X_test_target, target, rf_settings
-            )
-
-            fold_val_pred[ID_COLUMN] = X_val_target_id.reset_index(drop=True)
-
-            if len(proba_train_target) == 0:
-                proba_train_target = fold_val_pred
-            else:
-                proba_train_target = pd.concat(
-                    [proba_train_target, fold_val_pred], ignore_index=True
-                )
-            proba_test_list.append(fold_test_pred)
+        proba_train_target, proba_test_list = compute_oof_predictions(
+            rf_settings, n_splits, target, y_train_target, X_train_target, X_test_target
+        )
         stacked_test = pd.concat(proba_test_list).groupby(level=0)
         proba_test_target = stacked_test.median()
         # Drop unused NaN column
@@ -524,7 +503,7 @@ def run_first_layer(
         proba_test_target: pd.DataFrame
         proba_test_target[ID_COLUMN] = X_test_target_id.reset_index(drop=True)
 
-        if len(proba_train_joined) == 0:
+        if proba_train_joined.empty:
             proba_train_joined = proba_train_target
             proba_test_joined = proba_test_target
         else:
@@ -536,6 +515,35 @@ def run_first_layer(
             )
 
     return proba_train_joined, proba_test_joined
+
+
+def compute_oof_predictions(
+    rf_settings, n_splits, target, y_train_target, X_train_target, X_test_target
+):
+    proba_train_target = pd.DataFrame([])
+    proba_test_list = []
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    for train_idx, valid_idx in skf.split(X_train_target, y_train_target):
+        X_tr, X_val = X_train_target.iloc[train_idx], X_train_target.iloc[valid_idx]
+        y_tr, y_val = y_train_target.iloc[train_idx], y_train_target.iloc[valid_idx]
+        X_val_target_id = X_val[ID_COLUMN]
+        X_val = X_val.drop(ID_COLUMN, axis=1)
+        X_tr = X_tr.drop(ID_COLUMN, axis=1)
+
+        (_, fold_val_pred, fold_test_pred) = run_layer_one_random_forest(
+            X_tr, y_tr, X_val, y_val, X_test_target, target, rf_settings
+        )
+
+        fold_val_pred[ID_COLUMN] = X_val_target_id.reset_index(drop=True)
+
+        if proba_train_target.empty:
+            proba_train_target = fold_val_pred
+        else:
+            proba_train_target = pd.concat(
+                [proba_train_target, fold_val_pred], ignore_index=True
+            )
+        proba_test_list.append(fold_test_pred)
+    return proba_train_target, proba_test_list
 
 
 def split_sets_for_stacked(test_size, split_strategy, X, y):
