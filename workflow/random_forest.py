@@ -414,13 +414,16 @@ def compute_stacked_random_forest(
         y_test_count,
     )
 
-    y_proba_train, X_proba_train, y_proba_test, X_proba_test = (
-        prepare_second_layer_data(
-            preprocessed_data,
-            merged_filtered_input,
-            proba_train_joined,
-            proba_test_joined,
-        )
+    (
+        y_proba_train,
+        X_proba_train,
+        y_proba_test,
+        X_proba_test,
+    ) = prepare_second_layer_data(
+        preprocessed_data,
+        merged_filtered_input,
+        proba_train_joined,
+        proba_test_joined,
     )
 
     # SECOND LAYER
