@@ -284,7 +284,7 @@ def run_stacked_random_forest(
     test_size,
     split_strategy,
     rf_settings,
-    cross_validate=True,
+    cross_validate=False,
     number_of_folds=5,
 ):
 
@@ -330,37 +330,10 @@ def run_stacked_random_forest(
             test_label_counts.append(y_test_count)
             train_label_counts.append(y_train_count)
 
-        result_target_list = {key: [] for key in cv_results[0]}
-        for cv_result in cv_results:
-            for target, single_result in cv_result.items():
-                result_target_list[target].append(single_result)
-
-        average_result_dic = {}
-        for target, result_list in result_target_list.items():
-            average_result_dic[target] = average_result_dtos(result_list)
-
-        test_label_count_list = {key: [] for key in cv_results[0]}
-        for test_label_count in test_label_counts:
-            for target, single_label_count in test_label_count.items():
-                test_label_count_list[target].append(single_label_count)
-
-        test_label_count_dict = {}
-        for target, label_list in test_label_count_list.items():
-            test_label_count_dict[target] = compute_label_distribution(label_list)
-
-        train_label_count_list = {key: [] for key in cv_results[0]}
-        for train_label_count in train_label_counts:
-            for target, single_label_count in train_label_count.items():
-                train_label_count_list[target].append(single_label_count)
-
-        train_label_count_dict = {}
-        for target, label_list in train_label_count_list.items():
-            train_label_count_dict[target] = compute_label_distribution(label_list)
-
-        return (
-            average_result_dic,
-            test_label_count_dict,
-            train_label_count_dict,
+        return average_stacked_results(
+            cv_results,
+            test_label_counts,
+            train_label_counts,
         )
     else:
         # SPLITTING
@@ -383,6 +356,36 @@ def run_stacked_random_forest(
             y_test_count,
             y_train_count,
         )
+
+
+def average_stacked_results(cv_results, test_label_counts, train_label_counts):
+    result_target_list = {key: [] for key in cv_results[0]}
+    for cv_result in cv_results:
+        for target, single_result in cv_result.items():
+            result_target_list[target].append(single_result)
+
+    average_result_dic = {}
+    for target, result_list in result_target_list.items():
+        average_result_dic[target] = average_result_dtos(result_list)
+
+    test_label_count_list = {key: [] for key in cv_results[0]}
+    for test_label_count in test_label_counts:
+        for target, single_label_count in test_label_count.items():
+            test_label_count_list[target].append(single_label_count)
+
+    test_label_count_dict = {}
+    for target, label_list in test_label_count_list.items():
+        test_label_count_dict[target] = compute_label_distribution(label_list)
+
+    train_label_count_list = {key: [] for key in cv_results[0]}
+    for train_label_count in train_label_counts:
+        for target, single_label_count in train_label_count.items():
+            train_label_count_list[target].append(single_label_count)
+
+    train_label_count_dict = {}
+    for target, label_list in train_label_count_list.items():
+        train_label_count_dict[target] = compute_label_distribution(label_list)
+    return average_result_dic, test_label_count_dict, train_label_count_dict
 
 
 def compute_stacked_random_forest(
@@ -901,8 +904,10 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
 
 
 if __name__ == "__main__":
+    # TODO: Remove cases with low S/R/I phenotypes
     TUNE_HYPERPARAMETER = False
-    MODEL_STRATEGY = ModelStrategy.STACKED
+    STACK_MODEL = True
+    CROSS_VALIDATE = True
 
     NUMBER_OF_FOLDS = 5
     TEST_SIZE = 0.3
@@ -933,7 +938,18 @@ if __name__ == "__main__":
         tune_hyperparameter(preprocessed_data_input, NUMBER_OF_FOLDS)
 
     else:
-        if MODEL_STRATEGY is ModelStrategy.CROSS_VALIDATE:
+        if not STACK_MODEL and not CROSS_VALIDATE:
+            (
+                rf_results,
+                y_test_count_result,
+                y_train_count_result,
+            ) = run_splitted_random_forest(
+                preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY, rf_settings_input
+            )
+
+            display_results(rf_results, False)
+
+        elif not STACK_MODEL and CROSS_VALIDATE:
             # display not possible with CV.
             # S/R/I Set changes with every fold -> fpr size changes as well
             (
@@ -946,29 +962,34 @@ if __name__ == "__main__":
                 SPLIT_STRATEGY,
                 rf_settings_input,
             )
-        elif MODEL_STRATEGY is ModelStrategy.STACKED:
-            # TODO: Tune Hyperparameters for each model
+        # TODO: Tune Hyperparameters for each model
+        elif STACK_MODEL and not CROSS_VALIDATE:
             (
                 rf_results,
                 y_test_count_result,
                 y_train_count_result,
             ) = run_stacked_random_forest(
-                preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY, rf_settings_input
+                preprocessed_data_input,
+                TEST_SIZE,
+                SPLIT_STRATEGY,
+                rf_settings_input,
+                False,
             )
 
-        elif MODEL_STRATEGY is ModelStrategy.SPLIT:
-
+        elif STACK_MODEL and CROSS_VALIDATE:
             (
                 rf_results,
                 y_test_count_result,
                 y_train_count_result,
-            ) = run_splitted_random_forest(
-                preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY, rf_settings_input
+            ) = run_stacked_random_forest(
+                preprocessed_data_input,
+                TEST_SIZE,
+                SPLIT_STRATEGY,
+                rf_settings_input,
+                True,
             )
 
-            display_results(rf_results, False)
-
         else:
-            raise ValueError("Model strategy !" + str(MODEL_STRATEGY) + "! is invalid")
+            raise ValueError("Model strategy is invalid")
 
         evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
