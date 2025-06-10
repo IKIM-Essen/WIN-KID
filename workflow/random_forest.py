@@ -337,19 +337,30 @@ def run_stacked_random_forest(
 
         average_result_dic = {}
         for target, result_list in result_target_list.items():
-            print(target)
-            print(len(result_list))
             average_result_dic[target] = average_result_dtos(result_list)
 
-        # TODO: Add average label count
-        # test_label_count_dict[col] = compute_label_distribution(test_label_counts)
-        # train_label_count_dict[col] = compute_label_distribution(train_label_counts)
+        test_label_count_list = {key: [] for key in cv_results[0]}
+        for test_label_count in test_label_counts:
+            for target, single_label_count in test_label_count.items():
+                test_label_count_list[target].append(single_label_count)
 
-        # TODO: Fix average_result_dic
+        test_label_count_dict = {}
+        for target, label_list in test_label_count_list.items():
+            test_label_count_dict[target] = compute_label_distribution(label_list)
+
+        train_label_count_list = {key: [] for key in cv_results[0]}
+        for train_label_count in train_label_counts:
+            for target, single_label_count in train_label_count.items():
+                train_label_count_list[target].append(single_label_count)
+
+        train_label_count_dict = {}
+        for target, label_list in train_label_count_list.items():
+            train_label_count_dict[target] = compute_label_distribution(label_list)
+
         return (
             average_result_dic,
-            y_test_count,
-            y_train_count,
+            test_label_count_dict,
+            train_label_count_dict,
         )
     else:
         # SPLITTING
@@ -676,6 +687,9 @@ def average_result_dtos(result_dtos):
             [],
         )
         for result_dto in result_dtos:
+            if dict_key not in result_dto.pr_auc:
+                print("Result key missing")
+                continue
             pr_auc_list.append(result_dto.pr_auc[dict_key])
             roc_auc_list.append(result_dto.roc_auc[dict_key])
             precision_list.append(result_dto.precision[dict_key])
@@ -933,7 +947,6 @@ if __name__ == "__main__":
                 rf_settings_input,
             )
         elif MODEL_STRATEGY is ModelStrategy.STACKED:
-            # TODO: Cross validate
             # TODO: Tune Hyperparameters for each model
             (
                 rf_results,
