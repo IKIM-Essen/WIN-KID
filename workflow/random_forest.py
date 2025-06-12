@@ -291,6 +291,7 @@ def run_stacked_random_forest(
     # Prepare first layer data
 
     merged_filtered_input = preprocessed_data.merged_input
+
     # Drop rows of Organisms that occur only once
     value_counts = preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts()
     rare_values = value_counts[value_counts == 1].index
@@ -355,6 +356,33 @@ def run_stacked_random_forest(
             y_test_count,
             y_train_count,
         )
+
+
+def filter_merged_input(preprocessed_data, min_sample_number):
+    merged_filtered_input = preprocessed_data.merged_input
+
+    # Remove classes and ABs that rarely occur
+    for col_name in preprocessed_data.target_cols:
+        value_counts = merged_filtered_input[col_name].value_counts()
+        low_freq_values = value_counts[value_counts < min_sample_number].index
+
+        if len(list(low_freq_values)) > 0:
+            print(f"Removed values for column '{col_name}': {list(low_freq_values)}")
+
+        merged_filtered_input = merged_filtered_input[
+            ~merged_filtered_input[col_name].isin(low_freq_values)
+        ]
+        updated_value_counts = merged_filtered_input[col_name].value_counts()
+
+        if len(updated_value_counts) <= 2:
+            merged_filtered_input = merged_filtered_input.drop(col_name, axis=1)
+            print(col_name + " removed because only one class is left after filtering")
+            preprocessed_data.target_cols = preprocessed_data.target_cols.difference(
+                [col_name]
+            )
+    preprocessed_data.merged_input = merged_filtered_input
+
+    return preprocessed_data
 
 
 def average_stacked_results(cv_results, test_label_counts, train_label_counts):
@@ -915,7 +943,6 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
 
 
 if __name__ == "__main__":
-    # TODO: Remove cases with low S/R/I phenotypes
     TUNE_HYPERPARAMETER = False
     STACK_MODEL = True
     CROSS_VALIDATE = True
@@ -944,6 +971,8 @@ if __name__ == "__main__":
 
     data_loader = preprocessing.DataLoader()
     preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
+
+    preprocessed_data_input = filter_merged_input(preprocessed_data_input, 20)
 
     if TUNE_HYPERPARAMETER is True:
         tune_hyperparameter(preprocessed_data_input, NUMBER_OF_FOLDS)
@@ -986,6 +1015,7 @@ if __name__ == "__main__":
                 rf_settings_input,
                 False,
             )
+            display_results(rf_results, False)
 
         elif STACK_MODEL and CROSS_VALIDATE:
             (
