@@ -472,21 +472,25 @@ def compute_stacked_random_forest(
 def prepare_second_layer_data(
     preprocessed_data, merged_filtered_input, proba_train_joined, proba_test_joined
 ):
-    y_proba_train = merged_filtered_input[
-        merged_filtered_input[ID_COLUMN].isin(proba_train_joined[ID_COLUMN]).copy()
-    ]
-    proba_train_joined = proba_train_joined.sort_values(by=[ID_COLUMN])
-    y_proba_train = y_proba_train.sort_values(by=[ID_COLUMN])
-    y_proba_train = y_proba_train[preprocessed_data.target_cols]
-    X_proba_train = proba_train_joined.drop(ID_COLUMN, axis=1)
+    column_list = list(preprocessed_data.target_cols.copy())
+    column_list.append(ID_COLUMN)
 
-    y_proba_test = merged_filtered_input[
-        merged_filtered_input[ID_COLUMN].isin(proba_test_joined[ID_COLUMN]).copy()
-    ]
-    proba_test_joined = proba_test_joined.sort_values(by=[ID_COLUMN])
-    y_proba_test = y_proba_test.sort_values(by=[ID_COLUMN])
-    y_proba_test = y_proba_test[preprocessed_data.target_cols]
-    X_proba_test = proba_test_joined.drop(ID_COLUMN, axis=1)
+    y_proba_train = pd.merge(
+        proba_train_joined[[ID_COLUMN]],
+        merged_filtered_input[column_list],
+        on=ID_COLUMN,
+        how="left",
+    )[preprocessed_data.target_cols]
+    X_proba_train = proba_train_joined.drop(columns=[ID_COLUMN])
+
+    y_proba_test = pd.merge(
+        proba_test_joined[[ID_COLUMN]],
+        merged_filtered_input[column_list],
+        on=ID_COLUMN,
+        how="left",
+    )[preprocessed_data.target_cols]
+    X_proba_test = proba_test_joined.drop(columns=[ID_COLUMN])
+
     return y_proba_train, X_proba_train, y_proba_test, X_proba_test
 
 
@@ -945,7 +949,7 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
 if __name__ == "__main__":
     TUNE_HYPERPARAMETER = False
     STACK_MODEL = True
-    CROSS_VALIDATE = True
+    CROSS_VALIDATE = False
 
     NUMBER_OF_FOLDS = 5
     TEST_SIZE = 0.3

@@ -60,7 +60,7 @@
 - The starting point is the class `random_forest.py` which is used as follows:
 `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
 
-## Stacked Random fForest
+## Stacked Random Forest
 - Relies on two RF layers for prediction
 - Architecture:
   - Test and training data sets are split once at the beginning
@@ -79,7 +79,7 @@
 - Reasoning:
   - Results of several ABs can be combined with each other despite the RF approach
   - Correlations between the AB resistances can be learned
-  - Combination of multiple ABs is not possible with only one layer, because not all AB resistances are known for any sample
+  - Combination of multiple ABs is not possible with only one layer, because not all AB resistances are known for any sample and `NaN` is not supported as target value
 - Usage:
   - See `Preprocessing and random forest`
   - Set `STACK_MODEL = True`
