@@ -29,6 +29,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import preprocessing
 from constants import RESISTANCE_MAPPING
+from constants import ID_COLUMN
+from constants import ORGANISM_COLUMN
+
+
+class ModelStrategy(Enum):
+    CROSS_VALIDATE = "cross_validate"
+    STACKED = "stacked"
+    SPLIT = "split"
 
 
 class SplitStrategy(Enum):
@@ -155,22 +163,74 @@ def run_random_forest(
     )
 
 
+def run_layer_one_random_forest(
+    X_train_input,
+    y_train_input,
+    X_val_input,
+    y_val_input,
+    X_test_input,
+    target_input,
+    settings_input,
+):
+    model = RandomForestClassifier(
+        random_state=42,
+        n_estimators=settings_input.n_estimators,
+        class_weight=settings_input.class_weight,
+        max_depth=settings_input.max_depth,
+        min_samples_split=settings_input.min_samples_split,
+        min_samples_leaf=settings_input.min_samples_leaf,
+        max_features=settings_input.max_features,
+        bootstrap=settings_input.bootstrap,
+    )
+
+    model.fit(X_train_input, y_train_input)
+
+    importances = model.feature_importances_
+    forest_importances = pd.Series(importances, index=X_train_input.columns)
+
+    y_pred_val = model.predict(X_val_input)
+    y_proba_val = model.predict_proba(X_val_input)
+    y_proba_test = model.predict_proba(X_test_input)
+
+    # Map to 4-class output for y_score
+    proba_full_val = np.zeros((y_proba_val.shape[0], 4))
+    for idx, class_label in enumerate(model.classes_):
+        proba_full_val[:, class_label] = y_proba_val[:, idx]
+    # Map to 4-class output for y_score
+    proba_full_test = np.zeros((y_proba_test.shape[0], 4))
+    for idx, class_label in enumerate(model.classes_):
+        proba_full_test[:, class_label] = y_proba_test[:, idx]
+
+    column_names = [f"{res}_{target_input}" for res in RESISTANCE_MAPPING.keys()]
+    proba_full_val_df = pd.DataFrame(proba_full_val, columns=column_names)
+    proba_full_test_df = pd.DataFrame(proba_full_test, columns=column_names)
+
+    result_test = generate_result(
+        target_input,
+        y_val_input,
+        proba_full_val,
+        y_pred_val,
+        forest_importances.sort_values(ascending=False),
+    )
+    return result_test, proba_full_val_df, proba_full_test_df
+
+
 def run_splitted_random_forest(
     preprocessed_data, test_size, split_strategy, rf_settings
 ):
 
     y_test_count, y_train_count, result_dic = ({}, {}, {})
-    y_test, y_train, X_test, X_train, y_test_list = ([], [], [], [], [])
+    y_test, y_train, X_test, X_train = ([], [], [], [])
 
     for col in preprocessed_data.target_cols:
         merged_filtered_input = preprocessed_data.merged_input
         merged_filtered_input = merged_filtered_input[merged_filtered_input[col] != 0]
 
         # Drop rows of Organisms that occur only once
-        value_counts = merged_filtered_input["Organism_Code"].value_counts()
+        value_counts = merged_filtered_input[ORGANISM_COLUMN].value_counts()
         rare_values = value_counts[value_counts == 1].index
         merged_filtered_input = merged_filtered_input[
-            ~merged_filtered_input["Organism_Code"].isin(rare_values)
+            ~merged_filtered_input[ORGANISM_COLUMN].isin(rare_values)
         ]
 
         X = merged_filtered_input[preprocessed_data.feature_cols]
@@ -181,7 +241,7 @@ def run_splitted_random_forest(
                 X,
                 y,
                 test_size=test_size,  # Not splitting further, just rebalancing
-                stratify=X["Organism_Code"],
+                stratify=X[ORGANISM_COLUMN],
             )
         elif split_strategy == SplitStrategy.RANDOM:
             X_train, X_test, y_train, y_test = train_test_split(
@@ -204,7 +264,6 @@ def run_splitted_random_forest(
                 y[test_idx],
             )
 
-        y_test_list.append(y_test)
         y_test_count[col] = Counter(y_test)
         y_train_count[col] = Counter(y_train)
 
@@ -218,6 +277,344 @@ def run_splitted_random_forest(
         y_test_count,
         y_train_count,
     )
+
+
+def run_stacked_random_forest(
+    preprocessed_data,
+    test_size,
+    split_strategy,
+    rf_settings,
+    cross_validate=False,
+    number_of_folds=5,
+):
+
+    # Prepare first layer data
+
+    merged_filtered_input = preprocessed_data.merged_input
+
+    # Drop rows of Organisms that occur only once
+    value_counts = preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts()
+    rare_values = value_counts[value_counts == 1].index
+    merged_filtered_input = merged_filtered_input[
+        ~merged_filtered_input[ORGANISM_COLUMN].isin(rare_values)
+    ]
+
+    feature_cols_with_id = preprocessed_data.feature_cols + [ID_COLUMN]
+    X = merged_filtered_input[feature_cols_with_id]
+    y = merged_filtered_input[preprocessed_data.target_cols]
+
+    if cross_validate:
+
+        skf = StratifiedKFold(n_splits=number_of_folds, shuffle=True, random_state=42)
+        stratify_col = preprocessed_data.merged_input[ORGANISM_COLUMN]
+
+        cv_results = []
+        test_label_counts = []
+        train_label_counts = []
+        for train_idx, test_idx in skf.split(X, stratify_col):
+
+            X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+            y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+            result_dic, y_test_count, y_train_count = compute_stacked_random_forest(
+                preprocessed_data,
+                rf_settings,
+                merged_filtered_input,
+                X_train,
+                X_test,
+                y_train,
+                y_test,
+            )
+
+            cv_results.append(result_dic)
+            test_label_counts.append(y_test_count)
+            train_label_counts.append(y_train_count)
+
+        return average_stacked_results(
+            cv_results,
+            test_label_counts,
+            train_label_counts,
+        )
+    else:
+        # SPLITTING
+        y_test, y_train, X_test, X_train = split_sets_for_stacked(
+            test_size, split_strategy, X, y
+        )
+
+        result_dic, y_test_count, y_train_count = compute_stacked_random_forest(
+            preprocessed_data,
+            rf_settings,
+            merged_filtered_input,
+            X_train,
+            X_test,
+            y_train,
+            y_test,
+        )
+
+        return (
+            result_dic,
+            y_test_count,
+            y_train_count,
+        )
+
+
+def filter_merged_input(preprocessed_data, min_sample_number):
+    merged_filtered_input = preprocessed_data.merged_input
+
+    # Remove classes and ABs that rarely occur
+    for col_name in preprocessed_data.target_cols:
+        value_counts = merged_filtered_input[col_name].value_counts()
+        low_freq_values = value_counts[value_counts < min_sample_number].index
+
+        if len(list(low_freq_values)) > 0:
+            print(f"Removed values for column '{col_name}': {list(low_freq_values)}")
+
+        merged_filtered_input = merged_filtered_input[
+            ~merged_filtered_input[col_name].isin(low_freq_values)
+        ]
+        updated_value_counts = merged_filtered_input[col_name].value_counts()
+
+        if len(updated_value_counts) <= 2:
+            merged_filtered_input = merged_filtered_input.drop(col_name, axis=1)
+            print(col_name + " removed because only one class is left after filtering")
+            preprocessed_data.target_cols = preprocessed_data.target_cols.difference(
+                [col_name]
+            )
+    preprocessed_data.merged_input = merged_filtered_input
+
+    return preprocessed_data
+
+
+def average_stacked_results(cv_results, test_label_counts, train_label_counts):
+    result_target_list = {key: [] for key in cv_results[0]}
+    for cv_result in cv_results:
+        for target, single_result in cv_result.items():
+            result_target_list[target].append(single_result)
+
+    average_result_dic = {}
+    for target, result_list in result_target_list.items():
+        average_result_dic[target] = average_result_dtos(result_list)
+
+    test_label_count_list = {key: [] for key in cv_results[0]}
+    for test_label_count in test_label_counts:
+        for target, single_label_count in test_label_count.items():
+            test_label_count_list[target].append(single_label_count)
+
+    test_label_count_dict = {}
+    for target, label_list in test_label_count_list.items():
+        test_label_count_dict[target] = compute_label_distribution(label_list)
+
+    train_label_count_list = {key: [] for key in cv_results[0]}
+    for train_label_count in train_label_counts:
+        for target, single_label_count in train_label_count.items():
+            train_label_count_list[target].append(single_label_count)
+
+    train_label_count_dict = {}
+    for target, label_list in train_label_count_list.items():
+        train_label_count_dict[target] = compute_label_distribution(label_list)
+    return average_result_dic, test_label_count_dict, train_label_count_dict
+
+
+def compute_stacked_random_forest(
+    preprocessed_data,
+    rf_settings,
+    merged_filtered_input,
+    X_train,
+    X_test,
+    y_train,
+    y_test,
+):
+    y_test_count, y_train_count, result_dic = ({}, {}, {})
+
+    proba_train_joined = pd.DataFrame([])
+    proba_test_joined = pd.DataFrame([])
+
+    # FIRST LAYER
+    proba_train_joined, proba_test_joined = run_first_layer(
+        preprocessed_data,
+        rf_settings,
+        y_test,
+        y_train,
+        X_test,
+        X_train,
+        proba_train_joined,
+        y_train_count,
+        y_test_count,
+    )
+
+    (
+        y_proba_train,
+        X_proba_train,
+        y_proba_test,
+        X_proba_test,
+    ) = prepare_second_layer_data(
+        preprocessed_data,
+        merged_filtered_input,
+        proba_train_joined,
+        proba_test_joined,
+    )
+
+    # SECOND LAYER
+    for target in preprocessed_data.target_cols:
+        second_layer_result = run_random_forest(
+            X_proba_train,
+            y_proba_train[target],
+            X_proba_test,
+            y_proba_test[target],
+            target,
+            rf_settings,
+        )
+        result_dic[target] = second_layer_result
+
+    return result_dic, y_test_count, y_train_count
+
+
+def prepare_second_layer_data(
+    preprocessed_data, merged_filtered_input, proba_train_joined, proba_test_joined
+):
+    column_list = list(preprocessed_data.target_cols.copy())
+    column_list.append(ID_COLUMN)
+
+    y_proba_train = pd.merge(
+        proba_train_joined[[ID_COLUMN]],
+        merged_filtered_input[column_list],
+        on=ID_COLUMN,
+        how="left",
+    )[preprocessed_data.target_cols]
+    X_proba_train = proba_train_joined.drop(columns=[ID_COLUMN])
+
+    y_proba_test = pd.merge(
+        proba_test_joined[[ID_COLUMN]],
+        merged_filtered_input[column_list],
+        on=ID_COLUMN,
+        how="left",
+    )[preprocessed_data.target_cols]
+    X_proba_test = proba_test_joined.drop(columns=[ID_COLUMN])
+
+    return y_proba_train, X_proba_train, y_proba_test, X_proba_test
+
+
+def run_first_layer(
+    preprocessed_data,
+    rf_settings,
+    y_test,
+    y_train,
+    X_test,
+    X_train,
+    proba_train_joined,
+    y_train_count,
+    y_test_count,
+):
+    n_splits = 5
+    for target in preprocessed_data.target_cols:
+        y_train_target = y_train[target]
+        y_test_target = y_test[target]
+
+        mask_train = y_train_target != 0
+        y_train_target = y_train_target[mask_train]
+        X_train_target = X_train[mask_train]
+        mask_test = y_test_target != 0
+        y_test_target = y_test_target[mask_test]
+        X_test_target = X_test[mask_test]
+
+        X_test_target_id = X_test_target[ID_COLUMN]
+        X_test_target = X_test_target.drop(ID_COLUMN, axis=1)
+
+        y_train_count[target] = Counter(y_train_target)
+        y_test_count[target] = Counter(y_test_target)
+
+        proba_train_target, proba_test_list = compute_oof_predictions(
+            rf_settings, n_splits, target, y_train_target, X_train_target, X_test_target
+        )
+        stacked_test = pd.concat(proba_test_list).groupby(level=0)
+        proba_test_target = stacked_test.median()
+        # Drop unused NaN column
+        proba_train_target = proba_train_target.drop(
+            proba_train_target.columns[0], axis=1
+        )
+        proba_test_target = proba_test_target.drop(proba_test_target.columns[0], axis=1)
+
+        # Add ID back again
+        proba_test_target: pd.DataFrame
+        proba_test_target[ID_COLUMN] = X_test_target_id.reset_index(drop=True)
+
+        if proba_train_joined.empty:
+            proba_train_joined = proba_train_target
+            proba_test_joined = proba_test_target
+        else:
+            proba_train_joined = pd.merge(
+                proba_train_joined, proba_train_target, on=ID_COLUMN, how="outer"
+            )
+            proba_test_joined = pd.merge(
+                proba_test_joined, proba_test_target, on=ID_COLUMN, how="outer"
+            )
+
+    return proba_train_joined, proba_test_joined
+
+
+def compute_oof_predictions(
+    rf_settings, n_splits, target, y_train_target, X_train_target, X_test_target
+):
+    proba_train_target = pd.DataFrame([])
+    proba_test_list = []
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    for train_idx, valid_idx in skf.split(X_train_target, y_train_target):
+        X_tr, X_val = X_train_target.iloc[train_idx], X_train_target.iloc[valid_idx]
+        y_tr, y_val = y_train_target.iloc[train_idx], y_train_target.iloc[valid_idx]
+        X_val_target_id = X_val[ID_COLUMN]
+        X_val = X_val.drop(ID_COLUMN, axis=1)
+        X_tr = X_tr.drop(ID_COLUMN, axis=1)
+
+        (_, fold_val_pred, fold_test_pred) = run_layer_one_random_forest(
+            X_tr, y_tr, X_val, y_val, X_test_target, target, rf_settings
+        )
+
+        fold_val_pred[ID_COLUMN] = X_val_target_id.reset_index(drop=True)
+
+        if proba_train_target.empty:
+            proba_train_target = fold_val_pred
+        else:
+            proba_train_target = pd.concat(
+                [proba_train_target, fold_val_pred], ignore_index=True
+            )
+        proba_test_list.append(fold_test_pred)
+    return proba_train_target, proba_test_list
+
+
+def split_sets_for_stacked(test_size, split_strategy, X, y):
+    if split_strategy == SplitStrategy.STRATIFY:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            test_size=test_size,  # Not splitting further, just rebalancing
+            stratify=X[ORGANISM_COLUMN],
+        )
+    elif split_strategy == SplitStrategy.RANDOM:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=42
+        )
+    elif split_strategy == SplitStrategy.CLUSTER:
+        # ID_COLUMN shall not be used to cluster
+        X_clustering = X.drop(columns=[ID_COLUMN])  # Or multiple columns
+
+        cluster_labels = KMeans(
+            n_clusters=int(len(X) / 10), random_state=42
+        ).fit_predict(X_clustering)
+
+        unique_clusters = np.unique(cluster_labels)
+        train_clusters, test_clusters = train_test_split(
+            unique_clusters, test_size=test_size, random_state=42
+        )
+        train_idx = np.isin(cluster_labels, train_clusters)
+        test_idx = np.isin(cluster_labels, test_clusters)
+
+        # Now use full X (with ID_COLUMN) for model input/output
+        X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+    else:
+        raise ValueError("Split strategy !" + str(split_strategy) + "! is invalid")
+
+    return y_test, y_train, X_test, X_train
 
 
 def load_dataset_paths(path_file):
@@ -278,13 +675,13 @@ def run_cross_validated_random_forest(
         # Remove rows with label 0 (unlabeled)
         df = preprocessed_data.merged_input[preprocessed_data.merged_input[col] != 0]
         # Remove rare Organism_Code values (only occur once)
-        organism_counts = df["Organism_Code"].value_counts()
+        organism_counts = df[ORGANISM_COLUMN].value_counts()
         common_organisms = organism_counts[organism_counts > 1].index
-        df = df[df["Organism_Code"].isin(common_organisms)]
+        df = df[df[ORGANISM_COLUMN].isin(common_organisms)]
 
         X = df[preprocessed_data.feature_cols]
         y = df[col]
-        stratify_col = df["Organism_Code"]
+        stratify_col = df[ORGANISM_COLUMN]
 
         split_iterator = get_split_iterator(X, stratify_col, split_strategy, n_splits)
 
@@ -336,6 +733,9 @@ def average_result_dtos(result_dtos):
             [],
         )
         for result_dto in result_dtos:
+            if dict_key not in result_dto.pr_auc:
+                print("Result key missing")
+                continue
             pr_auc_list.append(result_dto.pr_auc[dict_key])
             roc_auc_list.append(result_dto.roc_auc[dict_key])
             precision_list.append(result_dto.precision[dict_key])
@@ -548,7 +948,8 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
 
 if __name__ == "__main__":
     TUNE_HYPERPARAMETER = False
-    CROSS_VALIDATE = True
+    STACK_MODEL = True
+    CROSS_VALIDATE = False
 
     NUMBER_OF_FOLDS = 5
     TEST_SIZE = 0.3
@@ -575,11 +976,24 @@ if __name__ == "__main__":
     data_loader = preprocessing.DataLoader()
     preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
+    preprocessed_data_input = filter_merged_input(preprocessed_data_input, 20)
+
     if TUNE_HYPERPARAMETER is True:
         tune_hyperparameter(preprocessed_data_input, NUMBER_OF_FOLDS)
 
     else:
-        if CROSS_VALIDATE is True:
+        if not STACK_MODEL and not CROSS_VALIDATE:
+            (
+                rf_results,
+                y_test_count_result,
+                y_train_count_result,
+            ) = run_splitted_random_forest(
+                preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY, rf_settings_input
+            )
+
+            display_results(rf_results, False)
+
+        elif not STACK_MODEL and CROSS_VALIDATE:
             # display not possible with CV.
             # S/R/I Set changes with every fold -> fpr size changes as well
             (
@@ -592,16 +1006,35 @@ if __name__ == "__main__":
                 SPLIT_STRATEGY,
                 rf_settings_input,
             )
-        else:
-
+        # TODO: Tune Hyperparameters for each model
+        elif STACK_MODEL and not CROSS_VALIDATE:
             (
                 rf_results,
                 y_test_count_result,
                 y_train_count_result,
-            ) = run_splitted_random_forest(
-                preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY, rf_settings_input
+            ) = run_stacked_random_forest(
+                preprocessed_data_input,
+                TEST_SIZE,
+                SPLIT_STRATEGY,
+                rf_settings_input,
+                False,
+            )
+            display_results(rf_results, False)
+
+        elif STACK_MODEL and CROSS_VALIDATE:
+            (
+                rf_results,
+                y_test_count_result,
+                y_train_count_result,
+            ) = run_stacked_random_forest(
+                preprocessed_data_input,
+                TEST_SIZE,
+                SPLIT_STRATEGY,
+                rf_settings_input,
+                True,
             )
 
-            display_results(rf_results, False)
+        else:
+            raise ValueError("Model strategy is invalid")
 
         evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)

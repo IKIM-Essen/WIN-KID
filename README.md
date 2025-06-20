@@ -53,16 +53,39 @@
 - `translations.csv` : Manual translation of typos / different vitek names for mic interpretation
 - `ignore.csv` : Antibiotika Names that should be ignored in no match handling (interpreter)
 
-## Preprocessing and random forest
+## Preprocessing and Random Forest
 - Genotypic and phenotypic data are read in directly, preprocessed and fed into an RF model
 - Metrics such as ROC are calculated for the results
 - Add the paths to the data records that are processed to the `resources/settings/DataPaths.csv`
 - The starting point is the class `random_forest.py` which is used as follows:
 `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
 
+## Stacked Random Forest
+- Relies on two RF layers for prediction
+- Architecture:
+  - Test and training data sets are split once at the beginning
+  - Layer 1:
+    - Input: pre-processed data
+    - For each AB one RF model
+    - The models are validated using out-of-fold iterations -> Test data is split into test and validation data
+    - Output: Probabilities for each class (S/I/R)
+  - The layer 1 results for each AB are combined
+  - Layer 2:
+    - Input: combined input of Layer 1
+    - For each AB one RF model
+    - Output: The class with the highest probability according to the Layer 2
+
+  ![alt text](Stacked_RF_V0.drawio.svg)
+- Reasoning:
+  - Results of several ABs can be combined with each other despite the RF approach
+  - Correlations between the AB resistances can be learned
+  - Combination of multiple ABs is not possible with only one layer, because not all AB resistances are known for any sample and `NaN` is not supported as target value
+- Usage:
+  - See `Preprocessing and random forest`
+  - Set `STACK_MODEL = True`
+
 ## ToDo
 - Add RF Hyperparameter via score optimization -> score tbd
 - Add RF test
 - Differentiate between oral and non oral?
 - What shall happen with EUCAST values that are doublets (e.g.: due extra information)
-- long term solution for genotype data NaNs (currently -> 0)
