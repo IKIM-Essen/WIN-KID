@@ -414,6 +414,24 @@ def average_stacked_results(cv_results, test_label_counts, train_label_counts):
         train_label_count_dict[target] = compute_label_distribution(label_list)
     return average_result_dic, test_label_count_dict, train_label_count_dict
 
+from sklearn.metrics import accuracy_score, f1_score
+from collections import defaultdict
+
+def evaluate_per_organism(y_pred, y_true, organism_codes):
+    results = {}
+    df = pd.DataFrame({
+        'organism': organism_codes,
+        'y_true': y_true,
+        'y_pred': y_pred,
+    })
+
+    for org_code, group in df.groupby("organism"):
+        acc = accuracy_score(group["y_true"], group["y_pred"])
+        f1 = f1_score(group["y_true"], group["y_pred"], average="weighted")
+        results[org_code] = {"accuracy": acc, "f1_score": f1}
+
+    return results
+
 
 def compute_stacked_random_forest(
     preprocessed_data,
@@ -447,6 +465,7 @@ def compute_stacked_random_forest(
         X_proba_train,
         y_proba_test,
         X_proba_test,
+        organism_test
     ) = prepare_second_layer_data(
         preprocessed_data,
         merged_filtered_input,
@@ -465,6 +484,18 @@ def compute_stacked_random_forest(
             rf_settings,
         )
         result_dic[target] = second_layer_result
+
+        y_pred = second_layer_result.y_pred
+
+        per_organism_perf = evaluate_per_organism(
+            y_pred,          
+            y_proba_test[target],
+            organism_test,
+        )
+
+        print(f"Performance per organism per target '{target}':")
+        for org, metrics in per_organism_perf.items():
+            print(f"organism {org}: {metrics}")
 
     return result_dic, y_test_count, y_train_count
 
@@ -491,7 +522,15 @@ def prepare_second_layer_data(
     )[preprocessed_data.target_cols]
     X_proba_test = proba_test_joined.drop(columns=[ID_COLUMN])
 
-    return y_proba_train, X_proba_train, y_proba_test, X_proba_test
+    # Organism codes mitführen für spätere Analyse
+    organism_test = pd.merge(
+        proba_test_joined[[ID_COLUMN]],
+        merged_filtered_input[[ID_COLUMN, ORGANISM_COLUMN]],
+        on=ID_COLUMN,
+        how="left"
+    )[ORGANISM_COLUMN]
+
+    return y_proba_train, X_proba_train, y_proba_test, X_proba_test, organism_test
 
 
 def run_first_layer(
