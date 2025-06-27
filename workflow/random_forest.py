@@ -9,7 +9,7 @@ import random
 from dataclasses import dataclass
 from enum import Enum
 from statistics import mean, median
-from collections import Counter
+from collections import Counter, defaultdict
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.cluster import KMeans
@@ -316,14 +316,16 @@ def run_stacked_random_forest(
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
-            result_dic, y_test_count, y_train_count = compute_stacked_random_forest(
-                preprocessed_data,
-                rf_settings,
-                merged_filtered_input,
-                X_train,
-                X_test,
-                y_train,
-                y_test,
+            result_dic, y_test_count, y_train_count, per_organism_results = (
+                compute_stacked_random_forest(
+                    preprocessed_data,
+                    rf_settings,
+                    merged_filtered_input,
+                    X_train,
+                    X_test,
+                    y_train,
+                    y_test,
+                )
             )
 
             cv_results.append(result_dic)
@@ -334,6 +336,7 @@ def run_stacked_random_forest(
             cv_results,
             test_label_counts,
             train_label_counts,
+            per_organism_results,
         )
     else:
         # SPLITTING
@@ -341,20 +344,23 @@ def run_stacked_random_forest(
             test_size, split_strategy, X, y
         )
 
-        result_dic, y_test_count, y_train_count = compute_stacked_random_forest(
-            preprocessed_data,
-            rf_settings,
-            merged_filtered_input,
-            X_train,
-            X_test,
-            y_train,
-            y_test,
+        result_dic, y_test_count, y_train_count, per_organism_results = (
+            compute_stacked_random_forest(
+                preprocessed_data,
+                rf_settings,
+                merged_filtered_input,
+                X_train,
+                X_test,
+                y_train,
+                y_test,
+            )
         )
 
         return (
             result_dic,
             y_test_count,
             y_train_count,
+            per_organism_results,
         )
 
 
@@ -414,16 +420,16 @@ def average_stacked_results(cv_results, test_label_counts, train_label_counts):
         train_label_count_dict[target] = compute_label_distribution(label_list)
     return average_result_dic, test_label_count_dict, train_label_count_dict
 
-from sklearn.metrics import accuracy_score, f1_score
-from collections import defaultdict
 
 def evaluate_per_organism(y_pred, y_true, organism_codes):
     results = {}
-    df = pd.DataFrame({
-        'organism': organism_codes,
-        'y_true': y_true,
-        'y_pred': y_pred,
-    })
+    df = pd.DataFrame(
+        {
+            "organism": organism_codes,
+            "y_true": y_true,
+            "y_pred": y_pred,
+        }
+    )
 
     for org_code, group in df.groupby("organism"):
         acc = accuracy_score(group["y_true"], group["y_pred"])
@@ -460,17 +466,13 @@ def compute_stacked_random_forest(
         y_test_count,
     )
 
-    (
-        y_proba_train,
-        X_proba_train,
-        y_proba_test,
-        X_proba_test,
-        organism_test
-    ) = prepare_second_layer_data(
-        preprocessed_data,
-        merged_filtered_input,
-        proba_train_joined,
-        proba_test_joined,
+    (y_proba_train, X_proba_train, y_proba_test, X_proba_test, organism_test) = (
+        prepare_second_layer_data(
+            preprocessed_data,
+            merged_filtered_input,
+            proba_train_joined,
+            proba_test_joined,
+        )
     )
 
     # SECOND LAYER
@@ -488,16 +490,25 @@ def compute_stacked_random_forest(
         y_pred = second_layer_result.y_pred
 
         per_organism_perf = evaluate_per_organism(
-            y_pred,          
+            y_pred,
             y_proba_test[target],
             organism_test,
         )
 
-        print(f"Performance per organism per target '{target}':")
-        for org, metrics in per_organism_perf.items():
-            print(f"organism {org}: {metrics}")
+        # Mapping organism name to string
+        organism_mapping = preprocessed_data.organism_mapping
 
-    return result_dic, y_test_count, y_train_count
+        # Initialisiere Sammel-Dict
+        if "per_organism_results" not in locals():
+            per_organism_results = {}
+
+        # Mapping + Zwischenspeichern
+        per_organism_results[target] = {}
+        for org_code, metrics in per_organism_perf.items():
+            org_name = organism_mapping.get(org_code, f"Unknown ({org_code})")
+            per_organism_results[target][org_name] = metrics
+
+    return result_dic, y_test_count, y_train_count, per_organism_results
 
 
 def prepare_second_layer_data(
@@ -527,8 +538,8 @@ def prepare_second_layer_data(
         proba_test_joined[[ID_COLUMN]],
         merged_filtered_input[[ID_COLUMN, ORGANISM_COLUMN]],
         on=ID_COLUMN,
-        how="left"
-    )[ORGANISM_COLUMN]
+        how="left",
+    )[ORGANISM_COLUMN].astype(int)
 
     return y_proba_train, X_proba_train, y_proba_test, X_proba_test, organism_test
 
@@ -908,6 +919,43 @@ def evaluation_to_csv(results_dto, y_test_input, y_train_input):
     evaluation_df.to_csv("Evaluation/Evaluation.csv", index=True, header=True)
 
 
+def per_organism_evaluation_to_csv(
+    per_organism_results, output_path="Evaluation/Per_Organism_Evaluation.csv"
+):
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    # Flach strukturieren: jede Zeile = ein (Antibiotikum, Organismus)
+    rows = []
+    for target, org_dict in per_organism_results.items():
+        for organism, metrics in org_dict.items():
+            rows.append(
+                {
+                    "Target": target,
+                    "Organism": organism,
+                    "Accuracy": metrics.get("accuracy", None),
+                    "F1_Score": metrics.get("f1_score", None),
+                }
+            )
+
+    df = pd.DataFrame(rows)
+
+    # Pivotieren → Zeilen: Antibiotika, Spalten: Organismen
+    accuracy_df = df.pivot(index="Target", columns="Organism", values="Accuracy")
+    f1_df = df.pivot(index="Target", columns="Organism", values="F1_Score")
+
+    # Medianzeile berechnen
+    accuracy_df.loc["Median"] = accuracy_df.median(numeric_only=True)
+    f1_df.loc["Median"] = f1_df.median(numeric_only=True)
+
+    # Speichern
+    accuracy_df.to_csv(output_path.replace(".csv", "_accuracy.csv"))
+    f1_df.to_csv(output_path.replace(".csv", "_f1.csv"))
+
+    print(f"Accuracy-table saved at: {output_path.replace('.csv', '_accuracy.csv')}")
+    print(f"F1-table saved at: {output_path.replace('.csv', '_f1.csv')}")
+
+
 def tune_hyperparameter(preprocessed_data, number_of_folds):
     param_grid = {
         "n_estimators": [10, 50, 100, 200, 500],
@@ -1051,6 +1099,7 @@ if __name__ == "__main__":
                 rf_results,
                 y_test_count_result,
                 y_train_count_result,
+                per_organism_results,
             ) = run_stacked_random_forest(
                 preprocessed_data_input,
                 TEST_SIZE,
@@ -1065,6 +1114,7 @@ if __name__ == "__main__":
                 rf_results,
                 y_test_count_result,
                 y_train_count_result,
+                per_organism_results,
             ) = run_stacked_random_forest(
                 preprocessed_data_input,
                 TEST_SIZE,
@@ -1075,5 +1125,5 @@ if __name__ == "__main__":
 
         else:
             raise ValueError("Model strategy is invalid")
-
+        per_organism_evaluation_to_csv(per_organism_results)
         evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
