@@ -9,7 +9,7 @@ import random
 from dataclasses import dataclass
 from enum import Enum
 from statistics import mean, median
-from collections import Counter, defaultdict
+from collections import Counter
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.cluster import KMeans
@@ -344,17 +344,16 @@ def run_stacked_random_forest(
             test_size, split_strategy, X, y
         )
 
-        result_dic, y_test_count, y_train_count, per_organism_results = (
-            compute_stacked_random_forest(
-                preprocessed_data,
-                rf_settings,
-                merged_filtered_input,
-                X_train,
-                X_test,
-                y_train,
-                y_test,
-            )
+        result_dic, y_test_count, y_train_count, per_organism_results = compute_stacked_random_forest(
+            preprocessed_data,
+            rf_settings,
+            merged_filtered_input,
+            X_train,
+            X_test,
+            y_train,
+            y_test,
         )
+        
 
         return (
             result_dic,
@@ -476,6 +475,8 @@ def compute_stacked_random_forest(
     )
 
     # SECOND LAYER
+    per_organism_results = {}
+
     for target in preprocessed_data.target_cols:
         second_layer_result = run_random_forest(
             X_proba_train,
@@ -498,15 +499,12 @@ def compute_stacked_random_forest(
         # Mapping organism name to string
         organism_mapping = preprocessed_data.organism_mapping
 
-        # Initialisiere Sammel-Dict
-        if "per_organism_results" not in locals():
-            per_organism_results = {}
 
-        # Mapping + Zwischenspeichern
-        per_organism_results[target] = {}
-        for org_code, metrics in per_organism_perf.items():
-            org_name = organism_mapping.get(org_code, f"Unknown ({org_code})")
-            per_organism_results[target][org_name] = metrics
+        
+        per_organism_results[target] = {
+            organism_mapping.get(org_code, f"Unknown ({org_code})"): metrics
+            for org_code, metrics in per_organism_perf.items()
+        }
 
     return result_dic, y_test_count, y_train_count, per_organism_results
 
@@ -533,7 +531,7 @@ def prepare_second_layer_data(
     )[preprocessed_data.target_cols]
     X_proba_test = proba_test_joined.drop(columns=[ID_COLUMN])
 
-    # Organism codes mitführen für spätere Analyse
+
     organism_test = pd.merge(
         proba_test_joined[[ID_COLUMN]],
         merged_filtered_input[[ID_COLUMN, ORGANISM_COLUMN]],
@@ -925,7 +923,7 @@ def per_organism_evaluation_to_csv(
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    # Flach strukturieren: jede Zeile = ein (Antibiotikum, Organismus)
+   
     rows = []
     for target, org_dict in per_organism_results.items():
         for organism, metrics in org_dict.items():
@@ -940,15 +938,15 @@ def per_organism_evaluation_to_csv(
 
     df = pd.DataFrame(rows)
 
-    # Pivotieren → Zeilen: Antibiotika, Spalten: Organismen
+    
     accuracy_df = df.pivot(index="Target", columns="Organism", values="Accuracy")
     f1_df = df.pivot(index="Target", columns="Organism", values="F1_Score")
 
-    # Medianzeile berechnen
+    
     accuracy_df.loc["Median"] = accuracy_df.median(numeric_only=True)
     f1_df.loc["Median"] = f1_df.median(numeric_only=True)
 
-    # Speichern
+    
     accuracy_df.to_csv(output_path.replace(".csv", "_accuracy.csv"))
     f1_df.to_csv(output_path.replace(".csv", "_f1.csv"))
 
