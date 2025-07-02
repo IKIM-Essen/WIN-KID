@@ -344,16 +344,17 @@ def run_stacked_random_forest(
             test_size, split_strategy, X, y
         )
 
-        result_dic, y_test_count, y_train_count, per_organism_results = compute_stacked_random_forest(
-            preprocessed_data,
-            rf_settings,
-            merged_filtered_input,
-            X_train,
-            X_test,
-            y_train,
-            y_test,
+        result_dic, y_test_count, y_train_count, per_organism_results = (
+            compute_stacked_random_forest(
+                preprocessed_data,
+                rf_settings,
+                merged_filtered_input,
+                X_train,
+                X_test,
+                y_train,
+                y_test,
+            )
         )
-        
 
         return (
             result_dic,
@@ -420,20 +421,46 @@ def average_stacked_results(cv_results, test_label_counts, train_label_counts):
     return average_result_dic, test_label_count_dict, train_label_count_dict
 
 
-def evaluate_per_organism(y_pred, y_true, organism_codes):
+def evaluate_per_organism(y_pred, y_true, organism_codes, y_score):
     results = {}
-    df = pd.DataFrame(
-        {
-            "organism": organism_codes,
-            "y_true": y_true,
-            "y_pred": y_pred,
-        }
-    )
+
+    df = pd.DataFrame({"organism": organism_codes, "y_true": y_true, "y_pred": y_pred})
+
+    for i in range(y_score.shape[1]):
+        df[f"proba_class_{i}"] = y_score[:, i]
 
     for org_code, group in df.groupby("organism"):
-        acc = accuracy_score(group["y_true"], group["y_pred"])
-        f1 = f1_score(group["y_true"], group["y_pred"], average="weighted")
-        results[org_code] = {"accuracy": acc, "f1_score": f1}
+        y_t = group["y_true"].values
+        y_p = group["y_pred"].values
+
+        proba_cols = [f"proba_class_{i}" for i in range(y_score.shape[1])]
+        y_s = group[proba_cols].values
+
+        # Skip if only 1 class is present (not valid for AUC)
+        if len(np.unique(y_t)) < 2:
+            print(
+                f"[WARN] Skipping ROC/PR AUC for organism {org_code} due to single class."
+            )
+            roc_auc = pr_auc = np.nan
+        else:
+            result = generate_result("per_organism", y_t, y_s, y_p, feat_import=None)
+
+            # Use mean of per-class metrics as representative score
+            roc_auc = np.nanmean(list(result.roc_auc.values()))
+            pr_auc = np.nanmean(list(result.pr_auc.values()))
+            precision = np.nanmean(list(result.precision.values()))
+            recall = np.nanmean(list(result.recall.values()))
+            f1 = np.nanmean(list(result.f1.values()))
+            acc = result.accuracy
+
+            results[org_code] = {
+                "accuracy": acc,
+                "f1_score": f1,
+                "precision": precision,
+                "recall": recall,
+                "roc_auc": roc_auc,
+                "pr_auc": pr_auc,
+            }
 
     return results
 
@@ -494,13 +521,12 @@ def compute_stacked_random_forest(
             y_pred,
             y_proba_test[target],
             organism_test,
+            second_layer_result.y_score,
         )
 
         # Mapping organism name to string
         organism_mapping = preprocessed_data.organism_mapping
 
-
-        
         per_organism_results[target] = {
             organism_mapping.get(org_code, f"Unknown ({org_code})"): metrics
             for org_code, metrics in per_organism_perf.items()
@@ -530,7 +556,6 @@ def prepare_second_layer_data(
         how="left",
     )[preprocessed_data.target_cols]
     X_proba_test = proba_test_joined.drop(columns=[ID_COLUMN])
-
 
     organism_test = pd.merge(
         proba_test_joined[[ID_COLUMN]],
@@ -923,35 +948,25 @@ def per_organism_evaluation_to_csv(
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-   
+    all_metrics = set()
     rows = []
     for target, org_dict in per_organism_results.items():
         for organism, metrics in org_dict.items():
-            rows.append(
-                {
-                    "Target": target,
-                    "Organism": organism,
-                    "Accuracy": metrics.get("accuracy", None),
-                    "F1_Score": metrics.get("f1_score", None),
-                }
-            )
+            row = {"Target": target, "Organism": organism}
+            for metric_name, value in metrics.items():
+                row[metric_name] = value
+                all_metrics.add(metric_name)
+            rows.append(row)
 
     df = pd.DataFrame(rows)
 
-    
-    accuracy_df = df.pivot(index="Target", columns="Organism", values="Accuracy")
-    f1_df = df.pivot(index="Target", columns="Organism", values="F1_Score")
-
-    
-    accuracy_df.loc["Median"] = accuracy_df.median(numeric_only=True)
-    f1_df.loc["Median"] = f1_df.median(numeric_only=True)
-
-    
-    accuracy_df.to_csv(output_path.replace(".csv", "_accuracy.csv"))
-    f1_df.to_csv(output_path.replace(".csv", "_f1.csv"))
-
-    print(f"Accuracy-table saved at: {output_path.replace('.csv', '_accuracy.csv')}")
-    print(f"F1-table saved at: {output_path.replace('.csv', '_f1.csv')}")
+    for metric in all_metrics:
+        metric_df = df.pivot(index="Target", columns="Organism", values=metric)
+        if not metric_df.empty:
+            metric_df.loc["Median"] = metric_df.median(numeric_only=True)
+            metric_output_path = output_path.replace(".csv", f"_{metric}.csv")
+            metric_df.to_csv(metric_output_path)
+            print(f"{metric.title()}-table saved at: {metric_output_path}")
 
 
 def tune_hyperparameter(preprocessed_data, number_of_folds):
