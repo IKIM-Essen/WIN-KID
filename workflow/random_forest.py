@@ -943,14 +943,14 @@ def evaluation_to_csv(results_dto, y_test_input, y_train_input):
 
 
 def per_organism_evaluation_to_csv(
-    per_organism_results, output_path="Evaluation/Per_Organism_Evaluation.csv"
+    results_organism, output_path="Evaluation/Per_Organism_Evaluation.csv"
 ):
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     all_metrics = set()
     rows = []
-    for target, org_dict in per_organism_results.items():
+    for target, org_dict in results_organism.items():
         for organism, metrics in org_dict.items():
             row = {"Target": target, "Organism": organism}
             for metric_name, value in metrics.items():
