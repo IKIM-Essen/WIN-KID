@@ -316,16 +316,19 @@ def run_stacked_random_forest(
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
-            result_dic, y_test_count, y_train_count, per_organism_results = (
-                compute_stacked_random_forest(
-                    preprocessed_data,
-                    rf_settings,
-                    merged_filtered_input,
-                    X_train,
-                    X_test,
-                    y_train,
-                    y_test,
-                )
+            (
+                result_dic,
+                y_test_count,
+                y_train_count,
+                per_organism_results,
+            ) = compute_stacked_random_forest(
+                preprocessed_data,
+                rf_settings,
+                merged_filtered_input,
+                X_train,
+                X_test,
+                y_train,
+                y_test,
             )
 
             cv_results.append(result_dic)
@@ -343,16 +346,19 @@ def run_stacked_random_forest(
             test_size, split_strategy, X, y
         )
 
-        result_dic, y_test_count, y_train_count, per_organism_results = (
-            compute_stacked_random_forest(
-                preprocessed_data,
-                rf_settings,
-                merged_filtered_input,
-                X_train,
-                X_test,
-                y_train,
-                y_test,
-            )
+        (
+            result_dic,
+            y_test_count,
+            y_train_count,
+            per_organism_results,
+        ) = compute_stacked_random_forest(
+            preprocessed_data,
+            rf_settings,
+            merged_filtered_input,
+            X_train,
+            X_test,
+            y_train,
+            y_test,
         )
 
         return (
@@ -491,13 +497,17 @@ def compute_stacked_random_forest(
         y_test_count,
     )
 
-    (y_proba_train, X_proba_train, y_proba_test, X_proba_test, organism_test) = (
-        prepare_second_layer_data(
-            preprocessed_data,
-            merged_filtered_input,
-            proba_train_joined,
-            proba_test_joined,
-        )
+    (
+        y_proba_train,
+        X_proba_train,
+        y_proba_test,
+        X_proba_test,
+        organism_test,
+    ) = prepare_second_layer_data(
+        preprocessed_data,
+        merged_filtered_input,
+        proba_train_joined,
+        proba_test_joined,
     )
 
     # SECOND LAYER
