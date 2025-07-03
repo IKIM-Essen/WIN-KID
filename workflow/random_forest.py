@@ -336,7 +336,6 @@ def run_stacked_random_forest(
             cv_results,
             test_label_counts,
             train_label_counts,
-            per_organism_results,
         )
     else:
         # SPLITTING
