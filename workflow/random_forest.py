@@ -221,6 +221,7 @@ def run_splitted_random_forest(
 
     y_test_count, y_train_count, result_dic = ({}, {}, {})
     y_test, y_train, X_test, X_train = ([], [], [], [])
+    org_res = {}
 
     for col in preprocessed_data.target_cols:
         merged_filtered_input = preprocessed_data.merged_input
@@ -272,10 +273,16 @@ def run_splitted_random_forest(
         )
         result_dic[col] = sinlge_result
 
+        organism_test = merged_filtered_input.loc[y_test.index, ORGANISM_COLUMN]
+        org_res[col] = evaluate_per_organism(
+            sinlge_result.y_pred, y_test, organism_test, sinlge_result.y_score, col
+        )
+
     return (
         result_dic,
         y_test_count,
         y_train_count,
+        org_res,
     )
 
 
@@ -320,7 +327,7 @@ def run_stacked_random_forest(
                 result_dic,
                 y_test_count,
                 y_train_count,
-                per_organism_results,
+                org_res,
             ) = compute_stacked_random_forest(
                 preprocessed_data,
                 rf_settings,
@@ -350,7 +357,7 @@ def run_stacked_random_forest(
             result_dic,
             y_test_count,
             y_train_count,
-            per_organism_results,
+            org_res,
         ) = compute_stacked_random_forest(
             preprocessed_data,
             rf_settings,
@@ -365,7 +372,7 @@ def run_stacked_random_forest(
             result_dic,
             y_test_count,
             y_train_count,
-            per_organism_results,
+            org_res,
         )
 
 
@@ -426,7 +433,7 @@ def average_stacked_results(cv_results, test_label_counts, train_label_counts):
     return average_result_dic, test_label_count_dict, train_label_count_dict
 
 
-def evaluate_per_organism(y_pred, y_true, organism_codes, y_score):
+def evaluate_per_organism(y_pred, y_true, organism_codes, y_score, target_name):
     results = {}
 
     df = pd.DataFrame({"organism": organism_codes, "y_true": y_true, "y_pred": y_pred})
@@ -444,8 +451,9 @@ def evaluate_per_organism(y_pred, y_true, organism_codes, y_score):
         # Skip if only 1 class is present (not valid for AUC)
         if len(np.unique(y_t)) < 2:
             print(
-                f"[WARN] Skipping ROC/PR AUC for organism {org_code} due to single class."
+                f"[WARN] Skipping evaluation per organism for organism {org_code} due to single class in target '{target_name}'."
             )
+
             roc_auc = pr_auc = np.nan
         else:
             result = generate_result("per_organism", y_t, y_s, y_p, feat_import=None)
@@ -511,7 +519,7 @@ def compute_stacked_random_forest(
     )
 
     # SECOND LAYER
-    per_organism_results = {}
+    org_res = {}
 
     for target in preprocessed_data.target_cols:
         second_layer_result = run_random_forest(
@@ -531,17 +539,18 @@ def compute_stacked_random_forest(
             y_proba_test[target],
             organism_test,
             second_layer_result.y_score,
+            target,
         )
 
         # Mapping organism name to string
         organism_mapping = preprocessed_data.organism_mapping
 
-        per_organism_results[target] = {
+        org_res[target] = {
             organism_mapping.get(org_code, f"Unknown ({org_code})"): metrics
             for org_code, metrics in per_organism_perf.items()
         }
 
-    return result_dic, y_test_count, y_train_count, per_organism_results
+    return result_dic, y_test_count, y_train_count, org_res
 
 
 def prepare_second_layer_data(
@@ -745,6 +754,23 @@ def compute_label_distribution(label_counts_list):
     return {key: mean(values) for key, values in transposed.items()}
 
 
+def average_per_organism_results(per_fold_results_list):
+    merged = {}
+
+    for fold_result in per_fold_results_list:
+        for org_code, metrics in fold_result.items():
+            if org_code not in merged:
+                merged[org_code] = defaultdict(list)
+            for k, v in metrics.items():
+                merged[org_code][k].append(v)
+
+    averaged = {}
+    for org_code, metrics in merged.items():
+        averaged[org_code] = {k: np.nanmean(v_list) for k, v_list in metrics.items()}
+
+    return averaged
+
+
 def run_cross_validated_random_forest(
     preprocessed_data, n_splits, split_strategy, rf_settings_cv
 ):
@@ -770,6 +796,7 @@ def run_cross_validated_random_forest(
         fold_results = []
         test_label_counts = []
         train_label_counts = []
+        fold_per_organism_results = {}
 
         for train_idx, test_idx in split_iterator:
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
@@ -789,12 +816,20 @@ def run_cross_validated_random_forest(
             )
             fold_results.append(result)
 
+            organism_test = df.iloc[test_idx][ORGANISM_COLUMN]
+            per_fold_result = evaluate_per_organism(
+                result.y_pred, y_test, organism_test, result.y_score, col
+            )
+            fold_per_organism_results.append(per_fold_result)
+
         if fold_results:
             results_per_target[col] = average_result_dtos(fold_results)
             test_label_count_dict[col] = compute_label_distribution(test_label_counts)
             train_label_count_dict[col] = compute_label_distribution(train_label_counts)
 
-    return results_per_target, test_label_count_dict, train_label_count_dict
+            org_res[col] = average_per_organism_results(fold_per_organism_results)
+
+    return results_per_target, test_label_count_dict, train_label_count_dict, org_res
 
 
 def average_result_dtos(result_dtos):
@@ -1096,6 +1131,7 @@ if __name__ == "__main__":
                 rf_results,
                 y_test_count_result,
                 y_train_count_result,
+                per_organism_results,
             ) = run_splitted_random_forest(
                 preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY, rf_settings_input
             )
@@ -1109,6 +1145,7 @@ if __name__ == "__main__":
                 rf_results,
                 y_test_count_result,
                 y_train_count_result,
+                per_organism_results,
             ) = run_cross_validated_random_forest(
                 preprocessed_data_input,
                 NUMBER_OF_FOLDS,
