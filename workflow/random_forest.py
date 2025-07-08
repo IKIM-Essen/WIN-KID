@@ -9,7 +9,7 @@ import random
 from dataclasses import dataclass
 from enum import Enum
 from statistics import mean, median
-from collections import Counter
+from collections import Counter, defaultdict
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.cluster import KMeans
@@ -796,7 +796,8 @@ def run_cross_validated_random_forest(
         fold_results = []
         test_label_counts = []
         train_label_counts = []
-        fold_per_organism_results = {}
+        fold_per_organism_results = defaultdict(list)
+        org_res = {}
 
         for train_idx, test_idx in split_iterator:
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
@@ -820,14 +821,14 @@ def run_cross_validated_random_forest(
             per_fold_result = evaluate_per_organism(
                 result.y_pred, y_test, organism_test, result.y_score, col
             )
-            fold_per_organism_results.append(per_fold_result)
+            fold_per_organism_results[col].append(per_fold_result)
 
         if fold_results:
             results_per_target[col] = average_result_dtos(fold_results)
             test_label_count_dict[col] = compute_label_distribution(test_label_counts)
             train_label_count_dict[col] = compute_label_distribution(train_label_counts)
 
-            org_res[col] = average_per_organism_results(fold_per_organism_results)
+            org_res[col] = average_per_organism_results(fold_per_organism_results[col])
 
     return results_per_target, test_label_count_dict, train_label_count_dict, org_res
 
