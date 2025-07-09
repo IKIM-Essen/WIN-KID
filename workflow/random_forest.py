@@ -318,6 +318,8 @@ def run_stacked_random_forest(
         cv_results = []
         test_label_counts = []
         train_label_counts = []
+        org_res = {}
+        fold_per_organism_results = defaultdict(list)
         for train_idx, test_idx in skf.split(X, stratify_col):
 
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
@@ -327,7 +329,7 @@ def run_stacked_random_forest(
                 result_dic,
                 y_test_count,
                 y_train_count,
-                org_res,
+                fold_per_organism_result,
             ) = compute_stacked_random_forest(
                 preprocessed_data,
                 rf_settings,
@@ -342,10 +344,19 @@ def run_stacked_random_forest(
             test_label_counts.append(y_test_count)
             train_label_counts.append(y_train_count)
 
-        return average_stacked_results(
-            cv_results,
-            test_label_counts,
-            train_label_counts,
+            for target, per_target_result in fold_per_organism_result.items():
+                fold_per_organism_results[target].append(per_target_result)
+        for target, per_target_results in fold_per_organism_results.items():
+            org_res[target] = average_per_organism_results(per_target_results)
+        result_dic, y_test_count, y_train_count = average_stacked_results(
+            cv_results, test_label_counts, train_label_counts
+        )
+
+        return (
+            result_dic,
+            y_test_count,
+            y_train_count,
+            org_res,
         )
     else:
         # SPLITTING
@@ -582,6 +593,7 @@ def prepare_second_layer_data(
         how="left",
     )[ORGANISM_COLUMN].astype(int)
 
+    # TODO: Add organism code as input
     return y_proba_train, X_proba_train, y_proba_test, X_proba_test, organism_test
 
 
@@ -777,6 +789,7 @@ def run_cross_validated_random_forest(
     results_per_target = {}
     test_label_count_dict = {}
     train_label_count_dict = {}
+    org_res = {}
 
     for col in preprocessed_data.target_cols:
 
@@ -797,7 +810,6 @@ def run_cross_validated_random_forest(
         test_label_counts = []
         train_label_counts = []
         fold_per_organism_results = defaultdict(list)
-        org_res = {}
 
         for train_idx, test_idx in split_iterator:
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
@@ -1060,7 +1072,7 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
             bootstrap=combo["bootstrap"],
         )
 
-        rf_cv_results, _, _ = run_cross_validated_random_forest(
+        rf_cv_results, _, _, _ = run_cross_validated_random_forest(
             preprocessed_data,
             number_of_folds,
             SplitStrategy(combo["split_strategy"].value),
