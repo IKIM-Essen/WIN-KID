@@ -576,7 +576,13 @@ def prepare_second_layer_data(
         on=ID_COLUMN,
         how="left",
     )[preprocessed_data.target_cols]
-    X_proba_train = proba_train_joined.drop(columns=[ID_COLUMN])
+
+    X_proba_train = proba_train_joined.merge(
+        merged_filtered_input[[ID_COLUMN, ORGANISM_COLUMN]],
+        on=ID_COLUMN,
+        how="left",  # or 'inner', depending on what you want
+    )
+    X_proba_train = X_proba_train.drop(columns=[ID_COLUMN])
 
     y_proba_test = pd.merge(
         proba_test_joined[[ID_COLUMN]],
@@ -584,7 +590,13 @@ def prepare_second_layer_data(
         on=ID_COLUMN,
         how="left",
     )[preprocessed_data.target_cols]
-    X_proba_test = proba_test_joined.drop(columns=[ID_COLUMN])
+
+    X_proba_test = proba_test_joined.merge(
+        merged_filtered_input[[ID_COLUMN, ORGANISM_COLUMN]],
+        on=ID_COLUMN,
+        how="left",  # or 'inner', depending on what you want
+    )
+    X_proba_test = X_proba_test.drop(columns=[ID_COLUMN])
 
     organism_test = pd.merge(
         proba_test_joined[[ID_COLUMN]],
@@ -593,7 +605,6 @@ def prepare_second_layer_data(
         how="left",
     )[ORGANISM_COLUMN].astype(int)
 
-    # TODO: Add organism code as input
     return y_proba_train, X_proba_train, y_proba_test, X_proba_test, organism_test
 
 
