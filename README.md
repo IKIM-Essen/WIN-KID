@@ -85,6 +85,7 @@
   - Set `STACK_MODEL = True`
 
 ## ToDo
+- is organism_code in feature columns of 2. layer in stacked RF?
 - Add RF Hyperparameter via score optimization -> score tbd
 - Add RF test
 - Differentiate between oral and non oral?

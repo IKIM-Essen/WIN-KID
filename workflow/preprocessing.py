@@ -4,7 +4,7 @@
 
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from warnings import simplefilter
 from itertools import combinations
 import pandas as pd
@@ -242,10 +242,11 @@ class DataLoader:
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].astype(str).str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].astype(str).str.strip()
 
-        # Encode Organism Code as ints
-        input_phenotype[ORGANISM_COLUMN] = (
-            input_phenotype[ORGANISM_COLUMN].astype("category").cat.codes
-        )
+        # Encode Organism Code as ints and save mapping
+        organism_cat = input_phenotype[ORGANISM_COLUMN].astype("category")
+        input_phenotype[ORGANISM_COLUMN] = organism_cat.cat.codes
+        organism_mapping = dict(enumerate(organism_cat.cat.categories))
+
         # Encode target values as specific ints
         for col in input_phenotype.columns[2:]:
             input_phenotype[col] = (
@@ -268,6 +269,7 @@ class DataLoader:
             self.merged_input,
             self.merged_input.columns[2:num_phenotype_cols],
             feature_cols_merged,
+            organism_mapping=organism_mapping,
         )
         print(
             "Number of preprocessed merged samples: "
@@ -283,3 +285,4 @@ class PreprocessedDataDTO:
     merged_input: pd.DataFrame
     target_cols: list
     feature_cols: list
+    organism_mapping: dict = field(default_factory=dict)
