@@ -348,14 +348,11 @@ def run_stacked_random_forest(
                 fold_per_organism_results[target].append(per_target_result)
         for target, per_target_results in fold_per_organism_results.items():
             org_res[target] = average_per_organism_results(per_target_results)
-        result_dic, y_test_count, y_train_count = average_stacked_results(
-            cv_results, test_label_counts, train_label_counts
-        )
 
         return (
-            result_dic,
-            y_test_count,
-            y_train_count,
+            cv_results,  # TODO: Use cv_results directly?
+            test_label_counts,
+            test_label_counts,
             org_res,
         )
     else:
@@ -380,9 +377,9 @@ def run_stacked_random_forest(
         )
 
         return (
-            result_dic,
-            y_test_count,
-            y_train_count,
+            [result_dic],
+            [y_test_count],
+            [y_train_count],
             org_res,
         )
 
@@ -412,36 +409,6 @@ def filter_merged_input(preprocessed_data, min_sample_number):
     preprocessed_data.merged_input = merged_filtered_input
 
     return preprocessed_data
-
-
-def average_stacked_results(cv_results, test_label_counts, train_label_counts):
-    result_target_list = {key: [] for key in cv_results[0]}
-    for cv_result in cv_results:
-        for target, single_result in cv_result.items():
-            result_target_list[target].append(single_result)
-
-    average_result_dic = {}
-    for target, result_list in result_target_list.items():
-        average_result_dic[target] = average_result_dtos(result_list)
-
-    test_label_count_list = {key: [] for key in cv_results[0]}
-    for test_label_count in test_label_counts:
-        for target, single_label_count in test_label_count.items():
-            test_label_count_list[target].append(single_label_count)
-
-    test_label_count_dict = {}
-    for target, label_list in test_label_count_list.items():
-        test_label_count_dict[target] = compute_label_distribution(label_list)
-
-    train_label_count_list = {key: [] for key in cv_results[0]}
-    for train_label_count in train_label_counts:
-        for target, single_label_count in train_label_count.items():
-            train_label_count_list[target].append(single_label_count)
-
-    train_label_count_dict = {}
-    for target, label_list in train_label_count_list.items():
-        train_label_count_dict[target] = compute_label_distribution(label_list)
-    return average_result_dic, test_label_count_dict, train_label_count_dict
 
 
 def evaluate_per_organism(y_pred, y_true, organism_codes, y_score, target_name):
@@ -856,7 +823,9 @@ def run_cross_validated_random_forest(
     return results_per_target, test_label_count_dict, train_label_count_dict, org_res
 
 
-def average_result_dtos(result_dtos):
+def average_result_dtos(
+    result_dtos,
+):
     pr_auc_dict, roc_auc_dict, precision_dict, recall_dict, f1_dict = (
         {},
         {},
@@ -952,62 +921,88 @@ def display_results(results_dto, print_feat_imp):
                 plt.close(fig)
 
 
-def evaluation_to_csv(results_dto, y_test_input, y_train_input):
-    evaluation_df = pd.DataFrame(
-        columns=[
-            "Accuracy",
-            "ROC_Mean",
-            "PR_Mean",
-            "Precision_Mean",
-            "Recall_Mean",
-            "F1_Mean",
-            "Test_Count_S",
-            "Test_Count_I",
-            "Test_Count_R",
-            "Train_Count_S",
-            "Train_Count_I",
-            "Train_Count_R",
+def evaluation_to_csv(results_dto_list, y_test_input_list, y_train_input_list):
+
+    evaluation_df_list = []
+    for idx, results_dto in enumerate(results_dto_list):
+        y_test_input = y_test_input_list[idx]
+        y_train_input = y_train_input_list[idx]
+        evaluation_df = pd.DataFrame(
+            columns=[
+                "Accuracy",
+                "ROC_Mean",
+                "PR_Mean",
+                "Precision_Mean",
+                "Recall_Mean",
+                "F1_Mean",
+                "Test_Count_S",
+                "Test_Count_I",
+                "Test_Count_R",
+                "Train_Count_S",
+                "Train_Count_I",
+                "Train_Count_R",
+            ]
+        )
+        for _, name in enumerate(results_dto):
+            result = results_dto[name]
+            test_label_counts = y_test_input[name]
+            train_label_counts = y_train_input[name]
+
+            evaluation_df.loc[name] = [
+                result.accuracy,
+                np.nanmean(list(result.roc_auc.values())),
+                np.nanmean(list(result.pr_auc.values())),
+                np.nanmean(list(result.precision.values())),
+                np.nanmean(list(result.recall.values())),
+                np.nanmean(list(result.f1.values())),
+                test_label_counts.get(1, 0),
+                test_label_counts.get(2, 0),
+                test_label_counts.get(3, 0),
+                train_label_counts.get(1, 0),
+                train_label_counts.get(2, 0),
+                train_label_counts.get(3, 0),
+            ]
+
+        evaluation_df.loc["Median"] = [
+            median(evaluation_df["Accuracy"].dropna()),
+            median(evaluation_df["ROC_Mean"].dropna()),
+            median(evaluation_df["PR_Mean"].dropna()),
+            median(evaluation_df["Precision_Mean"].dropna()),
+            median(evaluation_df["Recall_Mean"].dropna()),
+            median(evaluation_df["F1_Mean"].dropna()),
+            pd.NA,
+            pd.NA,
+            pd.NA,
+            pd.NA,
+            pd.NA,
+            pd.NA,
         ]
+        evaluation_df_list.append(evaluation_df)
+
+    evaluation_df_3d = np.array([df.values for df in evaluation_df_list])
+
+    mean_array = np.nanmean(evaluation_df_3d, axis=0)
+    std_array = np.nanstd(evaluation_df_3d, axis=0)
+
+    mean_df = pd.DataFrame(
+        mean_array,
+        index=evaluation_df_list[0].index,
+        columns=evaluation_df_list[0].columns,
     )
-    for _, name in enumerate(results_dto):
-        result = results_dto[name]
-        test_label_counts = y_test_input[name]
-        train_label_counts = y_train_input[name]
+    std_df = pd.DataFrame(
+        std_array,
+        index=evaluation_df_list[0].index,
+        columns=evaluation_df_list[0].columns,
+    )
 
-        evaluation_df.loc[name] = [
-            result.accuracy,
-            np.nanmean(list(result.roc_auc.values())),
-            np.nanmean(list(result.pr_auc.values())),
-            np.nanmean(list(result.precision.values())),
-            np.nanmean(list(result.recall.values())),
-            np.nanmean(list(result.f1.values())),
-            test_label_counts.get(1, 0),
-            test_label_counts.get(2, 0),
-            test_label_counts.get(3, 0),
-            train_label_counts.get(1, 0),
-            train_label_counts.get(2, 0),
-            train_label_counts.get(3, 0),
-        ]
+    print("Standard Deviation:")
+    print(std_df)
 
-    evaluation_df.loc["Median"] = [
-        median(evaluation_df["Accuracy"].dropna()),
-        median(evaluation_df["ROC_Mean"].dropna()),
-        median(evaluation_df["PR_Mean"].dropna()),
-        median(evaluation_df["Precision_Mean"].dropna()),
-        median(evaluation_df["Recall_Mean"].dropna()),
-        median(evaluation_df["F1_Mean"].dropna()),
-        pd.NA,
-        pd.NA,
-        pd.NA,
-        pd.NA,
-        pd.NA,
-        pd.NA,
-    ]
-
-    print(evaluation_df)
+    print("Mean Values:")
+    print(mean_df)
 
     os.makedirs("Evaluation", exist_ok=True)
-    evaluation_df.to_csv("Evaluation/Evaluation.csv", index=True, header=True)
+    mean_df.to_csv("Evaluation/Evaluation.csv", index=True, header=True)
 
 
 def per_organism_evaluation_to_csv(
@@ -1190,7 +1185,7 @@ if __name__ == "__main__":
                 rf_settings_input,
                 False,
             )
-            display_results(rf_results, False)
+            display_results(rf_results[0], False)
 
         elif STACK_MODEL and CROSS_VALIDATE:
             (
