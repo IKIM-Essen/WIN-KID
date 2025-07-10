@@ -279,9 +279,9 @@ def run_splitted_random_forest(
         )
 
     return (
-        result_dic,
-        y_test_count,
-        y_train_count,
+        [result_dic],
+        [y_test_count],
+        [y_train_count],
         org_res,
     )
 
@@ -350,7 +350,7 @@ def run_stacked_random_forest(
             org_res[target] = average_per_organism_results(per_target_results)
 
         return (
-            cv_results,  # TODO: Use cv_results directly?
+            cv_results,
             test_label_counts,
             test_label_counts,
             org_res,
@@ -764,9 +764,9 @@ def average_per_organism_results(per_fold_results_list):
 def run_cross_validated_random_forest(
     preprocessed_data, n_splits, split_strategy, rf_settings_cv
 ):
-    results_per_target = {}
-    test_label_count_dict = {}
-    train_label_count_dict = {}
+    cv_results = []
+    test_label_counts = []
+    train_label_counts = []
     org_res = {}
 
     for col in preprocessed_data.target_cols:
@@ -784,11 +784,9 @@ def run_cross_validated_random_forest(
 
         split_iterator = get_split_iterator(X, stratify_col, split_strategy, n_splits)
 
-        fold_results = []
-        test_label_counts = []
-        train_label_counts = []
         fold_per_organism_results = defaultdict(list)
 
+        idx = 0
         for train_idx, test_idx in split_iterator:
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
@@ -799,13 +797,19 @@ def run_cross_validated_random_forest(
                 )
                 continue
 
-            test_label_counts.append(y_test.value_counts())
-            train_label_counts.append(y_train.value_counts())
-
             result = run_random_forest(
                 X_train, y_train, X_test, y_test, col, rf_settings_cv
             )
-            fold_results.append(result)
+
+            # Add results to list
+            if len(cv_results) <= idx:
+                cv_results.append({})
+                test_label_counts.append({})
+                train_label_counts.append({})
+            (cv_results[idx])[col] = result
+            (test_label_counts[idx])[col] = y_test.value_counts()
+            (train_label_counts[idx])[col] = y_train.value_counts()
+            idx = idx + 1
 
             organism_test = df.iloc[test_idx][ORGANISM_COLUMN]
             per_fold_result = evaluate_per_organism(
@@ -813,64 +817,9 @@ def run_cross_validated_random_forest(
             )
             fold_per_organism_results[col].append(per_fold_result)
 
-        if fold_results:
-            results_per_target[col] = average_result_dtos(fold_results)
-            test_label_count_dict[col] = compute_label_distribution(test_label_counts)
-            train_label_count_dict[col] = compute_label_distribution(train_label_counts)
+        org_res[col] = average_per_organism_results(fold_per_organism_results[col])
 
-            org_res[col] = average_per_organism_results(fold_per_organism_results[col])
-
-    return results_per_target, test_label_count_dict, train_label_count_dict, org_res
-
-
-def average_result_dtos(
-    result_dtos,
-):
-    pr_auc_dict, roc_auc_dict, precision_dict, recall_dict, f1_dict = (
-        {},
-        {},
-        {},
-        {},
-        {},
-    )
-    accuracy_list = []
-    for dict_key in result_dtos[0].pr_auc.keys():
-        pr_auc_list, roc_auc_list, precision_list, recall_list, f1_list = (
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
-        for result_dto in result_dtos:
-            if dict_key not in result_dto.pr_auc:
-                print("Result key missing")
-                continue
-            pr_auc_list.append(result_dto.pr_auc[dict_key])
-            roc_auc_list.append(result_dto.roc_auc[dict_key])
-            precision_list.append(result_dto.precision[dict_key])
-            recall_list.append(result_dto.recall[dict_key])
-            f1_list.append(result_dto.f1[dict_key])
-        pr_auc_dict[dict_key] = np.mean(pr_auc_list, axis=0)
-        roc_auc_dict[dict_key] = np.mean(roc_auc_list, axis=0)
-        precision_dict[dict_key] = np.mean(precision_list, axis=0)
-        recall_dict[dict_key] = np.mean(recall_list, axis=0)
-        f1_dict[dict_key] = np.mean(f1_list, axis=0)
-    for result_dto in result_dtos:
-        accuracy_list.append(result_dto.accuracy)
-    return ResultDTO(
-        None,  # Should be mean size. S/R/I Set changes with every fold -> fpr size changes as well
-        None,
-        roc_auc=roc_auc_dict,
-        pr_auc=pr_auc_dict,
-        accuracy=np.mean(accuracy_list),
-        precision=precision_dict,
-        recall=recall_dict,
-        f1=f1_dict,
-        y_pred=None,
-        y_score=None,
-        feature_importance=None,
-    )
+    return cv_results, test_label_counts, train_label_counts, org_res
 
 
 def display_results(results_dto, print_feat_imp):
@@ -1086,13 +1035,14 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
         )
 
         accs, rocs, prs, precs, recs, f1s = [], [], [], [], [], []
-        for result in rf_cv_results.values():
-            accs.append(result.accuracy)
-            rocs.append(np.nanmean(list(result.roc_auc.values())))
-            prs.append(np.nanmean(list(result.pr_auc.values())))
-            precs.append(np.nanmean(list(result.precision.values())))
-            recs.append(np.nanmean(list(result.recall.values())))
-            f1s.append(np.nanmean(list(result.f1.values())))
+        for result_dic in rf_cv_results:
+            for result in result_dic.values():
+                accs.append(result.accuracy)
+                rocs.append(np.nanmean(list(result.roc_auc.values())))
+                prs.append(np.nanmean(list(result.pr_auc.values())))
+                precs.append(np.nanmean(list(result.precision.values())))
+                recs.append(np.nanmean(list(result.recall.values())))
+                f1s.append(np.nanmean(list(result.f1.values())))
 
         metrics["Accuracy"].append(median(accs))
         metrics["ROC_AUC"].append(median(rocs))
@@ -1112,7 +1062,7 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
 if __name__ == "__main__":
     TUNE_HYPERPARAMETER = False
     STACK_MODEL = True
-    CROSS_VALIDATE = False
+    CROSS_VALIDATE = True
 
     NUMBER_OF_FOLDS = 5
     TEST_SIZE = 0.3
@@ -1155,7 +1105,7 @@ if __name__ == "__main__":
                 preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY, rf_settings_input
             )
 
-            display_results(rf_results, False)
+            display_results(rf_results[0], False)
 
         elif not STACK_MODEL and CROSS_VALIDATE:
             # display not possible with CV.
