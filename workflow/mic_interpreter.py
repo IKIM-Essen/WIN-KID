@@ -109,7 +109,7 @@ def interpret_vitek(input_vitek, input_eucast):
 
         if not matching_rows_eucast.empty:
             matching_rows_eucast = get_most_similar_name(
-                matching_rows_eucast, column_vitek, 80
+                matching_rows_eucast, column_vitek, 70
             )
         if matching_rows_eucast.empty:
             continue
