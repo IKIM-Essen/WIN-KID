@@ -172,6 +172,7 @@ if __name__ == "__main__":
     os.makedirs(output_folder, exist_ok=True)
 
     # PROCESS
+    # TODO: Bring together names from different files that are regex of them self. Example: UKE/UKM Trimethoprim-Sulfam/Trimethoprim-Sulfamethoxazol
     # TODO: Enables the merging of columns that mean the same substance. Example: Fosfomycin and fosfomycin iv in the UME data.
     outputs = interpret_folder(input_folder, output_folder)
 
