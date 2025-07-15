@@ -100,12 +100,12 @@ def interpret_vitek(input_vitek, input_eucast):
         matching_rows_eucast = input_eucast.loc[
             input_eucast["Name"].str.contains(column_vitek, case=False, na=False)
         ]
+        if matching_rows_eucast.empty:
+            print(f"No EUCAST Match: {column_vitek}")
 
-        removed_match = False
         for index, row in matching_rows_eucast.iterrows():
             if (not is_float(row["S <="])) or (not is_float(row["R >"])):
                 matching_rows_eucast = matching_rows_eucast.drop(index)
-                removed_match = True
 
         if not matching_rows_eucast.empty:
             matching_rows_eucast = get_most_similar_name(
@@ -172,6 +172,8 @@ if __name__ == "__main__":
     os.makedirs(output_folder, exist_ok=True)
 
     # PROCESS
+    # TODO: Bring together names from different files that are regex of them self. Example: UKE/UKM Trimethoprim-Sulfam/Trimethoprim-Sulfamethoxazol
+    # TODO: Enables the merging of columns that mean the same substance. Example: Fosfomycin and fosfomycin iv in the UME data.
     outputs = interpret_folder(input_folder, output_folder)
 
     # SAVE

@@ -1,4 +1,4 @@
-Sample_ID_IfH,Organism_Code,Ampicillin,Piperacillin-Tazobactam,Cefotaxime,Ceftazidime,Meropenem,Gentamicin,Trimethoprim-Sulfam,Ciprofloxacin,Levofloxacin,Fosfomycin,Nitrofurantoin,Amoxicillin-Clavulan,Mecillinam,Cefalexin,Piperacillin,Cefuroxime,Imipenem,Tobramycin,Amikacin,Colistin,Ampicillin-Sulbactam,Ceftazidime-Avibacta,Aztreonam,Norfloxacin,Trimethoprim,Ceftolozane-tazobactam,Fosfomycin iv
+Sample_ID_IfH,Organism_Code,Ampicillin,Piperacillin-Tazobactam,Cefotaxime,Ceftazidime,Meropenem,Gentamicin,Trimethoprim-Sulfam,Ciprofloxacin,Levofloxacin,Fosfomycin,Nitrofurantoin,Amoxicillin-clavulanic acid,Mecillinam,Cefalexin,Piperacillin,Cefuroxime,Imipenem,Tobramycin,Amikacin,Colistin,Ampicillin-Sulbactam,Ceftazidime-avibactam,Aztreonam,Norfloxacin,Trimethoprim,Ceftolozane-tazobactam,Fosfomycin iv
 24-64755099,ECO,R,S,S,S,S,S,R,R,S,R,S,R,S,S,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
 24-64755100,ECO,R,S,S,S,S,S,S,R,S,NA,NA,S,NA,NA,R,I,S,S,S,S,NA,NA,NA,NA,NA,NA,NA
 24-64802574,ECO,R,S,R,R,S,S,R,R,R,R,S,S,S,R,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
