@@ -352,7 +352,7 @@ def run_stacked_random_forest(
         return (
             cv_results,
             test_label_counts,
-            test_label_counts,
+            train_label_counts,
             org_res,
         )
     else:
@@ -951,7 +951,16 @@ def evaluation_to_csv(results_dto_list, y_test_input_list, y_train_input_list):
     print(mean_df)
 
     os.makedirs("Evaluation", exist_ok=True)
-    mean_df.to_csv("Evaluation/Evaluation.csv", index=True, header=True)
+
+    mean_df.to_csv(
+        "Evaluation/Evaluation.csv", index=True, header=True, index_label="Target"
+    )
+    std_df.to_csv(
+        "Evaluation/Standard_Deviation.csv",
+        index=True,
+        header=True,
+        index_label="Target",
+    )
 
 
 def per_organism_evaluation_to_csv(
