@@ -279,9 +279,9 @@ def run_splitted_random_forest(
         )
 
     return (
-        result_dic,
-        y_test_count,
-        y_train_count,
+        [result_dic],
+        [y_test_count],
+        [y_train_count],
         org_res,
     )
 
@@ -348,14 +348,11 @@ def run_stacked_random_forest(
                 fold_per_organism_results[target].append(per_target_result)
         for target, per_target_results in fold_per_organism_results.items():
             org_res[target] = average_per_organism_results(per_target_results)
-        result_dic, y_test_count, y_train_count = average_stacked_results(
-            cv_results, test_label_counts, train_label_counts
-        )
 
         return (
-            result_dic,
-            y_test_count,
-            y_train_count,
+            cv_results,
+            test_label_counts,
+            train_label_counts,
             org_res,
         )
     else:
@@ -380,9 +377,9 @@ def run_stacked_random_forest(
         )
 
         return (
-            result_dic,
-            y_test_count,
-            y_train_count,
+            [result_dic],
+            [y_test_count],
+            [y_train_count],
             org_res,
         )
 
@@ -412,36 +409,6 @@ def filter_merged_input(preprocessed_data, min_sample_number):
     preprocessed_data.merged_input = merged_filtered_input
 
     return preprocessed_data
-
-
-def average_stacked_results(cv_results, test_label_counts, train_label_counts):
-    result_target_list = {key: [] for key in cv_results[0]}
-    for cv_result in cv_results:
-        for target, single_result in cv_result.items():
-            result_target_list[target].append(single_result)
-
-    average_result_dic = {}
-    for target, result_list in result_target_list.items():
-        average_result_dic[target] = average_result_dtos(result_list)
-
-    test_label_count_list = {key: [] for key in cv_results[0]}
-    for test_label_count in test_label_counts:
-        for target, single_label_count in test_label_count.items():
-            test_label_count_list[target].append(single_label_count)
-
-    test_label_count_dict = {}
-    for target, label_list in test_label_count_list.items():
-        test_label_count_dict[target] = compute_label_distribution(label_list)
-
-    train_label_count_list = {key: [] for key in cv_results[0]}
-    for train_label_count in train_label_counts:
-        for target, single_label_count in train_label_count.items():
-            train_label_count_list[target].append(single_label_count)
-
-    train_label_count_dict = {}
-    for target, label_list in train_label_count_list.items():
-        train_label_count_dict[target] = compute_label_distribution(label_list)
-    return average_result_dic, test_label_count_dict, train_label_count_dict
 
 
 def evaluate_per_organism(y_pred, y_true, organism_codes, y_score, target_name):
@@ -576,7 +543,13 @@ def prepare_second_layer_data(
         on=ID_COLUMN,
         how="left",
     )[preprocessed_data.target_cols]
-    X_proba_train = proba_train_joined.drop(columns=[ID_COLUMN])
+
+    X_proba_train = proba_train_joined.merge(
+        merged_filtered_input[[ID_COLUMN, ORGANISM_COLUMN]],
+        on=ID_COLUMN,
+        how="left",  # or 'inner', depending on what you want
+    )
+    X_proba_train = X_proba_train.drop(columns=[ID_COLUMN])
 
     y_proba_test = pd.merge(
         proba_test_joined[[ID_COLUMN]],
@@ -584,7 +557,13 @@ def prepare_second_layer_data(
         on=ID_COLUMN,
         how="left",
     )[preprocessed_data.target_cols]
-    X_proba_test = proba_test_joined.drop(columns=[ID_COLUMN])
+
+    X_proba_test = proba_test_joined.merge(
+        merged_filtered_input[[ID_COLUMN, ORGANISM_COLUMN]],
+        on=ID_COLUMN,
+        how="left",  # or 'inner', depending on what you want
+    )
+    X_proba_test = X_proba_test.drop(columns=[ID_COLUMN])
 
     organism_test = pd.merge(
         proba_test_joined[[ID_COLUMN]],
@@ -593,7 +572,6 @@ def prepare_second_layer_data(
         how="left",
     )[ORGANISM_COLUMN].astype(int)
 
-    # TODO: Add organism code as input
     return y_proba_train, X_proba_train, y_proba_test, X_proba_test, organism_test
 
 
@@ -786,9 +764,9 @@ def average_per_organism_results(per_fold_results_list):
 def run_cross_validated_random_forest(
     preprocessed_data, n_splits, split_strategy, rf_settings_cv
 ):
-    results_per_target = {}
-    test_label_count_dict = {}
-    train_label_count_dict = {}
+    cv_results = []
+    test_label_counts = []
+    train_label_counts = []
     org_res = {}
 
     for col in preprocessed_data.target_cols:
@@ -806,11 +784,9 @@ def run_cross_validated_random_forest(
 
         split_iterator = get_split_iterator(X, stratify_col, split_strategy, n_splits)
 
-        fold_results = []
-        test_label_counts = []
-        train_label_counts = []
         fold_per_organism_results = defaultdict(list)
 
+        idx = 0
         for train_idx, test_idx in split_iterator:
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
@@ -821,13 +797,19 @@ def run_cross_validated_random_forest(
                 )
                 continue
 
-            test_label_counts.append(y_test.value_counts())
-            train_label_counts.append(y_train.value_counts())
-
             result = run_random_forest(
                 X_train, y_train, X_test, y_test, col, rf_settings_cv
             )
-            fold_results.append(result)
+
+            # Add results to list
+            if len(cv_results) <= idx:
+                cv_results.append({})
+                test_label_counts.append({})
+                train_label_counts.append({})
+            (cv_results[idx])[col] = result
+            (test_label_counts[idx])[col] = y_test.value_counts()
+            (train_label_counts[idx])[col] = y_train.value_counts()
+            idx = idx + 1
 
             organism_test = df.iloc[test_idx][ORGANISM_COLUMN]
             per_fold_result = evaluate_per_organism(
@@ -835,62 +817,9 @@ def run_cross_validated_random_forest(
             )
             fold_per_organism_results[col].append(per_fold_result)
 
-        if fold_results:
-            results_per_target[col] = average_result_dtos(fold_results)
-            test_label_count_dict[col] = compute_label_distribution(test_label_counts)
-            train_label_count_dict[col] = compute_label_distribution(train_label_counts)
+        org_res[col] = average_per_organism_results(fold_per_organism_results[col])
 
-            org_res[col] = average_per_organism_results(fold_per_organism_results[col])
-
-    return results_per_target, test_label_count_dict, train_label_count_dict, org_res
-
-
-def average_result_dtos(result_dtos):
-    pr_auc_dict, roc_auc_dict, precision_dict, recall_dict, f1_dict = (
-        {},
-        {},
-        {},
-        {},
-        {},
-    )
-    accuracy_list = []
-    for dict_key in result_dtos[0].pr_auc.keys():
-        pr_auc_list, roc_auc_list, precision_list, recall_list, f1_list = (
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
-        for result_dto in result_dtos:
-            if dict_key not in result_dto.pr_auc:
-                print("Result key missing")
-                continue
-            pr_auc_list.append(result_dto.pr_auc[dict_key])
-            roc_auc_list.append(result_dto.roc_auc[dict_key])
-            precision_list.append(result_dto.precision[dict_key])
-            recall_list.append(result_dto.recall[dict_key])
-            f1_list.append(result_dto.f1[dict_key])
-        pr_auc_dict[dict_key] = np.mean(pr_auc_list, axis=0)
-        roc_auc_dict[dict_key] = np.mean(roc_auc_list, axis=0)
-        precision_dict[dict_key] = np.mean(precision_list, axis=0)
-        recall_dict[dict_key] = np.mean(recall_list, axis=0)
-        f1_dict[dict_key] = np.mean(f1_list, axis=0)
-    for result_dto in result_dtos:
-        accuracy_list.append(result_dto.accuracy)
-    return ResultDTO(
-        None,  # Should be mean size. S/R/I Set changes with every fold -> fpr size changes as well
-        None,
-        roc_auc=roc_auc_dict,
-        pr_auc=pr_auc_dict,
-        accuracy=np.mean(accuracy_list),
-        precision=precision_dict,
-        recall=recall_dict,
-        f1=f1_dict,
-        y_pred=None,
-        y_score=None,
-        feature_importance=None,
-    )
+    return cv_results, test_label_counts, train_label_counts, org_res
 
 
 def display_results(results_dto, print_feat_imp):
@@ -941,62 +870,97 @@ def display_results(results_dto, print_feat_imp):
                 plt.close(fig)
 
 
-def evaluation_to_csv(results_dto, y_test_input, y_train_input):
-    evaluation_df = pd.DataFrame(
-        columns=[
-            "Accuracy",
-            "ROC_Mean",
-            "PR_Mean",
-            "Precision_Mean",
-            "Recall_Mean",
-            "F1_Mean",
-            "Test_Count_S",
-            "Test_Count_I",
-            "Test_Count_R",
-            "Train_Count_S",
-            "Train_Count_I",
-            "Train_Count_R",
+def evaluation_to_csv(results_dto_list, y_test_input_list, y_train_input_list):
+
+    evaluation_df_list = []
+    for idx, results_dto in enumerate(results_dto_list):
+        y_test_input = y_test_input_list[idx]
+        y_train_input = y_train_input_list[idx]
+        evaluation_df = pd.DataFrame(
+            columns=[
+                "Accuracy",
+                "ROC_Mean",
+                "PR_Mean",
+                "Precision_Mean",
+                "Recall_Mean",
+                "F1_Mean",
+                "Test_Count_S",
+                "Test_Count_I",
+                "Test_Count_R",
+                "Train_Count_S",
+                "Train_Count_I",
+                "Train_Count_R",
+            ]
+        )
+        for _, name in enumerate(results_dto):
+            result = results_dto[name]
+            test_label_counts = y_test_input[name]
+            train_label_counts = y_train_input[name]
+
+            evaluation_df.loc[name] = [
+                result.accuracy,
+                np.nanmean(list(result.roc_auc.values())),
+                np.nanmean(list(result.pr_auc.values())),
+                np.nanmean(list(result.precision.values())),
+                np.nanmean(list(result.recall.values())),
+                np.nanmean(list(result.f1.values())),
+                test_label_counts.get(1, 0),
+                test_label_counts.get(2, 0),
+                test_label_counts.get(3, 0),
+                train_label_counts.get(1, 0),
+                train_label_counts.get(2, 0),
+                train_label_counts.get(3, 0),
+            ]
+
+        evaluation_df.loc["Median"] = [
+            median(evaluation_df["Accuracy"].dropna()),
+            median(evaluation_df["ROC_Mean"].dropna()),
+            median(evaluation_df["PR_Mean"].dropna()),
+            median(evaluation_df["Precision_Mean"].dropna()),
+            median(evaluation_df["Recall_Mean"].dropna()),
+            median(evaluation_df["F1_Mean"].dropna()),
+            pd.NA,
+            pd.NA,
+            pd.NA,
+            pd.NA,
+            pd.NA,
+            pd.NA,
         ]
+        evaluation_df_list.append(evaluation_df)
+
+    evaluation_df_3d = np.array([df.values for df in evaluation_df_list])
+
+    mean_array = np.nanmean(evaluation_df_3d, axis=0)
+    std_array = np.nanstd(evaluation_df_3d, axis=0)
+
+    mean_df = pd.DataFrame(
+        mean_array,
+        index=evaluation_df_list[0].index,
+        columns=evaluation_df_list[0].columns,
     )
-    for _, name in enumerate(results_dto):
-        result = results_dto[name]
-        test_label_counts = y_test_input[name]
-        train_label_counts = y_train_input[name]
+    std_df = pd.DataFrame(
+        std_array,
+        index=evaluation_df_list[0].index,
+        columns=evaluation_df_list[0].columns,
+    )
 
-        evaluation_df.loc[name] = [
-            result.accuracy,
-            np.nanmean(list(result.roc_auc.values())),
-            np.nanmean(list(result.pr_auc.values())),
-            np.nanmean(list(result.precision.values())),
-            np.nanmean(list(result.recall.values())),
-            np.nanmean(list(result.f1.values())),
-            test_label_counts.get(1, 0),
-            test_label_counts.get(2, 0),
-            test_label_counts.get(3, 0),
-            train_label_counts.get(1, 0),
-            train_label_counts.get(2, 0),
-            train_label_counts.get(3, 0),
-        ]
+    print("Standard Deviation:")
+    print(std_df)
 
-    evaluation_df.loc["Median"] = [
-        median(evaluation_df["Accuracy"].dropna()),
-        median(evaluation_df["ROC_Mean"].dropna()),
-        median(evaluation_df["PR_Mean"].dropna()),
-        median(evaluation_df["Precision_Mean"].dropna()),
-        median(evaluation_df["Recall_Mean"].dropna()),
-        median(evaluation_df["F1_Mean"].dropna()),
-        pd.NA,
-        pd.NA,
-        pd.NA,
-        pd.NA,
-        pd.NA,
-        pd.NA,
-    ]
-
-    print(evaluation_df)
+    print("Mean Values:")
+    print(mean_df)
 
     os.makedirs("Evaluation", exist_ok=True)
-    evaluation_df.to_csv("Evaluation/Evaluation.csv", index=True, header=True)
+
+    mean_df.to_csv(
+        "Evaluation/Evaluation.csv", index=True, header=True, index_label="Target"
+    )
+    std_df.to_csv(
+        "Evaluation/Standard_Deviation.csv",
+        index=True,
+        header=True,
+        index_label="Target",
+    )
 
 
 def per_organism_evaluation_to_csv(
@@ -1080,13 +1044,14 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
         )
 
         accs, rocs, prs, precs, recs, f1s = [], [], [], [], [], []
-        for result in rf_cv_results.values():
-            accs.append(result.accuracy)
-            rocs.append(np.nanmean(list(result.roc_auc.values())))
-            prs.append(np.nanmean(list(result.pr_auc.values())))
-            precs.append(np.nanmean(list(result.precision.values())))
-            recs.append(np.nanmean(list(result.recall.values())))
-            f1s.append(np.nanmean(list(result.f1.values())))
+        for result_dic in rf_cv_results:
+            for result in result_dic.values():
+                accs.append(result.accuracy)
+                rocs.append(np.nanmean(list(result.roc_auc.values())))
+                prs.append(np.nanmean(list(result.pr_auc.values())))
+                precs.append(np.nanmean(list(result.precision.values())))
+                recs.append(np.nanmean(list(result.recall.values())))
+                f1s.append(np.nanmean(list(result.f1.values())))
 
         metrics["Accuracy"].append(median(accs))
         metrics["ROC_AUC"].append(median(rocs))
@@ -1106,7 +1071,7 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
 if __name__ == "__main__":
     TUNE_HYPERPARAMETER = False
     STACK_MODEL = True
-    CROSS_VALIDATE = False
+    CROSS_VALIDATE = True
 
     NUMBER_OF_FOLDS = 5
     TEST_SIZE = 0.3
@@ -1149,7 +1114,7 @@ if __name__ == "__main__":
                 preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY, rf_settings_input
             )
 
-            display_results(rf_results, False)
+            display_results(rf_results[0], False)
 
         elif not STACK_MODEL and CROSS_VALIDATE:
             # display not possible with CV.
@@ -1179,7 +1144,7 @@ if __name__ == "__main__":
                 rf_settings_input,
                 False,
             )
-            display_results(rf_results, False)
+            display_results(rf_results[0], False)
 
         elif STACK_MODEL and CROSS_VALIDATE:
             (
