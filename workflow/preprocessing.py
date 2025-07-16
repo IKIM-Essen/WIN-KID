@@ -242,8 +242,15 @@ class DataLoader:
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].astype(str).str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].astype(str).str.strip()
 
-        # Encode Organism Code as ints and save mapping
+        # Remove rare species, encode Organism Code as ints and save mapping
         organism_cat = input_phenotype[ORGANISM_COLUMN].astype("category")
+        counts = input_phenotype[ORGANISM_COLUMN].value_counts()
+        input_phenotype = input_phenotype[
+            input_phenotype[ORGANISM_COLUMN].isin(counts[counts >= 20].index)
+        ]
+        removed_species = counts[counts < 20]
+        print("Removed species (less than 20 samples):")
+        print(removed_species)
         input_phenotype[ORGANISM_COLUMN] = organism_cat.cat.codes
         organism_mapping = dict(enumerate(organism_cat.cat.categories))
 
@@ -275,6 +282,8 @@ class DataLoader:
             "Number of preprocessed merged samples: "
             + str(len(preprocessed_data.merged_input))
         )
+
+        print("Total number of samples: " + str(len(preprocessed_data.merged_input)))
 
         return preprocessed_data
 

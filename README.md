@@ -27,7 +27,7 @@
 ## Interpreter
 
 - Run mic_interpreter.py to interpret any parsed files:
-  `python workflow/mic_interpreter.py Prospective_Jan25/Interpreted Prospective_Jan25`
+  `python workflow/mic_interpreter.py Prospective_Jan25/ToInterpret Prospective_Jan25/Interpreted`
 - Can handle single and multiple Input files and can handle multiple organisms in one file
 - Antibiotics from a vitek file that can not be matched to an EUCAST antibiotic are skipped and logged via print
 - Antibiotics with missing EUCAST Values (e.g.: '"S <=": "-",') are removed from the interpreted table
