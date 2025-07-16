@@ -278,12 +278,15 @@ class DataLoader:
             feature_cols_merged,
             organism_mapping=organism_mapping,
         )
-        print(
-            "Number of preprocessed merged samples: "
-            + str(len(preprocessed_data.merged_input))
-        )
 
         print("Total number of samples: " + str(len(preprocessed_data.merged_input)))
+        counts = (
+            preprocessed_data.merged_input[preprocessed_data.target_cols]
+            .stack()
+            .value_counts()
+        )
+        print("Resistance occurrence:")
+        print({val: counts.get(val, 0) for val in [1, 2, 3]})
 
         return preprocessed_data
 
