@@ -1,0 +1,81 @@
+antibiotic,drug_class
+3MRGN
+4MRGN
+Amikazin,aminoglycoside
+Aminoglykoside,aminoglycoside
+Amoxicillin,penicillin beta-lactam
+Amoxicillin+Clavulan,penicillin beta-lactam
+AmphothericinB,polyene antibiotic
+Ampi+Amoxicillin,penicillin beta-lactam
+Ampicillin,penicillin beta-lactam
+Ampicillin+Sulbactam,penicillin beta-lactam
+Anidulafungin,echinocandin antibiotic
+Azithromycin,macrolide antibiotic
+Aztreonam,monobactam
+Bedaquilin,diarylquinoline antibiotic
+Caspofungin,echinocandin antibiotic
+Cefalexin,cephalosporin
+Cefazolin,cephalosporin
+Cefepim,cephalosporin
+Cefixim,cephalosporin
+Cefotaxim,cephalosporin
+Cefoxitin,cephalosporin
+Cefpodoxim,cephalosporin
+Ceftazidim,cephalosporin
+Ceftazidim+Avibacta
+Ceftolozan,cephalosporin
+Ceftolozan+Tazobacta
+Ceftriaxon,cephalosporin
+Cefuroxim,cephalosporin
+Cefuroxim-Axetil,cephalosporin
+Cefuroxim-Sodium,cephalosporin
+Cephalotin,cephalosporin
+Ciprofloxacin,fluoroquinolone
+Clarithromycin,macrolide
+Clindamycin,lincosamide
+Clofazimin,fluoroquinolone
+Colistin,peptide
+Cycloserin,cycloserine-like
+Daptomycin,peptide
+Delamanid,nitroimidazole
+Doxycyclin,tetracycline
+Erythromycin,macrolide
+Ethambutol,polyamine
+Fluconazol,triazole
+Fosfomycin,phosphonic acid
+Gentamycin,aminoglycoside
+Gentamicin-Synergism
+Imipenem,carbapenem
+Isoniazid,isoniazid-like
+Itraconazol,triazole
+Levofloxacin,fluoroquinolone
+Linezolid,oxazolidinone
+Makrolide,makrolide
+Mecillinam,amdinocillin Selexid Selexidin
+Meropenemm,carbapenem
+Metronidazol,nitroimidazole
+Moxifloxacin,fluoroquinolone
+Nalidixin,fluoroquinolone
+Nitrofurantoin,nitrofuran
+Norfloxacin,fluoroquinolone
+Ofloxacin,fluoroquinolone
+Oxacillin,penicillin beta-lactam
+Penicillin,penicillin beta-lactam
+Pip+Taz,Penicillin
+Piperacillin,penicillin beta-lactam
+Posaconazol,triazole
+Prothionamid,thioamide
+Pyraziamid,pyrazine
+Rifabutin,rifamycin
+Rifampicin,rifamycin
+Spectinomycin,aminoglycoside
+Streptomycin,aminoglycoside
+Teicoplanin,glycopeptide
+Tetracyclin,tetracycline
+Tigecycline,tetracycline
+Tobramycin,aminoglycoside
+Trimethoprim+Sulfame,diaminopyrimidine
+Trimetophrim,diaminopyrimidine
+Vancomycin,glycopeptide
+Voriconazol,triazole
+nan
