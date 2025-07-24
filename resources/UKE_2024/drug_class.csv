@@ -44,14 +44,14 @@ Ethambutol,polyamine
 Fluconazol,triazole
 Fosfomycin,phosphonic acid
 Gentamycin,aminoglycoside
-Gentamicin-Synergism
+Gentamicin-Synergism,aminoglycoside
 Imipenem,carbapenem
 Isoniazid,isoniazid-like
 Itraconazol,triazole
 Levofloxacin,fluoroquinolone
 Linezolid,oxazolidinone
 Makrolide,makrolide
-Mecillinam,amdinocillin Selexid Selexidin
+Mecillinam,penicillin beta-lactam
 Meropenemm,carbapenem
 Metronidazol,nitroimidazole
 Moxifloxacin,fluoroquinolone
