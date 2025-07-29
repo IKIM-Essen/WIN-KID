@@ -286,14 +286,6 @@ class DataLoader:
         )
 
         print("Total number of samples: " + str(len(preprocessed_data.merged_input)))
-        counts = (
-            preprocessed_data.merged_input[preprocessed_data.target_cols]
-            .stack()
-            .value_counts()
-        )
-        print("Resistance occurrence:")
-        print({val: counts.get(val, 0) for val in [1, 2, 3]})
-
         print("Number of features: " + str(len(preprocessed_data.feature_cols)))
         return preprocessed_data
 
