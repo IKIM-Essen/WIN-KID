@@ -2,6 +2,7 @@
 # Licensed under the MIT License
 # This file may be copied, modified, and distributed under the terms of the MIT License.
 
+import time
 import argparse
 import os
 import itertools
@@ -1100,6 +1101,7 @@ if __name__ == "__main__":
 
     preprocessed_data_input = filter_merged_input(preprocessed_data_input, 20)
 
+    start_time = time.time()
     if TUNE_HYPERPARAMETER is True:
         tune_hyperparameter(preprocessed_data_input, NUMBER_OF_FOLDS)
 
@@ -1164,3 +1166,4 @@ if __name__ == "__main__":
             raise ValueError("Model strategy is invalid")
         per_organism_evaluation_to_csv(per_organism_results)
         evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
+        print("--- %s seconds for ML---" % (time.time() - start_time))
