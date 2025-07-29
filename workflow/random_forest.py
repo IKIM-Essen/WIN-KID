@@ -296,7 +296,8 @@ def run_stacked_random_forest(
     preprocessed_data,
     test_size,
     split_strategy,
-    rf_settings,
+    rf_settings_first_layer,
+    rf_settings_second_layer,
     cross_validate=False,
     number_of_folds=5,
 ):
@@ -338,7 +339,8 @@ def run_stacked_random_forest(
                 fold_per_organism_result,
             ) = compute_stacked_random_forest(
                 preprocessed_data,
-                rf_settings,
+                rf_settings_first_layer,
+                rf_settings_second_layer,
                 merged_filtered_input,
                 X_train,
                 X_test,
@@ -374,7 +376,8 @@ def run_stacked_random_forest(
             org_res,
         ) = compute_stacked_random_forest(
             preprocessed_data,
-            rf_settings,
+            rf_settings_first_layer,
+            rf_settings_second_layer,
             merged_filtered_input,
             X_train,
             X_test,
@@ -464,7 +467,8 @@ def evaluate_per_organism(y_pred, y_true, organism_codes, y_score, target_name):
 
 def compute_stacked_random_forest(
     preprocessed_data,
-    rf_settings,
+    rf_settings_first_layer,
+    rf_settings_second_layer,
     merged_filtered_input,
     X_train,
     X_test,
@@ -479,7 +483,7 @@ def compute_stacked_random_forest(
     # FIRST LAYER
     proba_train_joined, proba_test_joined = run_first_layer(
         preprocessed_data,
-        rf_settings,
+        rf_settings_first_layer,
         y_test,
         y_train,
         X_test,
@@ -522,7 +526,7 @@ def compute_stacked_random_forest(
             X_test_filtered,
             y_test_filtered,
             target,
-            rf_settings,
+            rf_settings_second_layer,
         )
         result_dic[target] = second_layer_result
 
@@ -1114,6 +1118,16 @@ if __name__ == "__main__":
         bootstrap=True,
     )
 
+    rf_settings_stacked = RandomForestSettings(
+        n_estimators=500,
+        class_weight="balanced_subsample",
+        max_depth=20,
+        min_samples_split=2,
+        min_samples_leaf=2,
+        max_features=0.3,
+        bootstrap=True,
+    )
+
     parser = argparse.ArgumentParser(
         description="Run RF on multiple datasets from a settings file"
     )
@@ -1170,6 +1184,7 @@ if __name__ == "__main__":
                 TEST_SIZE,
                 SPLIT_STRATEGY,
                 rf_settings_input,
+                rf_settings_stacked,
                 False,
             )
             display_results(rf_results[0], False)
@@ -1185,6 +1200,7 @@ if __name__ == "__main__":
                 TEST_SIZE,
                 SPLIT_STRATEGY,
                 rf_settings_input,
+                rf_settings_stacked,
                 True,
             )
 
