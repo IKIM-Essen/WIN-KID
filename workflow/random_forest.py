@@ -142,6 +142,9 @@ def run_random_forest(
         max_features=settings_input.max_features,
         bootstrap=settings_input.bootstrap,
     )
+
+    validate_target_values(y_train_input, y_test_input, target_input)
+
     model.fit(X_train_input, y_train_input)
 
     y_pred = model.predict(X_test_input)
@@ -183,6 +186,8 @@ def run_layer_one_random_forest(
         max_features=settings_input.max_features,
         bootstrap=settings_input.bootstrap,
     )
+
+    validate_target_values(y_train_input, y_val_input, target_input)
 
     model.fit(X_train_input, y_train_input)
 
@@ -501,11 +506,21 @@ def compute_stacked_random_forest(
     org_res = {}
 
     for target in preprocessed_data.target_cols:
+
+        # Filter out NA values
+        train_mask = y_proba_train[target] != 0
+        X_train_filtered = X_proba_train[train_mask]
+        y_train_filtered = y_proba_train[target][train_mask]
+        test_mask = y_proba_test[target] != 0
+        X_test_filtered = X_proba_test[test_mask]
+        y_test_filtered = y_proba_test[target][test_mask]
+        organism_test_filtered = organism_test[test_mask]
+
         second_layer_result = run_random_forest(
-            X_proba_train,
-            y_proba_train[target],
-            X_proba_test,
-            y_proba_test[target],
+            X_train_filtered,
+            y_train_filtered,
+            X_test_filtered,
+            y_test_filtered,
             target,
             rf_settings,
         )
@@ -515,8 +530,8 @@ def compute_stacked_random_forest(
 
         per_organism_perf = evaluate_per_organism(
             y_pred,
-            y_proba_test[target],
-            organism_test,
+            y_test_filtered,
+            organism_test_filtered,
             second_layer_result.y_score,
             target,
         )
@@ -530,6 +545,17 @@ def compute_stacked_random_forest(
         }
 
     return result_dic, y_test_count, y_train_count, org_res
+
+
+def validate_target_values(y_train, y_test, target_name):
+    if (y_train == 0).any():
+        raise ValueError(f"❌ 0 value found in y_train for target '{target_name}'")
+    if (y_test == 0).any():
+        raise ValueError(f"❌ 0 value found in y_test for target '{target_name}'")
+    if y_train.isna().any():
+        raise ValueError(f"❌ NaN value found in y_train for target '{target_name}'")
+    if y_test.isna().any():
+        raise ValueError(f"❌ NaN value found in y_test for target '{target_name}'")
 
 
 def prepare_second_layer_data(
