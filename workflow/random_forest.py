@@ -2,6 +2,7 @@
 # Licensed under the MIT License
 # This file may be copied, modified, and distributed under the terms of the MIT License.
 
+import time
 import argparse
 import os
 import itertools
@@ -141,6 +142,9 @@ def run_random_forest(
         max_features=settings_input.max_features,
         bootstrap=settings_input.bootstrap,
     )
+
+    validate_target_values(y_train_input, y_test_input, target_input)
+
     model.fit(X_train_input, y_train_input)
 
     y_pred = model.predict(X_test_input)
@@ -182,6 +186,8 @@ def run_layer_one_random_forest(
         max_features=settings_input.max_features,
         bootstrap=settings_input.bootstrap,
     )
+
+    validate_target_values(y_train_input, y_val_input, target_input)
 
     model.fit(X_train_input, y_train_input)
 
@@ -290,7 +296,8 @@ def run_stacked_random_forest(
     preprocessed_data,
     test_size,
     split_strategy,
-    rf_settings,
+    rf_settings_first_layer,
+    rf_settings_second_layer,
     cross_validate=False,
     number_of_folds=5,
 ):
@@ -332,7 +339,8 @@ def run_stacked_random_forest(
                 fold_per_organism_result,
             ) = compute_stacked_random_forest(
                 preprocessed_data,
-                rf_settings,
+                rf_settings_first_layer,
+                rf_settings_second_layer,
                 merged_filtered_input,
                 X_train,
                 X_test,
@@ -368,7 +376,8 @@ def run_stacked_random_forest(
             org_res,
         ) = compute_stacked_random_forest(
             preprocessed_data,
-            rf_settings,
+            rf_settings_first_layer,
+            rf_settings_second_layer,
             merged_filtered_input,
             X_train,
             X_test,
@@ -458,7 +467,8 @@ def evaluate_per_organism(y_pred, y_true, organism_codes, y_score, target_name):
 
 def compute_stacked_random_forest(
     preprocessed_data,
-    rf_settings,
+    rf_settings_first_layer,
+    rf_settings_second_layer,
     merged_filtered_input,
     X_train,
     X_test,
@@ -473,7 +483,7 @@ def compute_stacked_random_forest(
     # FIRST LAYER
     proba_train_joined, proba_test_joined = run_first_layer(
         preprocessed_data,
-        rf_settings,
+        rf_settings_first_layer,
         y_test,
         y_train,
         X_test,
@@ -500,13 +510,23 @@ def compute_stacked_random_forest(
     org_res = {}
 
     for target in preprocessed_data.target_cols:
+
+        # Filter out NA values
+        train_mask = y_proba_train[target] != 0
+        X_train_filtered = X_proba_train[train_mask]
+        y_train_filtered = y_proba_train[target][train_mask]
+        test_mask = y_proba_test[target] != 0
+        X_test_filtered = X_proba_test[test_mask]
+        y_test_filtered = y_proba_test[target][test_mask]
+        organism_test_filtered = organism_test[test_mask]
+
         second_layer_result = run_random_forest(
-            X_proba_train,
-            y_proba_train[target],
-            X_proba_test,
-            y_proba_test[target],
+            X_train_filtered,
+            y_train_filtered,
+            X_test_filtered,
+            y_test_filtered,
             target,
-            rf_settings,
+            rf_settings_second_layer,
         )
         result_dic[target] = second_layer_result
 
@@ -514,8 +534,8 @@ def compute_stacked_random_forest(
 
         per_organism_perf = evaluate_per_organism(
             y_pred,
-            y_proba_test[target],
-            organism_test,
+            y_test_filtered,
+            organism_test_filtered,
             second_layer_result.y_score,
             target,
         )
@@ -529,6 +549,17 @@ def compute_stacked_random_forest(
         }
 
     return result_dic, y_test_count, y_train_count, org_res
+
+
+def validate_target_values(y_train, y_test, target_name):
+    if (y_train == 0).any():
+        raise ValueError(f"❌ 0 value found in y_train for target '{target_name}'")
+    if (y_test == 0).any():
+        raise ValueError(f"❌ 0 value found in y_test for target '{target_name}'")
+    if y_train.isna().any():
+        raise ValueError(f"❌ NaN value found in y_train for target '{target_name}'")
+    if y_test.isna().any():
+        raise ValueError(f"❌ NaN value found in y_test for target '{target_name}'")
 
 
 def prepare_second_layer_data(
@@ -1087,6 +1118,16 @@ if __name__ == "__main__":
         bootstrap=True,
     )
 
+    rf_settings_stacked = RandomForestSettings(
+        n_estimators=500,
+        class_weight="balanced_subsample",
+        max_depth=20,
+        min_samples_split=2,
+        min_samples_leaf=2,
+        max_features=0.3,
+        bootstrap=True,
+    )
+
     parser = argparse.ArgumentParser(
         description="Run RF on multiple datasets from a settings file"
     )
@@ -1100,6 +1141,7 @@ if __name__ == "__main__":
 
     preprocessed_data_input = filter_merged_input(preprocessed_data_input, 20)
 
+    start_time = time.time()
     if TUNE_HYPERPARAMETER is True:
         tune_hyperparameter(preprocessed_data_input, NUMBER_OF_FOLDS)
 
@@ -1142,6 +1184,7 @@ if __name__ == "__main__":
                 TEST_SIZE,
                 SPLIT_STRATEGY,
                 rf_settings_input,
+                rf_settings_stacked,
                 False,
             )
             display_results(rf_results[0], False)
@@ -1157,6 +1200,7 @@ if __name__ == "__main__":
                 TEST_SIZE,
                 SPLIT_STRATEGY,
                 rf_settings_input,
+                rf_settings_stacked,
                 True,
             )
 
@@ -1164,3 +1208,4 @@ if __name__ == "__main__":
             raise ValueError("Model strategy is invalid")
         per_organism_evaluation_to_csv(per_organism_results)
         evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
+        print("--- %s seconds for ML---" % (time.time() - start_time))

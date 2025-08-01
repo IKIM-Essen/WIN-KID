@@ -18,6 +18,7 @@ from constants import ORGANISM_COLUMN
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 GFF_DIR = "resources/genotype"
+MIN_SAMPLES_PER_ORG = 70
 
 
 def extract_gene_attribute(attribute_string, key):
@@ -195,6 +196,9 @@ class DataLoader:
             if not updated:
                 break
 
+            if rows_to_remove:
+                print("🔻 Removing rows due to rare classes:")
+                print(input_phenotype.loc[sorted(rows_to_remove)])
             input_phenotype = input_phenotype.drop(index=rows_to_remove)
 
         input_phenotype = input_phenotype.loc[
@@ -242,8 +246,17 @@ class DataLoader:
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].astype(str).str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].astype(str).str.strip()
 
-        # Encode Organism Code as ints and save mapping
+        # Remove rare species, encode Organism Code as ints and save mapping
         organism_cat = input_phenotype[ORGANISM_COLUMN].astype("category")
+        counts = input_phenotype[ORGANISM_COLUMN].value_counts()
+        input_phenotype = input_phenotype[
+            input_phenotype[ORGANISM_COLUMN].isin(
+                counts[counts >= MIN_SAMPLES_PER_ORG].index
+            )
+        ]
+        removed_species = counts[counts < MIN_SAMPLES_PER_ORG]
+        print("Removed species (less than " + str(MIN_SAMPLES_PER_ORG) + " samples):")
+        print(removed_species)
         input_phenotype[ORGANISM_COLUMN] = organism_cat.cat.codes
         organism_mapping = dict(enumerate(organism_cat.cat.categories))
 
@@ -271,11 +284,9 @@ class DataLoader:
             feature_cols_merged,
             organism_mapping=organism_mapping,
         )
-        print(
-            "Number of preprocessed merged samples: "
-            + str(len(preprocessed_data.merged_input))
-        )
 
+        print("Total number of samples: " + str(len(preprocessed_data.merged_input)))
+        print("Number of features: " + str(len(preprocessed_data.feature_cols)))
         return preprocessed_data
 
 
