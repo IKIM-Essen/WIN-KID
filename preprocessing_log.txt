@@ -1,0 +1,67 @@
+2025-08-08 14:47:24,734 | INFO | 📊 Initial input_phenotype shape: (3317, 25)
+2025-08-08 14:47:24,735 | INFO | 📊 Initial input_genotype shape: (3285, 1240)
+2025-08-08 14:47:24,757 | INFO | ✅ After encoding target values:
+2025-08-08 14:47:24,757 | INFO | Sample_ID_IfH     object
+Organism_Code       int8
+Ceftriaxone        int64
+Meropenem          int64
+Cefepime           int64
+Trimethoprim       int64
+Ciprofloxacin      int64
+Nitrofurantoin     int64
+Amikacin           int64
+Tobramycin         int64
+Gentamicin         int64
+Ceftazidime        int64
+Ampicillin         int64
+Norfloxacin        int64
+Aztreonam          int64
+Cefotaxime         int64
+Cefpodoxime        int64
+Cefuroxime         int64
+Imipenem           int64
+Tigecycline        int64
+Cefazolin          int64
+Ertapenem          int64
+Levofloxacin       int64
+Moxifloxacin       int64
+Fosfomycin         int64
+dtype: object
+2025-08-08 14:47:24,758 | INFO |   Sample_ID_IfH  Organism_Code  Ceftriaxone  Meropenem  Cefepime  Trimethoprim  ...  Tigecycline  Cefazolin  Ertapenem  Levofloxacin  Moxifloxacin  Fosfomycin
+0      562.7703              0            1          1         1             3  ...            0          0          0             0             0           0
+1     562.96944              0            0          1         0             0  ...            0          0          0             0             0           0
+2     562.97267              0            0          1         0             0  ...            0          0          0             0             0           0
+3     562.42639              0            3          1         3             0  ...            0          0          1             3             0           0
+
+[4 rows x 25 columns]
+2025-08-08 14:47:25,084 | INFO | 
+📊 Merged Data Summary (Phenotype + Genotype):
+2025-08-08 14:47:25,085 | INFO | 🔢 Shape: (3084, 1264)
+2025-08-08 14:47:25,085 | INFO | 🧬 Columns: ['Sample_ID_IfH', 'Organism_Code', 'Ceftriaxone_AB', 'Meropenem_AB', 'Cefepime_AB'] ...
+2025-08-08 14:47:25,086 | INFO | 🧪 Column Types:
+Sample_ID_IfH     object
+Organism_Code       int8
+Ceftriaxone_AB     int64
+Meropenem_AB       int64
+Cefepime_AB        int64
+dtype: object
+2025-08-08 14:47:25,172 | INFO | 🧾 Sample row:
+  Sample_ID_IfH  Organism_Code  Ceftriaxone_AB  ...  streptothricin acetyltransferase (SAT)  macrolide phosphotransferase (MPH)  Van ligase
+0      562.7703              0               1  ...                                       0                                   1           1
+
+[1 rows x 1264 columns]
+
+2025-08-08 14:47:25,174 | INFO | Train Word2Vec on all 1000 FASTA files using streaming...
+2025-08-08 14:47:25,204 | INFO | Word2Vec lifecycle event {'params': 'Word2Vec<vocab=0, vector_size=40, alpha=0.025>', 'datetime': '2025-08-08T14:47:25.174616', 'gensim': '4.3.3', 'python': '3.10.13 | packaged by conda-forge | (main, Dec 23 2023, 15:36:39) [GCC 12.3.0]', 'platform': 'Linux-5.4.0-200-generic-x86_64-with-glibc2.31', 'event': 'created'}
+2025-08-08 14:47:25,204 | INFO | collecting all words and their counts
+2025-08-08 14:47:29,489 | INFO | PROGRESS: at sentence #0, processed 0 words, keeping 0 word types
+2025-08-08 15:46:18,465 | INFO | collected 4096 word types from a corpus of 4951407619 raw words and 1000 sentences
+2025-08-08 15:46:18,466 | INFO | Creating a fresh vocabulary
+2025-08-08 15:46:18,477 | INFO | Word2Vec lifecycle event {'msg': 'effective_min_count=2 retains 4096 unique words (100.00% of original 4096, drops 0)', 'datetime': '2025-08-08T15:46:18.477447', 'gensim': '4.3.3', 'python': '3.10.13 | packaged by conda-forge | (main, Dec 23 2023, 15:36:39) [GCC 12.3.0]', 'platform': 'Linux-5.4.0-200-generic-x86_64-with-glibc2.31', 'event': 'prepare_vocab'}
+2025-08-08 15:46:18,477 | INFO | Word2Vec lifecycle event {'msg': 'effective_min_count=2 leaves 4951407619 word corpus (100.00% of original 4951407619, drops 0)', 'datetime': '2025-08-08T15:46:18.477763', 'gensim': '4.3.3', 'python': '3.10.13 | packaged by conda-forge | (main, Dec 23 2023, 15:36:39) [GCC 12.3.0]', 'platform': 'Linux-5.4.0-200-generic-x86_64-with-glibc2.31', 'event': 'prepare_vocab'}
+2025-08-08 15:46:18,494 | INFO | deleting the raw counts dictionary of 4096 items
+2025-08-08 15:46:18,494 | INFO | sample=0.0001 downsamples 1501 most-common words
+2025-08-08 15:46:18,494 | INFO | Word2Vec lifecycle event {'msg': 'downsampling leaves estimated 4298108802.886951 word corpus (86.8%% of prior 4951407619)', 'datetime': '2025-08-08T15:46:18.494795', 'gensim': '4.3.3', 'python': '3.10.13 | packaged by conda-forge | (main, Dec 23 2023, 15:36:39) [GCC 12.3.0]', 'platform': 'Linux-5.4.0-200-generic-x86_64-with-glibc2.31', 'event': 'prepare_vocab'}
+2025-08-08 15:46:18,523 | INFO | estimated required memory for 4096 words and 40 dimensions: 3358720 bytes
+2025-08-08 15:46:18,523 | INFO | resetting layer weights
+2025-08-08 15:46:18,524 | INFO | Word2Vec lifecycle event {'update': False, 'trim_rule': 'None', 'datetime': '2025-08-08T15:46:18.524276', 'gensim': '4.3.3', 'python': '3.10.13 | packaged by conda-forge | (main, Dec 23 2023, 15:36:39) [GCC 12.3.0]', 'platform': 'Linux-5.4.0-200-generic-x86_64-with-glibc2.31', 'event': 'build_vocab'}

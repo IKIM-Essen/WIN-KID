@@ -13,7 +13,30 @@ from constants import GFF_COLUMNS
 from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
+from Bio import SeqIO
+import gzip
+import numpy as np
+from gensim.models import Word2Vec
+from sklearn.preprocessing import MinMaxScaler
+import random
+import logging
 
+logging.basicConfig(
+    filename="preprocessing_log.txt",
+    filemode="w",  # use 'a' to append if needed
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    level=logging.INFO
+)
+
+logger = logging.getLogger(__name__)
+
+
+K = 6
+VEC_SIZE = 40
+W2V_EPOCHS = 5
+FASTA_DIR = "/groups/ds/Win-KID/BVBRC/vitek_ii_cleaned/VITEK_cleaned"
+INCLUDE_POSITION = False
+random.seed(42)
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
@@ -142,6 +165,105 @@ def find_similar_columns(df, threshold=90):
             print(f"⚠️ Similar columns: '{col1}' ↔ '{col2}' (Score: {score})")
 
 
+def fasta_to_kmers(fasta_path, k=K):
+    kmers = []
+    open_func = gzip.open if fasta_path.endswith(".gz") else open
+    with open_func(fasta_path, "rt") as handle:
+        records = list(SeqIO.parse(handle, "fasta"))
+        for record in records:
+            seq = str(record.seq).upper()
+            kmers.extend([
+                seq[i:i+k] for i in range(len(seq)-k+1)
+                if set(seq[i:i+k]).issubset({'A', 'C', 'G', 'T'})
+            ])
+    return kmers
+
+# --- New generator for streaming ---
+def iter_kmer_sequences(fasta_ids, fasta_dir, k=K):
+    """
+    Generator that yields one k-mer sequence list at a time.
+    Does NOT store all sequences in memory at once.
+    """
+    for sid in fasta_ids:
+        fpath = os.path.join(fasta_dir, f"{sid}.fna.gz")
+        if os.path.exists(fpath):
+            yield fasta_to_kmers(fpath, k)
+
+
+# --- Updated train_word2vec_model with streaming & batching ---
+def train_word2vec_model_streaming(all_fasta_ids, fasta_dir, vector_size=VEC_SIZE, window=5, min_count=2):
+    workers = int(os.environ.get("SLURM_CPUS_PER_TASK", os.cpu_count()))  # Use all allocated CPUs
+    
+    # 1. Create empty model
+    model = Word2Vec(
+        vector_size=vector_size,
+        window=window,
+        min_count=min_count,
+        workers=workers,
+        sample=1e-4,    # subsample frequent k-mers
+        negative=5,
+        epochs=W2V_EPOCHS
+    )
+    
+    # 2. Build vocab from all sequences (streaming)
+    print("📦 Building vocabulary...")
+    model.build_vocab(iter_kmer_sequences(all_fasta_ids, fasta_dir, k=K))
+    print(f"✅ Vocabulary size: {len(model.wv)} k-mers")
+
+    # 3. Train in batches
+    batch_size = 300  # Number of FASTA files per batch
+    for i in range(0, len(all_fasta_ids), batch_size):
+        batch_ids = all_fasta_ids[i:i+batch_size]
+        print(f"🚀 Training batch {i//batch_size+1} on {len(batch_ids)} files...")
+        model.train(
+            iter_kmer_sequences(batch_ids, fasta_dir, k=K),
+            total_examples=len(batch_ids),
+            epochs=epochs
+        )
+
+    return model
+
+def encode_sample(sample_id, fasta_dir, model, k=K):
+    fpath = os.path.join(fasta_dir, f"{sample_id}.fna.gz")
+    if not os.path.exists(fpath):
+        return None
+    emb_vectors = []
+    open_func = gzip.open if fpath.endswith(".gz") else open
+    with open_func(fpath, "rt") as handle:
+        for record in SeqIO.parse(handle, "fasta"):
+            seq = str(record.seq).upper()
+            for i in range(len(seq) - k + 1):
+                kmer = seq[i:i+k]
+                if set(kmer).issubset({'A', 'C', 'G', 'T'}) and kmer in model.wv:
+                    vec = model.wv[kmer]
+                    if INCLUDE_POSITION:
+                        rel_pos = i / len(seq)
+                        vec = np.append(vec, rel_pos)
+                    emb_vectors.append(vec)
+    if not emb_vectors:
+        return None
+    return sample_id, np.mean(emb_vectors, axis=0)
+
+def encode_all_samples(fasta_ids, fasta_dir, model, k=K):
+    all_vecs = []
+    all_ids = []
+    for sid in fasta_ids:
+        result = encode_sample(sid, fasta_dir, model, k)
+        if result:
+            sample_id, mean_vec = result
+            all_ids.append(sample_id)
+            all_vecs.append(mean_vec)
+    if not all_vecs:
+        raise ValueError("No k-mer embeddings generated!")
+    cols = [f'kmer_{i}' for i in range(len(all_vecs[0]))]
+    df = pd.DataFrame(all_vecs, columns=cols)
+    df[ID_COLUMN] = all_ids
+    scaler = MinMaxScaler()
+    df[cols] = scaler.fit_transform(df[cols])
+    return df
+
+
+
 class DataLoader:
     def __init__(self):
         self.merged_input = None
@@ -239,6 +361,9 @@ class DataLoader:
         input_phenotype = self.preprocess_phenotype_data(dataset_list)
         input_genotype = self.preprocess_genotype_data(dataset_list)
 
+        logger.info(f"📊 Initial input_phenotype shape: {input_phenotype.shape}")
+        logger.info(f"📊 Initial input_genotype shape: {input_genotype.shape}")
+
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].astype(str).str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].astype(str).str.strip()
 
@@ -250,8 +375,12 @@ class DataLoader:
         # Encode target values as specific ints
         for col in input_phenotype.columns[2:]:
             input_phenotype[col] = (
-                input_phenotype[col].map(RESISTANCE_MAPPING).fillna(-1).astype(int)
+                input_phenotype[col].map(RESISTANCE_MAPPING).fillna(0).astype(int)
             )
+
+        logger.info("✅ After encoding target values:")
+        logger.info(input_phenotype.dtypes)
+        logger.info(input_phenotype.head(4))
 
         # Make target columns distinguishable from feature
         input_phenotype.columns = list(input_phenotype.columns[:2]) + [
@@ -262,8 +391,71 @@ class DataLoader:
         )
         num_phenotype_cols = input_phenotype.shape[1]
 
+         # 🔍 Print merged structure
+        logger.info("\n📊 Merged Data Summary (Phenotype + Genotype):")
+        logger.info(f"🔢 Shape: {self.merged_input.shape}")
+        logger.info(f"🧬 Columns: {self.merged_input.columns[:5].tolist()} ...")
+        logger.info(f"🧪 Column Types:\n{self.merged_input.dtypes.head()}")
+        logger.info(f"🧾 Sample row:\n{self.merged_input.head(1)}\n")
+
+
         feature_cols_merged = list(self.merged_input.columns[num_phenotype_cols:])
         feature_cols_merged.append(ORGANISM_COLUMN)
+
+        # add kmere embaddings
+        fasta_dir = FASTA_DIR
+        fasta_ids = self.merged_input[ID_COLUMN].unique().tolist()
+
+        TRAIN_SUBSET_SIZE = 1000
+        train_ids = random.sample(fasta_ids, min(TRAIN_SUBSET_SIZE, len(fasta_ids)))
+        #train_ids = fasta_ids
+        logger.info(f"Train Word2Vec on all {len(train_ids)} FASTA files using streaming...")
+        w2v_model = train_word2vec_model_streaming(train_ids, fasta_dir, vector_size=VEC_SIZE, window=4, min_count=2)
+
+
+        logger.info("Generate aggregated k-mer embeddings...")
+        embedding_df = encode_all_samples(train_ids, fasta_dir, w2v_model)
+
+        logger.info(f"🧬 Embedding DataFrame shape: {embedding_df.shape}")
+        logger.info(f"🧬 Embedding columns: {embedding_df.columns.tolist()[:5]}...")
+
+
+        logger.info(f"Add {embedding_df.shape[1]-1} k-mer embeddings to feature columns ...")
+        self.merged_input = pd.merge(self.merged_input, embedding_df, on=ID_COLUMN, how="left")
+        # Entferne alle Zeilen, bei denen keine Kmer-Embeddings generiert wurden
+        num_before = len(self.merged_input)
+        self.merged_input = self.merged_input.dropna(subset=[col for col in embedding_df.columns if col.startswith("kmer_")])
+        num_after = len(self.merged_input)
+
+        logger.info(f"❌ Entferne {num_before - num_after} Samples ohne Kmer-Embeddings (NaN in Kmer-Spalten)")
+
+        self.merged_input.fillna(0, inplace=True)
+
+        new_kmer_cols = [col for col in embedding_df.columns if col.startswith("kmer_")]
+        feature_cols_merged += new_kmer_cols
+
+        #logger.info(f"✅ Final merged_input shape after k-mers: {self.merged_input.shape}")
+        logger.info(self.merged_input.head(4))
+        logger.info(f"🧪 Total features (excluding targets): {len(feature_cols_merged)}")
+        logger.info(f"🎯 Total targets: {num_phenotype_cols - 2}")
+        logger.info(f"🧾 Feature column sample: {feature_cols_merged} ")
+
+        # 🔁 Sicheres Mapping erneut durchführen, nur falls nötig
+        logger.info("🔁 Überprüfe und mappe Zielspalten nach der Kmer-Generierung...")
+        for col in self.merged_input.columns[2:num_phenotype_cols]:
+            if self.merged_input[col].dtype == object or self.merged_input[col].dtype.name == "category":
+                logger.info(f"➡️  Mapping von Spalte '{col}'")
+                self.merged_input[col] = (
+                    self.merged_input[col]
+                    .astype(str)
+                    .str.strip()
+                    .str.upper()
+                    .replace("NAN", "NA")
+                    .map(RESISTANCE_MAPPING)
+                    .fillna(0)
+                    .astype(int)
+                )
+
 
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
@@ -271,6 +463,19 @@ class DataLoader:
             feature_cols_merged,
             organism_mapping=organism_mapping,
         )
+
+        logger.info(f"🎯 Target column names:\n{list(preprocessed_data.target_cols)}")
+
+        with pd.option_context('display.max_columns', None, 'display.width', 1000):
+            logger.info("🧪 Preview of target values:\n%s", preprocessed_data.merged_input[preprocessed_data.target_cols].head(10))
+
+
+
+        logger.info(f"✅ Final number of merged samples:{len(preprocessed_data.merged_input)}")
+        logger.info(f"✅ Final merged_input shape:{preprocessed_data.merged_input.shape}")
+
+
+
         print(
             "Number of preprocessed merged samples: "
             + str(len(preprocessed_data.merged_input))
