@@ -856,13 +856,39 @@ def run_cross_validated_random_forest(
 def display_results(results_dto, print_feat_imp):
     reverse_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
     with PdfPages("rf_roc_report.pdf") as pdf:
+
+        # TODO: Check compatibility with single layer
+        # Create empty DataFrame with those columns
+        importance_df = pd.DataFrame(columns=results_dto.keys())
+        importance_df["Organism_Code"] = None
+
+        print(importance_df)
         for name in results_dto:
+
+            importance_df.loc[name] = 0.0
+            print(importance_df)
+
+            prefixes = ("S_", "I_", "R_")
+
+            def strip_prefix(name: str) -> str:
+                for p in prefixes:
+                    if name.startswith(p):
+                        return name[len(p) :]
+                return name
+
             result = results_dto[name]
+
+            s_clean = result.feature_importance.rename(index=strip_prefix)
+            s_clean = s_clean.groupby(s_clean.index).sum()
+
+            print(s_clean)
+            importance_df.loc[name, s_clean.index] += s_clean
             print(f"{name}    Accuracy: {result.accuracy}")
 
             # Investigate feature importance
             if print_feat_imp:
-                print("Ranked Feature Importance:")
+                # print("Ranked Feature Importance:")
+                print(type(result.feature_importance))
                 print(result.feature_importance)
                 value_sum = 0.0
                 counter = 0
@@ -899,6 +925,9 @@ def display_results(results_dto, print_feat_imp):
 
                 pdf.savefig(fig)
                 plt.close(fig)
+
+        print(importance_df)
+        importance_df.to_csv("Evaluation/feature_importance.csv")
 
 
 def evaluation_to_csv(results_dto_list, y_test_input_list, y_train_input_list):
@@ -1102,7 +1131,7 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
 if __name__ == "__main__":
     TUNE_HYPERPARAMETER = False
     STACK_MODEL = True
-    CROSS_VALIDATE = True
+    CROSS_VALIDATE = False
 
     NUMBER_OF_FOLDS = 5
     TEST_SIZE = 0.3
@@ -1187,7 +1216,7 @@ if __name__ == "__main__":
                 rf_settings_stacked,
                 False,
             )
-            display_results(rf_results[0], False)
+            display_results(rf_results[0], True)
 
         elif STACK_MODEL and CROSS_VALIDATE:
             (
