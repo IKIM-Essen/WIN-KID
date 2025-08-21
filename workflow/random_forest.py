@@ -1207,7 +1207,7 @@ if __name__ == "__main__":
                 rf_settings_stacked,
                 False,
             )
-            display_results(rf_results[0], True)
+            display_results(rf_results[0], False)
             feature_importance_to_csv(rf_results[0])
 
         elif STACK_MODEL and CROSS_VALIDATE:
