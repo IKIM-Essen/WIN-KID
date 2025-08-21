@@ -859,7 +859,6 @@ def display_results(results_dto, print_feat_imp):
         for name in results_dto:
             result = results_dto[name]
             print(f"{name}    Accuracy: {result.accuracy}")
-
             # Investigate feature importance
             if print_feat_imp:
                 print("Ranked Feature Importance:")
@@ -1099,10 +1098,31 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
     )
 
 
+def feature_importance_to_csv(results_dto):
+    importance_df = pd.DataFrame(columns=results_dto.keys())
+    importance_df[ORGANISM_COLUMN] = None
+    for name in results_dto:
+        importance_df.loc[name] = 0.0
+        prefixes = ("S_", "I_", "R_")
+
+        def strip_prefix(name: str) -> str:
+            for p in prefixes:
+                if name.startswith(p):
+                    return name[len(p) :]
+            return name
+
+        result = results_dto[name]
+        s_clean = result.feature_importance.rename(index=strip_prefix)
+        s_clean = s_clean.groupby(s_clean.index).sum()
+        importance_df.loc[name, s_clean.index] += s_clean
+
+    importance_df.to_csv("Evaluation/feature_importance.csv")
+
+
 if __name__ == "__main__":
     TUNE_HYPERPARAMETER = False
     STACK_MODEL = True
-    CROSS_VALIDATE = True
+    CROSS_VALIDATE = False
 
     NUMBER_OF_FOLDS = 5
     TEST_SIZE = 0.3
@@ -1188,6 +1208,7 @@ if __name__ == "__main__":
                 False,
             )
             display_results(rf_results[0], False)
+            feature_importance_to_csv(rf_results[0])
 
         elif STACK_MODEL and CROSS_VALIDATE:
             (
