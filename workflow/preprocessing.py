@@ -13,6 +13,8 @@ from constants import GFF_COLUMNS
 from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
+from config import MODE
+from modes import Mode
 
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
@@ -285,6 +287,10 @@ class DataLoader:
             organism_mapping=organism_mapping,
         )
 
+        if MODE == Mode.SAVE_TRAINED:
+            pd.DataFrame(preprocessed_data.feature_cols).to_csv(
+                "resources/settings/FeatureList.csv", index=False, header=False
+            )
         print("Total number of samples: " + str(len(preprocessed_data.merged_input)))
         print("Number of features: " + str(len(preprocessed_data.feature_cols)))
         return preprocessed_data

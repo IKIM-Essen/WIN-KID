@@ -29,9 +29,12 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import preprocessing
+import config
+from config import MODE
 from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
+from modes import Mode
 
 
 class ModelStrategy(Enum):
@@ -319,6 +322,9 @@ def run_stacked_random_forest(
 
     if cross_validate:
 
+        if MODE != Mode.TRAIN_TEST:
+            raise ValueError("--mode shall be TRAIN_TEST for cross validation")
+
         skf = StratifiedKFold(n_splits=number_of_folds, shuffle=True, random_state=42)
         stratify_col = preprocessed_data.merged_input[ORGANISM_COLUMN]
 
@@ -365,6 +371,7 @@ def run_stacked_random_forest(
         )
     else:
         # SPLITTING
+        # TODO: Just train / test on both part of the split?
         y_test, y_train, X_test, X_train = split_sets_for_stacked(
             test_size, split_strategy, X, y
         )
@@ -1120,6 +1127,7 @@ def feature_importance_to_csv(results_dto):
 
 
 if __name__ == "__main__":
+    # TODO: Add to config
     TUNE_HYPERPARAMETER = False
     STACK_MODEL = True
     CROSS_VALIDATE = False
@@ -1152,7 +1160,16 @@ if __name__ == "__main__":
         description="Run RF on multiple datasets from a settings file"
     )
     parser.add_argument("path_file", help="Path to the settings CSV file")
+    parser.add_argument(
+        "--mode",
+        type=Mode,
+        choices=list(Mode),
+        required=True,
+        help="Execution mode: SAVE_TRAINED, PREDICT_ON_SAVED or TRAIN_TEST",
+    )
+
     args = parser.parse_args()
+    config.MODE = args.mode
 
     dataset_list = load_dataset_paths(args.path_file)
 
