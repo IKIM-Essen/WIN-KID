@@ -209,6 +209,11 @@ def run_layer_one_random_forest(
         "rf_models/first_layer/" + str(run_number) + "_run/" + target_input + ".pkl"
     )
 
+    # Sort features
+    X_train_input = X_train_input.reindex(sorted(X_train_input.columns), axis=1)
+    X_val_input = X_val_input.reindex(sorted(X_val_input.columns), axis=1)
+    X_test_input = X_test_input.reindex(sorted(X_test_input.columns), axis=1)
+
     if MODE == Mode.SAVE_TRAINED:
         model.fit(X_train_input, y_train_input)
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
@@ -410,6 +415,11 @@ def run_stacked_random_forest(
             y_train = pd.concat([y_train, y_test], ignore_index=True)
             X_train = pd.concat([X_train, X_test], ignore_index=True)
 
+        # TODO Has to work for genotypic information only
+        elif MODE == Mode.PREDICT_ON_SAVED:
+            print("WARNING in " + MODE.value + " all samples are used for test")
+            y_test = pd.concat([y_test, y_train], ignore_index=True)
+            X_test = pd.concat([X_test, X_train], ignore_index=True)
         (
             result_dic,
             y_test_count,
