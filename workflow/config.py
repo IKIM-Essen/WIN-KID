@@ -2,4 +2,5 @@
 from modes import Mode
 
 # Default mode (can be overridden later from main.py)
-MODE = Mode.TRAIN_TEST
+# TODO: Save information about last saved model somewhere
+MODE = Mode.SAVE_TRAINED

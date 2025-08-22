@@ -29,7 +29,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import preprocessing
-import config
+import cloudpickle
 from config import MODE
 from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
@@ -148,7 +148,19 @@ def run_random_forest(
 
     validate_target_values(y_train_input, y_test_input, target_input)
 
-    model.fit(X_train_input, y_train_input)
+    model_path = "rf_models/second_layer/" + target_input + ".pkl"
+    if MODE == Mode.TRAIN_TEST:
+        model.fit(X_train_input, y_train_input)
+
+    elif MODE == Mode.SAVE_TRAINED:
+        model.fit(X_train_input, y_train_input)
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        with open(model_path, "wb") as f:
+            cloudpickle.dump(model, f)
+
+    elif MODE == Mode.PREDICT_ON_SAVED:
+        with open(model_path, "rb") as f:
+            model = cloudpickle.load(f)
 
     y_pred = model.predict(X_test_input)
     y_proba = model.predict_proba(X_test_input)
@@ -178,6 +190,7 @@ def run_layer_one_random_forest(
     X_test_input,
     target_input,
     settings_input,
+    run_number,
 ):
     model = RandomForestClassifier(
         random_state=42,
@@ -192,7 +205,22 @@ def run_layer_one_random_forest(
 
     validate_target_values(y_train_input, y_val_input, target_input)
 
-    model.fit(X_train_input, y_train_input)
+    model_path = (
+        "rf_models/first_layer/" + str(run_number) + "_run/" + target_input + ".pkl"
+    )
+
+    if MODE == Mode.SAVE_TRAINED:
+        model.fit(X_train_input, y_train_input)
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        with open(model_path, "wb") as f:
+            cloudpickle.dump(model, f)
+
+    elif MODE == Mode.PREDICT_ON_SAVED:
+        with open(model_path, "rb") as f:
+            model = cloudpickle.load(f)
+
+    elif MODE == Mode.TRAIN_TEST:
+        model.fit(X_train_input, y_train_input)
 
     importances = model.feature_importances_
     forest_importances = pd.Series(importances, index=X_train_input.columns)
@@ -376,6 +404,12 @@ def run_stacked_random_forest(
             test_size, split_strategy, X, y
         )
 
+        # Train with all sample if saved
+        if MODE == Mode.SAVE_TRAINED:
+            print("WARNING in " + MODE.value + " all samples are used for training")
+            y_train = pd.concat([y_train, y_test], ignore_index=True)
+            X_train = pd.concat([X_train, X_test], ignore_index=True)
+
         (
             result_dic,
             y_test_count,
@@ -423,6 +457,10 @@ def filter_merged_input(preprocessed_data, min_sample_number):
                 [col_name]
             )
     preprocessed_data.merged_input = merged_filtered_input
+    print(
+        "Number of samples after sample number filtering: "
+        + str(len(preprocessed_data.merged_input))
+    )
 
     return preprocessed_data
 
@@ -677,7 +715,9 @@ def compute_oof_predictions(
     proba_train_target = pd.DataFrame([])
     proba_test_list = []
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    run_counter = 0
     for train_idx, valid_idx in skf.split(X_train_target, y_train_target):
+        run_counter = run_counter + 1
         X_tr, X_val = X_train_target.iloc[train_idx], X_train_target.iloc[valid_idx]
         y_tr, y_val = y_train_target.iloc[train_idx], y_train_target.iloc[valid_idx]
         X_val_target_id = X_val[ID_COLUMN]
@@ -685,7 +725,7 @@ def compute_oof_predictions(
         X_tr = X_tr.drop(ID_COLUMN, axis=1)
 
         (_, fold_val_pred, fold_test_pred) = run_layer_one_random_forest(
-            X_tr, y_tr, X_val, y_val, X_test_target, target, rf_settings
+            X_tr, y_tr, X_val, y_val, X_test_target, target, rf_settings, run_counter
         )
 
         fold_val_pred[ID_COLUMN] = X_val_target_id.reset_index(drop=True)
@@ -1160,16 +1200,8 @@ if __name__ == "__main__":
         description="Run RF on multiple datasets from a settings file"
     )
     parser.add_argument("path_file", help="Path to the settings CSV file")
-    parser.add_argument(
-        "--mode",
-        type=Mode,
-        choices=list(Mode),
-        required=True,
-        help="Execution mode: SAVE_TRAINED, PREDICT_ON_SAVED or TRAIN_TEST",
-    )
 
     args = parser.parse_args()
-    config.MODE = args.mode
 
     dataset_list = load_dataset_paths(args.path_file)
 
