@@ -10,6 +10,7 @@ import random
 from dataclasses import dataclass
 from enum import Enum
 from statistics import mean, median
+from datetime import datetime
 from collections import Counter, defaultdict
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
@@ -435,6 +436,11 @@ def run_stacked_random_forest(
             y_train,
             y_test,
         )
+
+        if MODE == Mode.SAVE_TRAINED:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open("rf_models/run_infotxt", "w") as f:
+                f.write(f"Run executed at: {now}\n")
 
         return (
             [result_dic],
@@ -1209,6 +1215,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Run RF on multiple datasets from a settings file"
     )
+    # TODO: Predict on save shall only use the genotype part of these files
     parser.add_argument("path_file", help="Path to the settings CSV file")
 
     args = parser.parse_args()
