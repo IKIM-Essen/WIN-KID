@@ -1223,9 +1223,15 @@ if __name__ == "__main__":
     dataset_list = load_dataset_paths(args.path_file)
 
     data_loader = preprocessing.DataLoader()
-    preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
-    preprocessed_data_input = filter_merged_input(preprocessed_data_input, 20)
+    if MODE == Mode.PREDICT_ON_SAVED:
+        preprocessed_data_input = data_loader.get_genotype_data_for_prediction(
+            dataset_list
+        )
+
+    else:
+        preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
+        preprocessed_data_input = filter_merged_input(preprocessed_data_input, 20)
 
     start_time = time.time()
     if TUNE_HYPERPARAMETER is True:

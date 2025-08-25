@@ -241,6 +241,43 @@ class DataLoader:
 
         return input_genotype_combined
 
+    def get_genotype_data_for_prediction(self, dataset_list):
+        input_genotype = self.preprocess_genotype_data(dataset_list)
+
+        # Add missing features and set them to 0
+        features = pd.read_csv("resources/settings/FeatureList.csv", header=None)
+        all_features = features[0].tolist()
+        missing = [f for f in all_features if f not in input_genotype.columns]
+        for f in missing:
+            input_genotype[f] = 0
+        input_genotype = input_genotype.drop(ORGANISM_COLUMN, axis=1)
+
+        input_phenotype = self.preprocess_phenotype_data(dataset_list)
+        input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].astype(str).str.strip()
+        input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].astype(str).str.strip()
+
+        # Encode Organism Code
+        organism_cat = input_phenotype[ORGANISM_COLUMN].astype("category")
+        input_phenotype[ORGANISM_COLUMN] = organism_cat.cat.codes
+        organism_mapping = dict(enumerate(organism_cat.cat.categories))
+
+        self.merged_input = pd.merge(
+            input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
+        )
+        num_phenotype_cols = input_phenotype.shape[1]
+
+        feature_cols_merged = list(self.merged_input.columns[num_phenotype_cols:])
+        feature_cols_merged.append(ORGANISM_COLUMN)
+        preprocessed_data = PreprocessedDataDTO(
+            self.merged_input,
+            self.merged_input.columns[2:num_phenotype_cols],
+            feature_cols_merged,
+            organism_mapping=organism_mapping,
+        )
+        print("Total number of samples: " + str(len(preprocessed_data.merged_input)))
+        print("Number of features: " + str(len(preprocessed_data.feature_cols)))
+        return preprocessed_data
+
     def get_preprocessed_data(self, dataset_list):
         input_phenotype = self.preprocess_phenotype_data(dataset_list)
         input_genotype = self.preprocess_genotype_data(dataset_list)
