@@ -256,6 +256,17 @@ class DataLoader:
         input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].astype(str).str.strip()
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].astype(str).str.strip()
 
+        # Add antibiotic names as columns
+        parent_folder = "rf_models/second_layer"  # TODO: Make constant
+        names = [
+            os.path.splitext(f)[0]
+            for f in os.listdir(parent_folder)
+            if f.endswith(".pkl")
+        ]
+        for col in names:
+            if col not in input_phenotype.columns:
+                input_phenotype[col] = 0
+
         # Encode Organism Code
         organism_cat = input_phenotype[ORGANISM_COLUMN].astype("category")
         input_phenotype[ORGANISM_COLUMN] = organism_cat.cat.codes

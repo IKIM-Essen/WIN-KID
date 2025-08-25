@@ -147,13 +147,17 @@ def run_random_forest(
         bootstrap=settings_input.bootstrap,
     )
 
-    validate_target_values(y_train_input, y_test_input, target_input)
+    # Sort features
+    X_train_input = X_train_input.reindex(sorted(X_train_input.columns), axis=1)
+    X_test_input = X_test_input.reindex(sorted(X_test_input.columns), axis=1)
 
     model_path = "rf_models/second_layer/" + target_input + ".pkl"
     if MODE == Mode.TRAIN_TEST:
+        validate_target_values(y_train_input, y_test_input, target_input)
         model.fit(X_train_input, y_train_input)
 
     elif MODE == Mode.SAVE_TRAINED:
+        validate_target_values(y_train_input, y_test_input, target_input)
         model.fit(X_train_input, y_train_input)
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
         with open(model_path, "wb") as f:
@@ -165,6 +169,9 @@ def run_random_forest(
 
     y_pred = model.predict(X_test_input)
     y_proba = model.predict_proba(X_test_input)
+    print(target_input)
+    print(y_pred)
+    print(y_proba)
 
     # Map to 4-class output for y_score
     proba_full = np.zeros((y_proba.shape[0], 4))
@@ -203,9 +210,6 @@ def run_layer_one_random_forest(
         max_features=settings_input.max_features,
         bootstrap=settings_input.bootstrap,
     )
-
-    validate_target_values(y_train_input, y_val_input, target_input)
-
     model_path = (
         "rf_models/first_layer/" + str(run_number) + "_run/" + target_input + ".pkl"
     )
@@ -216,16 +220,19 @@ def run_layer_one_random_forest(
     X_test_input = X_test_input.reindex(sorted(X_test_input.columns), axis=1)
 
     if MODE == Mode.SAVE_TRAINED:
+        validate_target_values(y_train_input, y_val_input, target_input)
         model.fit(X_train_input, y_train_input)
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
         with open(model_path, "wb") as f:
             cloudpickle.dump(model, f)
 
     elif MODE == Mode.PREDICT_ON_SAVED:
+        X_test_input = X_test_input.drop(ID_COLUMN, axis=1)
         with open(model_path, "rb") as f:
             model = cloudpickle.load(f)
 
     elif MODE == Mode.TRAIN_TEST:
+        validate_target_values(y_train_input, y_val_input, target_input)
         model.fit(X_train_input, y_train_input)
 
     importances = model.feature_importances_
@@ -248,14 +255,7 @@ def run_layer_one_random_forest(
     proba_full_val_df = pd.DataFrame(proba_full_val, columns=column_names)
     proba_full_test_df = pd.DataFrame(proba_full_test, columns=column_names)
 
-    result_test = generate_result(
-        target_input,
-        y_val_input,
-        proba_full_val,
-        y_pred_val,
-        forest_importances.sort_values(ascending=False),
-    )
-    return result_test, proba_full_val_df, proba_full_test_df
+    return proba_full_val_df, proba_full_test_df
 
 
 def run_splitted_random_forest(
@@ -343,12 +343,13 @@ def run_stacked_random_forest(
 
     merged_filtered_input = preprocessed_data.merged_input
 
-    # Drop rows of Organisms that occur only once
-    value_counts = preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts()
-    rare_values = value_counts[value_counts == 1].index
-    merged_filtered_input = merged_filtered_input[
-        ~merged_filtered_input[ORGANISM_COLUMN].isin(rare_values)
-    ]
+    if MODE != Mode.PREDICT_ON_SAVED:
+        # Drop rows of Organisms that occur only once
+        value_counts = preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts()
+        rare_values = value_counts[value_counts == 1].index
+        merged_filtered_input = merged_filtered_input[
+            ~merged_filtered_input[ORGANISM_COLUMN].isin(rare_values)
+        ]
 
     feature_cols_with_id = preprocessed_data.feature_cols + [ID_COLUMN]
     X = merged_filtered_input[feature_cols_with_id]
@@ -406,9 +407,16 @@ def run_stacked_random_forest(
     else:
         # SPLITTING
         # TODO: Just train / test on both part of the split?
-        y_test, y_train, X_test, X_train = split_sets_for_stacked(
-            test_size, split_strategy, X, y
-        )
+        if MODE == Mode.PREDICT_ON_SAVED:
+            print("WARNING in " + MODE.value + " all samples are used for test")
+            y_test = y
+            y_train = y
+            X_test = X
+            X_train = X
+        else:
+            y_test, y_train, X_test, X_train = split_sets_for_stacked(
+                test_size, split_strategy, X, y
+            )
 
         # Train with all sample if saved
         if MODE == Mode.SAVE_TRAINED:
@@ -416,11 +424,6 @@ def run_stacked_random_forest(
             y_train = pd.concat([y_train, y_test], ignore_index=True)
             X_train = pd.concat([X_train, X_test], ignore_index=True)
 
-        # TODO Has to work for genotypic information only
-        elif MODE == Mode.PREDICT_ON_SAVED:
-            print("WARNING in " + MODE.value + " all samples are used for test")
-            y_test = pd.concat([y_test, y_train], ignore_index=True)
-            X_test = pd.concat([X_test, X_train], ignore_index=True)
         (
             result_dic,
             y_test_count,
@@ -581,6 +584,13 @@ def compute_stacked_random_forest(
         y_test_filtered = y_proba_test[target][test_mask]
         organism_test_filtered = organism_test[test_mask]
 
+        if MODE == Mode.PREDICT_ON_SAVED:
+            X_train_filtered = X_proba_train
+            y_train_filtered = y_proba_train[target]
+            X_test_filtered = X_proba_test
+            y_test_filtered = y_proba_test[target]
+
+        # TODO: Add PREDICT_ON_SAVED output
         second_layer_result = run_random_forest(
             X_train_filtered,
             y_train_filtered,
@@ -695,7 +705,11 @@ def run_first_layer(
 
         y_train_count[target] = Counter(y_train_target)
         y_test_count[target] = Counter(y_test_target)
-
+        if MODE == Mode.PREDICT_ON_SAVED:
+            X_train_target = X_test
+            X_test_target = X_test
+            X_test_target_id = X_test_target[ID_COLUMN]
+            y_train_target = y_train[target]
         proba_train_target, proba_test_list = compute_oof_predictions(
             rf_settings, n_splits, target, y_train_target, X_train_target, X_test_target
         )
@@ -740,7 +754,7 @@ def compute_oof_predictions(
         X_val = X_val.drop(ID_COLUMN, axis=1)
         X_tr = X_tr.drop(ID_COLUMN, axis=1)
 
-        (_, fold_val_pred, fold_test_pred) = run_layer_one_random_forest(
+        (fold_val_pred, fold_test_pred) = run_layer_one_random_forest(
             X_tr, y_tr, X_val, y_val, X_test_target, target, rf_settings, run_counter
         )
 
