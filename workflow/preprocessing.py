@@ -13,6 +13,7 @@ from constants import GFF_COLUMNS
 from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
+from constants import MODEL_FOLDER
 from config import MODE
 from modes import Mode
 
@@ -257,10 +258,9 @@ class DataLoader:
         input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].astype(str).str.strip()
 
         # Add antibiotic names as columns
-        parent_folder = "rf_models/second_layer"  # TODO: Make constant
         names = [
             os.path.splitext(f)[0]
-            for f in os.listdir(parent_folder)
+            for f in os.listdir((MODEL_FOLDER + "second_layer"))
             if f.endswith(".pkl")
         ]
         for col in names:
