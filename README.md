@@ -98,9 +98,9 @@
     - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
 - Examples:
   - Predict antibiogram for PATRIC samples:
-      - Set `MODE = Mode.PREDICT_ON_SAVED` in the `config.py`
-      - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths_predict.csv`
-      - See result at `/Users/julianzander/Code/WIN-KID/resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv`
+    - Set `MODE = Mode.PREDICT_ON_SAVED` in the `config.py`
+    - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths_predict.csv`
+    - See result at `/Users/julianzander/Code/WIN-KID/resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv`
 ## ToDo
 - Add RF unit test
 - Differentiate between oral and non oral?
