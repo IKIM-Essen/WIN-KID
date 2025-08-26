@@ -764,6 +764,20 @@ def compute_oof_predictions(
     proba_test_list = []
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     run_counter = 0
+    # Add additional train data if necessary for splitting. Train data has no effect on prediction.
+    if config.MODE == Mode.PREDICT_ON_SAVED and len(X_train_target) < 5:
+        X_first_row_repeated = pd.concat(
+            [X_train_target.iloc[[0]]] * 4, ignore_index=True
+        )
+        X_train_target = pd.concat(
+            [X_first_row_repeated, X_train_target], ignore_index=True
+        )
+        y_first_row_repeated = pd.concat(
+            [y_train_target.iloc[[0]]] * 4, ignore_index=True
+        )
+        y_train_target = pd.concat(
+            [y_first_row_repeated, y_train_target], ignore_index=True
+        )
     for train_idx, valid_idx in skf.split(X_train_target, y_train_target):
         run_counter = run_counter + 1
         X_tr, X_val = X_train_target.iloc[train_idx], X_train_target.iloc[valid_idx]
