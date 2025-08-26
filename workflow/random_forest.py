@@ -33,6 +33,7 @@ import matplotlib.pyplot as plt
 import preprocessing
 import cloudpickle
 import config
+from split_strategies import SplitStrategy
 from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
@@ -44,12 +45,6 @@ class ModelStrategy(Enum):
     CROSS_VALIDATE = "cross_validate"
     STACKED = "stacked"
     SPLIT = "split"
-
-
-class SplitStrategy(Enum):
-    RANDOM = "random"
-    STRATIFY = "stratify"
-    CLUSTER = "cluster"
 
 
 @dataclass
@@ -1244,8 +1239,7 @@ def generate_prediction_results(dataset_input, preprocessed_input, rf_results_in
     print(preds_df)
 
 
-if __name__ == "__main__":
-
+def process(dataset_list_input):
     rf_settings_input = RandomForestSettings(
         n_estimators=100,
         class_weight="balanced_subsample",
@@ -1266,24 +1260,15 @@ if __name__ == "__main__":
         bootstrap=True,
     )
 
-    parser = argparse.ArgumentParser(
-        description="Run RF on multiple datasets from a settings file"
-    )
-    parser.add_argument("path_file", help="Path to the settings CSV file")
-
-    args = parser.parse_args()
-
-    dataset_list = load_dataset_paths(args.path_file)
-
     data_loader = preprocessing.DataLoader()
 
     if config.MODE == Mode.PREDICT_ON_SAVED:
         preprocessed_data_input = data_loader.get_genotype_data_for_prediction(
-            dataset_list
+            dataset_list_input
         )
 
     else:
-        preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
+        preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list_input)
         preprocessed_data_input = filter_merged_input(preprocessed_data_input, 20)
 
     start_time = time.time()
@@ -1332,7 +1317,7 @@ if __name__ == "__main__":
 
             if config.MODE == Mode.PREDICT_ON_SAVED:
                 generate_prediction_results(
-                    dataset_list, preprocessed_data_input, rf_results
+                    dataset_list_input, preprocessed_data_input, rf_results
                 )
 
             else:
@@ -1358,3 +1343,16 @@ if __name__ == "__main__":
             per_organism_evaluation_to_csv(per_organism_results)
             evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
         print("--- %s seconds for ML---" % (time.time() - start_time))
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Run RF on multiple datasets from a settings file"
+    )
+    parser.add_argument("path_file", help="Path to the settings CSV file")
+
+    args = parser.parse_args()
+
+    dataset_list = load_dataset_paths(args.path_file)
+
+    process(dataset_list)
