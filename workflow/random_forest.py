@@ -7,6 +7,7 @@ import argparse
 import os
 import itertools
 import random
+from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
 from statistics import mean, median
@@ -169,9 +170,6 @@ def run_random_forest(
 
     y_pred = model.predict(X_test_input)
     y_proba = model.predict_proba(X_test_input)
-    print(target_input)
-    print(y_pred)
-    print(y_proba)
 
     # Map to 4-class output for y_score
     proba_full = np.zeros((y_proba.shape[0], 4))
@@ -442,7 +440,7 @@ def run_stacked_random_forest(
 
         if MODE == Mode.SAVE_TRAINED:
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            with open("rf_models/run_infotxt", "w") as f:
+            with open("rf_models/run_info.txt", "w") as f:
                 f.write(f"Run executed at: {now}\n")
 
         return (
@@ -729,12 +727,20 @@ def run_first_layer(
             proba_train_joined = proba_train_target
             proba_test_joined = proba_test_target
         else:
-            proba_train_joined = pd.merge(
-                proba_train_joined, proba_train_target, on=ID_COLUMN, how="outer"
-            )
-            proba_test_joined = pd.merge(
-                proba_test_joined, proba_test_target, on=ID_COLUMN, how="outer"
-            )
+            proba_train_joined = pd.concat(
+                [
+                    proba_train_joined.set_index(ID_COLUMN),
+                    proba_train_target.set_index(ID_COLUMN),
+                ],
+                axis=1,
+            ).reset_index()
+            proba_test_joined = pd.concat(
+                [
+                    proba_test_joined.set_index(ID_COLUMN),
+                    proba_test_target.set_index(ID_COLUMN),
+                ],
+                axis=1,
+            ).reset_index()
 
     return proba_train_joined, proba_test_joined
 
@@ -1293,8 +1299,29 @@ if __name__ == "__main__":
                 rf_settings_stacked,
                 False,
             )
-            display_results(rf_results[0], False)
-            feature_importance_to_csv(rf_results[0])
+
+            if MODE == Mode.PREDICT_ON_SAVED:
+                preds_dict = {
+                    name: result.y_pred for name, result in rf_results[0].items()
+                }
+                preds_df = pd.DataFrame(preds_dict)
+
+                inv_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
+                preds_df = preds_df.replace(inv_mapping)
+
+                preds_df[ID_COLUMN] = preprocessed_data_input.merged_input[ID_COLUMN]
+                cols = [ID_COLUMN] + [
+                    col for col in preds_df.columns if col != ID_COLUMN
+                ]
+                preds_df = preds_df[cols]
+                path = Path(dataset_list["PathToCsv"][0])
+                new_path = path.parent / f"Result_{path.name}"
+                preds_df.to_csv(new_path, index=False)
+                print(preds_df)
+
+            else:
+                display_results(rf_results[0], False)
+                feature_importance_to_csv(rf_results[0])
 
         elif STACK_MODEL and CROSS_VALIDATE:
             (
@@ -1313,6 +1340,7 @@ if __name__ == "__main__":
 
         else:
             raise ValueError("Model strategy is invalid")
-        per_organism_evaluation_to_csv(per_organism_results)
-        evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
+        if MODE != Mode.PREDICT_ON_SAVED:
+            per_organism_evaluation_to_csv(per_organism_results)
+            evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
         print("--- %s seconds for ML---" % (time.time() - start_time))
