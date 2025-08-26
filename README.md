@@ -55,6 +55,8 @@
 
 ## Preprocessing and Random Forest
 - Genotypic and phenotypic data are read in directly, preprocessed and fed into an RF model
+- Genotypic information needs to be provided as derived RGIs CARD results in .gff format
+- Phenotypic information need to be provided as antibiogram in .csv format
 - Metrics such as ROC are calculated for the results
 - Add the paths to the data records that are processed to the `resources/settings/DataPaths.csv`
 - The starting point is the class `random_forest.py` which is used as follows:
@@ -81,11 +83,25 @@
   - Correlations between the AB resistances can be learned
   - Combination of multiple ABs is not possible with only one layer, because not all AB resistances are known for any sample and `NaN` is not supported as target value
 - Usage:
-  - See `Preprocessing and random forest`
-  - Set `STACK_MODEL = True`
-
+  - Set `STACK_MODEL = True` in the `config.py`
+  - Train and Test:
+    - Set `MODE = Mode.TRAIN_TEST` in the `config.py`
+    - Add the paths to the data records that shall be processed to `resources/settings/DataPaths.csv`
+    - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
+  - Train models and save them for later predictions:
+    - Set `MODE = Mode.SAVE_TRAINED` in the `config.py`
+    - Add the paths to the data records that shall be processed to `resources/settings/DataPaths.csv`
+    - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
+  - Make predictions with earlier saved models:
+    - Set `MODE = Mode.PREDICT_ON_SAVED` in the `config.py`
+    - Add the paths to the data records that shall be processed to `resources/settings/DataPaths.csv`. The csv corresponding to `PathToCsv` only needs to hold `Sample_ID_IfH` and `Organism_Code`
+    - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
+- Examples:
+  - Predict antibiogram for PATRIC samples:
+      - Set `MODE = Mode.PREDICT_ON_SAVED` in the `config.py`
+      - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths_predict.csv`
+      - See result at `/Users/julianzander/Code/WIN-KID/resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv`
 ## ToDo
-- Add RF Hyperparameter via score optimization -> score tbd
-- Add RF test
+- Add RF unit test
 - Differentiate between oral and non oral?
 - What shall happen with EUCAST values that are doublets (e.g.: due extra information)
