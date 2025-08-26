@@ -102,6 +102,5 @@
     - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths_predict.csv`
     - See result at `/Users/julianzander/Code/WIN-KID/resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv`
 ## ToDo
-- Add RF unit test
 - Differentiate between oral and non oral?
 - What shall happen with EUCAST values that are doublets (e.g.: due extra information)
