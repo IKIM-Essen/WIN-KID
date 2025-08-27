@@ -77,7 +77,7 @@
     - For each AB one RF model
     - Output: The class with the highest probability according to the Layer 2
 
-  ![alt text](Stacked_RF_V0.drawio.svg)
+  ![alt text](resources/images/Stacked_RF_V0.drawio.svg)
 - Reasoning:
   - Results of several ABs can be combined with each other despite the RF approach
   - Correlations between the AB resistances can be learned
