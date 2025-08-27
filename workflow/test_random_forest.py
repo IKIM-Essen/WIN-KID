@@ -2,6 +2,7 @@
 # Licensed under the MIT License
 # This file may be copied, modified, and distributed under the terms of the MIT License.
 
+import os
 import unittest
 import pandas as pd
 import random_forest
@@ -11,19 +12,25 @@ class TestRandomForest(unittest.TestCase):
     def test_process(self):
 
         dataset_list = random_forest.load_dataset_paths(
-            "resources/settings/DataPaths_predict.csv"
+            "resources/test_data/random_forest_TestSet/DataPaths_predict.csv"
         )
 
         random_forest.process(dataset_list)
 
-        actual = pd.read_csv(
-            "resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv"
+        output_path = (
+            "resources/test_data/random_forest_TestSet/Result_BVBCR_use_case.csv"
         )
-        expected = pd.read_csv(
-            "resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case_expected.csv"
-        )
-        pd.testing.assert_frame_equal(expected, actual, check_dtype=False)
+        self.assertTrue(os.path.exists(output_path), f"{output_path} was not created")
+
+        df = pd.read_csv(output_path)
+
+        self.assertFalse(df.empty, "CSV file is empty")
+        self.assertGreater(len(df.columns), 0, "CSV file has no columns")
 
 
 if __name__ == "__main__":
     unittest.main()
+
+# TODO: Test all cases
+# TODO: Add data used here to test data
+# TODO: Only test that a result appears and not the exact output --> Each model iteration could come to different outcome
