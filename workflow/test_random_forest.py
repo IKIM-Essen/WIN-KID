@@ -30,7 +30,3 @@ class TestRandomForest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-# TODO: Test all cases
-# TODO: Add data used here to test data
-# TODO: Only test that a result appears and not the exact output --> Each model iteration could come to different outcome
