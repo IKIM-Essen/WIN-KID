@@ -14,8 +14,8 @@ from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
 from constants import MODEL_FOLDER
-from config import MODE
-from modes import Mode
+from config import EXECUTION_MODE
+from execution_modes import ExecutionMode
 
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
@@ -117,8 +117,12 @@ def encode_one_hot(df, features):
     for feature in features:
         all_genes = set(gene for gene_list in df[feature] for gene in gene_list)
 
-        for gene in all_genes:
-            df[gene] = df[feature].apply(lambda genes, g=gene: int(g in genes))
+        new_cols = {
+            gene: df[feature].apply(lambda genes, g=gene: int(g in genes))
+            for gene in all_genes
+        }
+        gene_df = pd.DataFrame(new_cols, index=df.index)
+        df = pd.concat([df, gene_df], axis=1)
 
         df = df.drop(columns=[feature])
 
@@ -130,8 +134,11 @@ def one_hot_encode_list(df, feature):
 
     all_values = set(value for values in df[feature] for value in values)
 
-    for value in all_values:
-        df[value] = df[feature].apply(lambda x, value=value: int(value in x))
+    new_cols = {
+        value: df[feature].apply(lambda x, v=value: int(v in x)) for value in all_values
+    }
+    value_df = pd.DataFrame(new_cols, index=df.index)
+    df = pd.concat([df, value_df], axis=1)
 
     df.drop(columns=[feature], inplace=True)
 
@@ -249,8 +256,13 @@ class DataLoader:
         features = pd.read_csv("resources/settings/FeatureList.csv", header=None)
         all_features = features[0].tolist()
         missing = [f for f in all_features if f not in input_genotype.columns]
-        for f in missing:
-            input_genotype[f] = 0
+
+        # Create a DataFrame with missing columns set to 0
+        if missing:
+            missing_df = pd.DataFrame(0, index=input_genotype.index, columns=missing)
+            input_genotype = pd.concat([input_genotype, missing_df], axis=1)
+
+        # Drop organism column
         input_genotype = input_genotype.drop(ORGANISM_COLUMN, axis=1)
 
         input_phenotype = self.preprocess_phenotype_data(dataset_list)
@@ -335,7 +347,7 @@ class DataLoader:
             organism_mapping=organism_mapping,
         )
 
-        if MODE == Mode.SAVE_TRAINED:
+        if EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
             pd.DataFrame(preprocessed_data.feature_cols).to_csv(
                 "resources/settings/FeatureList.csv", index=False, header=False
             )

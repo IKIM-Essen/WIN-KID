@@ -1,5 +1,4 @@
-# workflow/config.py
-from modes import Mode
+from execution_modes import ExecutionMode
 from split_strategies import SplitStrategy
 
 
@@ -8,4 +7,4 @@ CROSS_VALIDATE = False
 NUMBER_OF_FOLDS = 5
 TEST_SIZE = 0.3
 SPLIT_STRATEGY = SplitStrategy.STRATIFY
-MODE = Mode.PREDICT_ON_SAVED
+EXECUTION_MODE = ExecutionMode.PREDICT_ON_SAVED

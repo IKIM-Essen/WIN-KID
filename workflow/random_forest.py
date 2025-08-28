@@ -38,7 +38,7 @@ from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
 from constants import MODEL_FOLDER
-from modes import Mode
+from execution_modes import ExecutionMode
 
 
 class ModelStrategy(Enum):
@@ -84,7 +84,7 @@ def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import
     recall = {}
     f1 = {}
 
-    if config.MODE == Mode.PREDICT_ON_SAVED:
+    if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
         fpr, tpr, roc_auc, accuracy, precision, recall, f1 = (
             [],
             [],
@@ -164,18 +164,21 @@ def run_random_forest(
     X_test_input = X_test_input.reindex(sorted(X_test_input.columns), axis=1)
 
     model_path = MODEL_FOLDER + "second_layer/" + target_input + ".pkl"
-    if config.MODE == Mode.TRAIN_TEST or config.MODE == Mode.TUNE_HYPERPARAMETER:
+    if (
+        config.EXECUTION_MODE == ExecutionMode.TRAIN_TEST
+        or config.EXECUTION_MODE == ExecutionMode.TUNE_HYPERPARAMETER
+    ):
         validate_target_values(y_train_input, y_test_input, target_input)
         model.fit(X_train_input, y_train_input)
 
-    elif config.MODE == Mode.SAVE_TRAINED:
+    elif config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
         validate_target_values(y_train_input, y_test_input, target_input)
         model.fit(X_train_input, y_train_input)
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
         with open(model_path, "wb") as f:
             cloudpickle.dump(model, f)
 
-    elif config.MODE == Mode.PREDICT_ON_SAVED:
+    elif config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
         with open(model_path, "rb") as f:
             model = cloudpickle.load(f)
 
@@ -233,19 +236,19 @@ def run_layer_one_random_forest(
     X_val_input = X_val_input.reindex(sorted(X_val_input.columns), axis=1)
     X_test_input = X_test_input.reindex(sorted(X_test_input.columns), axis=1)
 
-    if config.MODE == Mode.SAVE_TRAINED:
+    if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
         validate_target_values(y_train_input, y_val_input, target_input)
         model.fit(X_train_input, y_train_input)
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
         with open(model_path, "wb") as f:
             cloudpickle.dump(model, f)
 
-    elif config.MODE == Mode.PREDICT_ON_SAVED:
+    elif config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
         X_test_input = X_test_input.drop(ID_COLUMN, axis=1)
         with open(model_path, "rb") as f:
             model = cloudpickle.load(f)
 
-    elif config.MODE == Mode.TRAIN_TEST:
+    elif config.EXECUTION_MODE == ExecutionMode.TRAIN_TEST:
         validate_target_values(y_train_input, y_val_input, target_input)
         model.fit(X_train_input, y_train_input)
 
@@ -348,7 +351,7 @@ def run_stacked_random_forest(
 
     merged_filtered_input = preprocessed_data.merged_input
 
-    if config.MODE != Mode.PREDICT_ON_SAVED:
+    if config.EXECUTION_MODE != ExecutionMode.PREDICT_ON_SAVED:
         # Drop rows of Organisms that occur only once
         value_counts = preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts()
         rare_values = value_counts[value_counts == 1].index
@@ -362,7 +365,7 @@ def run_stacked_random_forest(
 
     if cross_validate:
 
-        if config.MODE != Mode.TRAIN_TEST:
+        if config.EXECUTION_MODE != ExecutionMode.TRAIN_TEST:
             raise ValueError("--mode shall be TRAIN_TEST for cross validation")
 
         skf = StratifiedKFold(
@@ -413,8 +416,12 @@ def run_stacked_random_forest(
         )
     else:
         # SPLITTING
-        if config.MODE == Mode.PREDICT_ON_SAVED:
-            print("WARNING in " + config.MODE.value + " all samples are used for test")
+        if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+            print(
+                "WARNING in "
+                + config.EXECUTION_MODE.value
+                + " all samples are used for test"
+            )
             y_test = y
             y_train = y
             X_test = X
@@ -423,9 +430,11 @@ def run_stacked_random_forest(
             y_test, y_train, X_test, X_train = split_sets_for_stacked(X, y)
 
         # Train with all sample if saved
-        if config.MODE == Mode.SAVE_TRAINED:
+        if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
             print(
-                "WARNING in " + config.MODE.value + " all samples are used for training"
+                "WARNING in "
+                + config.EXECUTION_MODE.value
+                + " all samples are used for training"
             )
             y_train = pd.concat([y_train, y_test], ignore_index=True)
             X_train = pd.concat([X_train, X_test], ignore_index=True)
@@ -446,7 +455,7 @@ def run_stacked_random_forest(
             y_test,
         )
 
-        if config.MODE == Mode.SAVE_TRAINED:
+        if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             with open((MODEL_FOLDER + "run_info.txt"), "w", encoding="utf-8") as f:
                 f.write(f"Run executed at: {now}\n")
@@ -485,6 +494,10 @@ def filter_merged_input(preprocessed_data, min_sample_number):
     print(
         "Number of samples after sample number filtering: "
         + str(len(preprocessed_data.merged_input))
+    )
+    print(preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts())
+    preprocessed_data.merged_input[ID_COLUMN].to_csv(
+        "Evaluation/samples_used.csv", index=False
     )
 
     return preprocessed_data
@@ -590,7 +603,7 @@ def compute_stacked_random_forest(
         y_test_filtered = y_proba_test[target][test_mask]
         organism_test_filtered = organism_test[test_mask]
 
-        if config.MODE == Mode.PREDICT_ON_SAVED:
+        if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
             X_train_filtered = X_proba_train
             y_train_filtered = y_proba_train[target]
             X_test_filtered = X_proba_test
@@ -710,7 +723,7 @@ def run_first_layer(
 
         y_train_count[target] = Counter(y_train_target)
         y_test_count[target] = Counter(y_test_target)
-        if config.MODE == Mode.PREDICT_ON_SAVED:
+        if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
             X_train_target = X_test
             X_test_target = X_test
             X_test_target_id = X_test_target[ID_COLUMN]
@@ -760,7 +773,10 @@ def compute_oof_predictions(
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     run_counter = 0
     # Add additional train data if necessary for splitting. Train data has no effect on prediction.
-    if config.MODE == Mode.PREDICT_ON_SAVED and len(X_train_target) < 5:
+    if (
+        config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED
+        and len(X_train_target) < 5
+    ):
         X_first_row_repeated = pd.concat(
             [X_train_target.iloc[[0]]] * 4, ignore_index=True
         )
@@ -1262,7 +1278,7 @@ def process(dataset_list_input):
 
     data_loader = preprocessing.DataLoader()
 
-    if config.MODE == Mode.PREDICT_ON_SAVED:
+    if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
         preprocessed_data_input = data_loader.get_genotype_data_for_prediction(
             dataset_list_input
         )
@@ -1272,7 +1288,7 @@ def process(dataset_list_input):
         preprocessed_data_input = filter_merged_input(preprocessed_data_input, 20)
 
     start_time = time.time()
-    if config.MODE == Mode.TUNE_HYPERPARAMETER:
+    if config.EXECUTION_MODE == ExecutionMode.TUNE_HYPERPARAMETER:
         tune_hyperparameter(preprocessed_data_input)
 
     else:
@@ -1315,7 +1331,7 @@ def process(dataset_list_input):
                 False,
             )
 
-            if config.MODE == Mode.PREDICT_ON_SAVED:
+            if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
                 generate_prediction_results(
                     dataset_list_input, preprocessed_data_input, rf_results
                 )
@@ -1339,7 +1355,7 @@ def process(dataset_list_input):
 
         else:
             raise ValueError("Model strategy is invalid")
-        if config.MODE != Mode.PREDICT_ON_SAVED:
+        if config.EXECUTION_MODE != ExecutionMode.PREDICT_ON_SAVED:
             per_organism_evaluation_to_csv(per_organism_results)
             evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
         print("--- %s seconds for ML---" % (time.time() - start_time))
