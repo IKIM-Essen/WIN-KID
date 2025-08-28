@@ -496,6 +496,7 @@ def filter_merged_input(preprocessed_data, min_sample_number):
         + str(len(preprocessed_data.merged_input))
     )
     print(preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts())
+    os.makedirs("Evaluation", exist_ok=True)
     preprocessed_data.merged_input[ID_COLUMN].to_csv(
         "Evaluation/samples_used.csv", index=False
     )
