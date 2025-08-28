@@ -13,9 +13,9 @@ This repository holds multiple scripts used for the [WIN-KID](https://www.medizi
 
 ### Stacked Random Forest Example
 Predict antibiogram for PATRIC samples on prepareddata and trained models:
- - Set `MODE = Execution_Mode.PREDICT_ON_SAVED` in the `config.py`
- - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths_predict.csv`
- - See result at `/Users/julianzander/Code/WIN-KID/resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv`
+- Set `MODE = Execution_Mode.PREDICT_ON_SAVED` in the `config.py`
+- Run `path/to/python workflow/random_forest.py resources/settings/DataPaths_predict.csv`
+- See result at `/Users/julianzander/Code/WIN-KID/resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv`
 
 ### Stacked Random Forest Instructions
 - Set `STACK_MODEL = True` in the `config.py`
