@@ -18,39 +18,39 @@ Predict antibiogram for PATRIC samples on prepareddata and trained models:
  - See result at `/Users/julianzander/Code/WIN-KID/resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv`
 
 ### Stacked Random Forest Instructions
-  - Set `STACK_MODEL = True` in the `config.py`
-  - Train and Test:
-    - Set `EXECUTION_MODE = Execution_Mode.TRAIN_TEST` in the `config.py`
-    - Add the paths to the data records that shall be processed to `resources/settings/DataPaths.csv`
-    - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
-  - Train models and save them for later predictions:
-    - Set `EXECUTION_MODE = Execution_Mode.SAVE_TRAINED` in the `config.py`
-    - Add the paths to the data records that shall be processed to `resources/settings/DataPaths.csv`
-    - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
-  - Make predictions with earlier saved models:
-    - Set `EXECUTION_MODE = Execution_Mode.PREDICT_ON_SAVED` in the `config.py`
-    - Add the paths to the data records that shall be processed to `resources/settings/DataPaths.csv`. The csv corresponding to `PathToCsv` only needs to hold `Sample_ID_IfH` and `Organism_Code`
-    - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
+- Set `STACK_MODEL = True` in the `config.py`
+- Train and Test:
+  - Set `EXECUTION_MODE = Execution_Mode.TRAIN_TEST` in the `config.py`
+  - Add the paths to the data records that shall be processed to `resources/settings/DataPaths.csv`
+  - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
+- Train models and save them for later predictions:
+  - Set `EXECUTION_MODE = Execution_Mode.SAVE_TRAINED` in the `config.py`
+  - Add the paths to the data records that shall be processed to `resources/settings/DataPaths.csv`
+  - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
+- Make predictions with earlier saved models:
+  - Set `EXECUTION_MODE = Execution_Mode.PREDICT_ON_SAVED` in the `config.py`
+  - Add the paths to the data records that shall be processed to `resources/settings/DataPaths.csv`. The csv corresponding to `PathToCsv` only needs to hold `Sample_ID_IfH` and `Organism_Code`
+  - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
 
 ### Stacked Random Forest Architecture
 Relies on two RF layers for prediction
-  - Test and training data sets are split once at the beginning
-  - Layer 1:
-    - Input: pre-processed data
-    - For each AB one RF model
-    - The models are validated using out-of-fold iterations -> Test data is split into test and validation data
-    - Output: Probabilities for each class (S/I/R)
-  - The layer 1 results for each AB are combined
-  - Layer 2:
-    - Input: combined input of Layer 1
-    - For each AB one RF model
-    - Output: The class with the highest probability according to the Layer 2
+- Test and training data sets are split once at the beginning
+- Layer 1:
+  - Input: pre-processed data
+  - For each AB one RF model
+  - The models are validated using out-of-fold iterations -> Test data is split into test and validation data
+  - Output: Probabilities for each class (S/I/R)
+- The layer 1 results for each AB are combined
+- Layer 2:
+  - Input: combined input of Layer 1
+  - For each AB one RF model
+  - Output: The class with the highest probability according to the Layer 2
 
-  ![alt text](resources/images/Stacked_Diagram.png)
+![alt text](resources/images/Stacked_Diagram.png)
 - Reasoning:
-  - Results of several ABs can be combined with each other despite the RF approach
-  - Correlations between the AB resistances can be learned
-  - Combination of multiple ABs is not possible with only one layer, because not all AB resistances are known for any sample and `NaN` is not supported as target value
+- Results of several ABs can be combined with each other despite the RF approach
+- Correlations between the AB resistances can be learned
+- Combination of multiple ABs is not possible with only one layer, because not all AB resistances are known for any sample and `NaN` is not supported as target value
 
 ### One Layer Random Forest
 - Set `STACK_MODEL = False` and `EXECUTION_MODE` according to the desired outcome(see stacked RF) in the `config.py`
