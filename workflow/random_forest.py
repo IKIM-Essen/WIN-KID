@@ -1268,7 +1268,7 @@ def process(dataset_list_input):
     )
 
     rf_settings_stacked = RandomForestSettings(
-        n_estimators=500,
+        n_estimators=1500,
         class_weight="balanced_subsample",
         max_depth=20,
         min_samples_split=2,
