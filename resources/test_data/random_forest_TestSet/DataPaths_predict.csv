@@ -1,0 +1,2 @@
+DataSetName,PathToCsv,PathToGff
+BVBRC_use_case,resources/test_data/random_forest_TestSet/BVBCR_use_case.csv,resources/test_data/random_forest_TestSet/gff_card

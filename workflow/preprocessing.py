@@ -13,6 +13,9 @@ from constants import GFF_COLUMNS
 from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
+from constants import MODEL_FOLDER
+from config import EXECUTION_MODE
+from execution_modes import ExecutionMode
 
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
@@ -114,8 +117,12 @@ def encode_one_hot(df, features):
     for feature in features:
         all_genes = set(gene for gene_list in df[feature] for gene in gene_list)
 
-        for gene in all_genes:
-            df[gene] = df[feature].apply(lambda genes, g=gene: int(g in genes))
+        new_cols = {
+            gene: df[feature].apply(lambda genes, g=gene: int(g in genes))
+            for gene in all_genes
+        }
+        gene_df = pd.DataFrame(new_cols, index=df.index)
+        df = pd.concat([df, gene_df], axis=1)
 
         df = df.drop(columns=[feature])
 
@@ -127,8 +134,11 @@ def one_hot_encode_list(df, feature):
 
     all_values = set(value for values in df[feature] for value in values)
 
-    for value in all_values:
-        df[value] = df[feature].apply(lambda x, value=value: int(value in x))
+    new_cols = {
+        value: df[feature].apply(lambda x, v=value: int(v in x)) for value in all_values
+    }
+    value_df = pd.DataFrame(new_cols, index=df.index)
+    df = pd.concat([df, value_df], axis=1)
 
     df.drop(columns=[feature], inplace=True)
 
@@ -239,6 +249,58 @@ class DataLoader:
 
         return input_genotype_combined
 
+    def get_genotype_data_for_prediction(self, dataset_list):
+        input_genotype = self.preprocess_genotype_data(dataset_list)
+
+        # Add missing features and set them to 0
+        features = pd.read_csv("resources/settings/FeatureList.csv", header=None)
+        all_features = features[0].tolist()
+        missing = [f for f in all_features if f not in input_genotype.columns]
+
+        # Create a DataFrame with missing columns set to 0
+        if missing:
+            missing_df = pd.DataFrame(0, index=input_genotype.index, columns=missing)
+            input_genotype = pd.concat([input_genotype, missing_df], axis=1)
+
+        # Drop organism column
+        input_genotype = input_genotype.drop(ORGANISM_COLUMN, axis=1)
+
+        input_phenotype = self.preprocess_phenotype_data(dataset_list)
+        input_phenotype[ID_COLUMN] = input_phenotype[ID_COLUMN].astype(str).str.strip()
+        input_genotype[ID_COLUMN] = input_genotype[ID_COLUMN].astype(str).str.strip()
+
+        # Add antibiotic names as columns
+        names = [
+            os.path.splitext(f)[0]
+            for f in os.listdir((MODEL_FOLDER + "second_layer"))
+            if f.endswith(".pkl")
+        ]
+        for col in names:
+            if col not in input_phenotype.columns:
+                input_phenotype[col] = 0
+
+        # Encode Organism Code
+        organism_cat = input_phenotype[ORGANISM_COLUMN].astype("category")
+        input_phenotype[ORGANISM_COLUMN] = organism_cat.cat.codes
+        organism_mapping = dict(enumerate(organism_cat.cat.categories))
+
+        self.merged_input = pd.merge(
+            input_phenotype, input_genotype, on=ID_COLUMN, how="inner"
+        )
+        num_phenotype_cols = input_phenotype.shape[1]
+
+        feature_cols_merged = list(self.merged_input.columns[num_phenotype_cols:])
+        feature_cols_merged.append(ORGANISM_COLUMN)
+        preprocessed_data = PreprocessedDataDTO(
+            self.merged_input,
+            self.merged_input.columns[2:num_phenotype_cols],
+            feature_cols_merged,
+            organism_mapping=organism_mapping,
+        )
+        print("Total number of samples: " + str(len(preprocessed_data.merged_input)))
+        print("Number of features: " + str(len(preprocessed_data.feature_cols)))
+        return preprocessed_data
+
     def get_preprocessed_data(self, dataset_list):
         input_phenotype = self.preprocess_phenotype_data(dataset_list)
         input_genotype = self.preprocess_genotype_data(dataset_list)
@@ -285,6 +347,10 @@ class DataLoader:
             organism_mapping=organism_mapping,
         )
 
+        if EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
+            pd.DataFrame(preprocessed_data.feature_cols).to_csv(
+                "resources/settings/FeatureList.csv", index=False, header=False
+            )
         print("Total number of samples: " + str(len(preprocessed_data.merged_input)))
         print("Number of features: " + str(len(preprocessed_data.feature_cols)))
         return preprocessed_data

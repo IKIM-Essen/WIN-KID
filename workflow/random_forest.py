@@ -7,9 +7,11 @@ import argparse
 import os
 import itertools
 import random
+from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
 from statistics import mean, median
+from datetime import datetime
 from collections import Counter, defaultdict
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
@@ -29,21 +31,20 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import preprocessing
+import cloudpickle
+import config
+from split_strategies import SplitStrategy
 from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
+from constants import MODEL_FOLDER
+from execution_modes import ExecutionMode
 
 
 class ModelStrategy(Enum):
     CROSS_VALIDATE = "cross_validate"
     STACKED = "stacked"
     SPLIT = "split"
-
-
-class SplitStrategy(Enum):
-    RANDOM = "random"
-    STRATIFY = "stratify"
-    CLUSTER = "cluster"
 
 
 @dataclass
@@ -83,31 +84,46 @@ def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import
     recall = {}
     f1 = {}
 
-    for label_class in unique_classes:
-        y_test_binarized = (y_test_col == label_class).astype(int)
-        y_pred_binarized = (y_pred_col == label_class).astype(int)
-
-        if label_class >= y_score_col.shape[1]:
-            print(f"Skipping class {label_class} for {target_col}, not in predictions")
-            continue
-
-        fpr[label_class], tpr[label_class], _ = roc_curve(
-            y_test_binarized, y_score_col[:, label_class]
+    if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+        fpr, tpr, roc_auc, accuracy, precision, recall, f1 = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
         )
-        roc_auc[label_class] = auc(fpr[label_class], tpr[label_class])
-        pr_auc[label_class] = average_precision_score(
-            y_test_binarized, y_score_col[:, label_class]
-        )
+    else:
+        for label_class in unique_classes:
+            y_test_binarized = (y_test_col == label_class).astype(int)
+            y_pred_binarized = (y_pred_col == label_class).astype(int)
 
-        precision[label_class] = precision_score(
-            y_test_binarized, y_pred_binarized, zero_division=0
-        )
-        recall[label_class] = recall_score(
-            y_test_binarized, y_pred_binarized, zero_division=0
-        )
-        f1[label_class] = f1_score(y_test_binarized, y_pred_binarized, zero_division=0)
+            if label_class >= y_score_col.shape[1]:
+                print(
+                    f"Skipping class {label_class} for {target_col}, not in predictions"
+                )
+                continue
 
-    accuracy = accuracy_score(y_test_col, y_pred_col)
+            fpr[label_class], tpr[label_class], _ = roc_curve(
+                y_test_binarized, y_score_col[:, label_class]
+            )
+            roc_auc[label_class] = auc(fpr[label_class], tpr[label_class])
+            pr_auc[label_class] = average_precision_score(
+                y_test_binarized, y_score_col[:, label_class]
+            )
+
+            precision[label_class] = precision_score(
+                y_test_binarized, y_pred_binarized, zero_division=0
+            )
+            recall[label_class] = recall_score(
+                y_test_binarized, y_pred_binarized, zero_division=0
+            )
+            f1[label_class] = f1_score(
+                y_test_binarized, y_pred_binarized, zero_division=0
+            )
+
+        accuracy = accuracy_score(y_test_col, y_pred_col)
 
     return ResultDTO(
         fpr=fpr,
@@ -143,9 +159,28 @@ def run_random_forest(
         bootstrap=settings_input.bootstrap,
     )
 
-    validate_target_values(y_train_input, y_test_input, target_input)
+    # Sort features
+    X_train_input = X_train_input.reindex(sorted(X_train_input.columns), axis=1)
+    X_test_input = X_test_input.reindex(sorted(X_test_input.columns), axis=1)
 
-    model.fit(X_train_input, y_train_input)
+    model_path = MODEL_FOLDER + "second_layer/" + target_input + ".pkl"
+    if (
+        config.EXECUTION_MODE == ExecutionMode.TRAIN_TEST
+        or config.EXECUTION_MODE == ExecutionMode.TUNE_HYPERPARAMETER
+    ):
+        validate_target_values(y_train_input, y_test_input, target_input)
+        model.fit(X_train_input, y_train_input)
+
+    elif config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
+        validate_target_values(y_train_input, y_test_input, target_input)
+        model.fit(X_train_input, y_train_input)
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        with open(model_path, "wb") as f:
+            cloudpickle.dump(model, f)
+
+    elif config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+        with open(model_path, "rb") as f:
+            model = cloudpickle.load(f)
 
     y_pred = model.predict(X_test_input)
     y_proba = model.predict_proba(X_test_input)
@@ -175,6 +210,7 @@ def run_layer_one_random_forest(
     X_test_input,
     target_input,
     settings_input,
+    run_number,
 ):
     model = RandomForestClassifier(
         random_state=42,
@@ -186,15 +222,36 @@ def run_layer_one_random_forest(
         max_features=settings_input.max_features,
         bootstrap=settings_input.bootstrap,
     )
+    model_path = (
+        MODEL_FOLDER
+        + "first_layer/"
+        + str(run_number)
+        + "_run/"
+        + target_input
+        + ".pkl"
+    )
 
-    validate_target_values(y_train_input, y_val_input, target_input)
+    # Sort features
+    X_train_input = X_train_input.reindex(sorted(X_train_input.columns), axis=1)
+    X_val_input = X_val_input.reindex(sorted(X_val_input.columns), axis=1)
+    X_test_input = X_test_input.reindex(sorted(X_test_input.columns), axis=1)
 
-    model.fit(X_train_input, y_train_input)
+    if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
+        validate_target_values(y_train_input, y_val_input, target_input)
+        model.fit(X_train_input, y_train_input)
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        with open(model_path, "wb") as f:
+            cloudpickle.dump(model, f)
 
-    importances = model.feature_importances_
-    forest_importances = pd.Series(importances, index=X_train_input.columns)
+    elif config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+        X_test_input = X_test_input.drop(ID_COLUMN, axis=1)
+        with open(model_path, "rb") as f:
+            model = cloudpickle.load(f)
 
-    y_pred_val = model.predict(X_val_input)
+    elif config.EXECUTION_MODE == ExecutionMode.TRAIN_TEST:
+        validate_target_values(y_train_input, y_val_input, target_input)
+        model.fit(X_train_input, y_train_input)
+
     y_proba_val = model.predict_proba(X_val_input)
     y_proba_test = model.predict_proba(X_test_input)
 
@@ -211,19 +268,10 @@ def run_layer_one_random_forest(
     proba_full_val_df = pd.DataFrame(proba_full_val, columns=column_names)
     proba_full_test_df = pd.DataFrame(proba_full_test, columns=column_names)
 
-    result_test = generate_result(
-        target_input,
-        y_val_input,
-        proba_full_val,
-        y_pred_val,
-        forest_importances.sort_values(ascending=False),
-    )
-    return result_test, proba_full_val_df, proba_full_test_df
+    return proba_full_val_df, proba_full_test_df
 
 
-def run_splitted_random_forest(
-    preprocessed_data, test_size, split_strategy, rf_settings
-):
+def run_splitted_random_forest(preprocessed_data, rf_settings):
 
     y_test_count, y_train_count, result_dic = ({}, {}, {})
     y_test, y_train, X_test, X_train = ([], [], [], [])
@@ -243,24 +291,24 @@ def run_splitted_random_forest(
         X = merged_filtered_input[preprocessed_data.feature_cols]
         y = merged_filtered_input[col]
 
-        if split_strategy == SplitStrategy.STRATIFY:
+        if config.SPLIT_STRATEGY.name == SplitStrategy.STRATIFY.name:
             X_train, X_test, y_train, y_test = train_test_split(
                 X,
                 y,
-                test_size=test_size,  # Not splitting further, just rebalancing
+                test_size=config.TEST_SIZE,  # Not splitting further, just rebalancing
                 stratify=X[ORGANISM_COLUMN],
             )
-        elif split_strategy == SplitStrategy.RANDOM:
+        elif config.SPLIT_STRATEGY.name == SplitStrategy.RANDOM.name:
             X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=test_size, random_state=42
+                X, y, test_size=config.TEST_SIZE, random_state=42
             )
-        elif split_strategy == SplitStrategy.CLUSTER:
+        elif config.SPLIT_STRATEGY.name == SplitStrategy.CLUSTER.name:
             cluster_labels = KMeans(
                 n_clusters=int((len(merged_filtered_input) / 10)), random_state=42
             ).fit_predict(X)
             unique_clusters = np.unique(cluster_labels)
             train_clusters, test_clusters = train_test_split(
-                unique_clusters, test_size=test_size, random_state=42
+                unique_clusters, test_size=config.TEST_SIZE, random_state=42
             )
             train_idx = np.isin(cluster_labels, train_clusters)
             test_idx = np.isin(cluster_labels, test_clusters)
@@ -294,24 +342,22 @@ def run_splitted_random_forest(
 
 def run_stacked_random_forest(
     preprocessed_data,
-    test_size,
-    split_strategy,
     rf_settings_first_layer,
     rf_settings_second_layer,
     cross_validate=False,
-    number_of_folds=5,
 ):
 
     # Prepare first layer data
 
     merged_filtered_input = preprocessed_data.merged_input
 
-    # Drop rows of Organisms that occur only once
-    value_counts = preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts()
-    rare_values = value_counts[value_counts == 1].index
-    merged_filtered_input = merged_filtered_input[
-        ~merged_filtered_input[ORGANISM_COLUMN].isin(rare_values)
-    ]
+    if config.EXECUTION_MODE != ExecutionMode.PREDICT_ON_SAVED:
+        # Drop rows of Organisms that occur only once
+        value_counts = preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts()
+        rare_values = value_counts[value_counts == 1].index
+        merged_filtered_input = merged_filtered_input[
+            ~merged_filtered_input[ORGANISM_COLUMN].isin(rare_values)
+        ]
 
     feature_cols_with_id = preprocessed_data.feature_cols + [ID_COLUMN]
     X = merged_filtered_input[feature_cols_with_id]
@@ -319,7 +365,12 @@ def run_stacked_random_forest(
 
     if cross_validate:
 
-        skf = StratifiedKFold(n_splits=number_of_folds, shuffle=True, random_state=42)
+        if config.EXECUTION_MODE != ExecutionMode.TRAIN_TEST:
+            raise ValueError("--mode shall be TRAIN_TEST for cross validation")
+
+        skf = StratifiedKFold(
+            n_splits=config.NUMBER_OF_FOLDS, shuffle=True, random_state=42
+        )
         stratify_col = preprocessed_data.merged_input[ORGANISM_COLUMN]
 
         cv_results = []
@@ -365,9 +416,28 @@ def run_stacked_random_forest(
         )
     else:
         # SPLITTING
-        y_test, y_train, X_test, X_train = split_sets_for_stacked(
-            test_size, split_strategy, X, y
-        )
+        if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+            print(
+                "WARNING in "
+                + config.EXECUTION_MODE.value
+                + " all samples are used for test"
+            )
+            y_test = y
+            y_train = y
+            X_test = X
+            X_train = X
+        else:
+            y_test, y_train, X_test, X_train = split_sets_for_stacked(X, y)
+
+        # Train with all sample if saved
+        if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
+            print(
+                "WARNING in "
+                + config.EXECUTION_MODE.value
+                + " all samples are used for training"
+            )
+            y_train = pd.concat([y_train, y_test], ignore_index=True)
+            X_train = pd.concat([X_train, X_test], ignore_index=True)
 
         (
             result_dic,
@@ -384,6 +454,11 @@ def run_stacked_random_forest(
             y_train,
             y_test,
         )
+
+        if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open((MODEL_FOLDER + "run_info.txt"), "w", encoding="utf-8") as f:
+                f.write(f"Run executed at: {now}\n")
 
         return (
             [result_dic],
@@ -416,6 +491,15 @@ def filter_merged_input(preprocessed_data, min_sample_number):
                 [col_name]
             )
     preprocessed_data.merged_input = merged_filtered_input
+    print(
+        "Number of samples after sample number filtering: "
+        + str(len(preprocessed_data.merged_input))
+    )
+    print(preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts())
+    os.makedirs("Evaluation", exist_ok=True)
+    preprocessed_data.merged_input[ID_COLUMN].to_csv(
+        "Evaluation/samples_used.csv", index=False
+    )
 
     return preprocessed_data
 
@@ -519,6 +603,12 @@ def compute_stacked_random_forest(
         X_test_filtered = X_proba_test[test_mask]
         y_test_filtered = y_proba_test[target][test_mask]
         organism_test_filtered = organism_test[test_mask]
+
+        if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+            X_train_filtered = X_proba_train
+            y_train_filtered = y_proba_train[target]
+            X_test_filtered = X_proba_test
+            y_test_filtered = y_proba_test[target]
 
         second_layer_result = run_random_forest(
             X_train_filtered,
@@ -634,7 +724,11 @@ def run_first_layer(
 
         y_train_count[target] = Counter(y_train_target)
         y_test_count[target] = Counter(y_test_target)
-
+        if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+            X_train_target = X_test
+            X_test_target = X_test
+            X_test_target_id = X_test_target[ID_COLUMN]
+            y_train_target = y_train[target]
         proba_train_target, proba_test_list = compute_oof_predictions(
             rf_settings, n_splits, target, y_train_target, X_train_target, X_test_target
         )
@@ -654,12 +748,20 @@ def run_first_layer(
             proba_train_joined = proba_train_target
             proba_test_joined = proba_test_target
         else:
-            proba_train_joined = pd.merge(
-                proba_train_joined, proba_train_target, on=ID_COLUMN, how="outer"
-            )
-            proba_test_joined = pd.merge(
-                proba_test_joined, proba_test_target, on=ID_COLUMN, how="outer"
-            )
+            proba_train_joined = pd.concat(
+                [
+                    proba_train_joined.set_index(ID_COLUMN),
+                    proba_train_target.set_index(ID_COLUMN),
+                ],
+                axis=1,
+            ).reset_index()
+            proba_test_joined = pd.concat(
+                [
+                    proba_test_joined.set_index(ID_COLUMN),
+                    proba_test_target.set_index(ID_COLUMN),
+                ],
+                axis=1,
+            ).reset_index()
 
     return proba_train_joined, proba_test_joined
 
@@ -670,15 +772,34 @@ def compute_oof_predictions(
     proba_train_target = pd.DataFrame([])
     proba_test_list = []
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    run_counter = 0
+    # Add additional train data if necessary for splitting. Train data has no effect on prediction.
+    if (
+        config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED
+        and len(X_train_target) < 5
+    ):
+        X_first_row_repeated = pd.concat(
+            [X_train_target.iloc[[0]]] * 4, ignore_index=True
+        )
+        X_train_target = pd.concat(
+            [X_first_row_repeated, X_train_target], ignore_index=True
+        )
+        y_first_row_repeated = pd.concat(
+            [y_train_target.iloc[[0]]] * 4, ignore_index=True
+        )
+        y_train_target = pd.concat(
+            [y_first_row_repeated, y_train_target], ignore_index=True
+        )
     for train_idx, valid_idx in skf.split(X_train_target, y_train_target):
+        run_counter = run_counter + 1
         X_tr, X_val = X_train_target.iloc[train_idx], X_train_target.iloc[valid_idx]
         y_tr, y_val = y_train_target.iloc[train_idx], y_train_target.iloc[valid_idx]
         X_val_target_id = X_val[ID_COLUMN]
         X_val = X_val.drop(ID_COLUMN, axis=1)
         X_tr = X_tr.drop(ID_COLUMN, axis=1)
 
-        (_, fold_val_pred, fold_test_pred) = run_layer_one_random_forest(
-            X_tr, y_tr, X_val, y_val, X_test_target, target, rf_settings
+        (fold_val_pred, fold_test_pred) = run_layer_one_random_forest(
+            X_tr, y_tr, X_val, y_val, X_test_target, target, rf_settings, run_counter
         )
 
         fold_val_pred[ID_COLUMN] = X_val_target_id.reset_index(drop=True)
@@ -693,19 +814,19 @@ def compute_oof_predictions(
     return proba_train_target, proba_test_list
 
 
-def split_sets_for_stacked(test_size, split_strategy, X, y):
-    if split_strategy == SplitStrategy.STRATIFY:
+def split_sets_for_stacked(X, y):
+    if config.SPLIT_STRATEGY.name == SplitStrategy.STRATIFY.name:
         X_train, X_test, y_train, y_test = train_test_split(
             X,
             y,
-            test_size=test_size,  # Not splitting further, just rebalancing
+            test_size=config.TEST_SIZE,  # Not splitting further, just rebalancing
             stratify=X[ORGANISM_COLUMN],
         )
-    elif split_strategy == SplitStrategy.RANDOM:
+    elif config.SPLIT_STRATEGY.name == SplitStrategy.RANDOM.name:
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, random_state=42
+            X, y, test_size=config.TEST_SIZE, random_state=42
         )
-    elif split_strategy == SplitStrategy.CLUSTER:
+    elif config.SPLIT_STRATEGY.name == SplitStrategy.CLUSTER.name:
         # ID_COLUMN shall not be used to cluster
         X_clustering = X.drop(columns=[ID_COLUMN])  # Or multiple columns
 
@@ -715,7 +836,7 @@ def split_sets_for_stacked(test_size, split_strategy, X, y):
 
         unique_clusters = np.unique(cluster_labels)
         train_clusters, test_clusters = train_test_split(
-            unique_clusters, test_size=test_size, random_state=42
+            unique_clusters, test_size=config.TEST_SIZE, random_state=42
         )
         train_idx = np.isin(cluster_labels, train_clusters)
         test_idx = np.isin(cluster_labels, test_clusters)
@@ -724,7 +845,9 @@ def split_sets_for_stacked(test_size, split_strategy, X, y):
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
     else:
-        raise ValueError("Split strategy !" + str(split_strategy) + "! is invalid")
+        raise ValueError(
+            "Split strategy !" + str(config.SPLIT_STRATEGY) + "! is invalid"
+        )
 
     return y_test, y_train, X_test, X_train
 
@@ -743,19 +866,21 @@ def load_dataset_paths(path_file):
     return path_df
 
 
-def get_split_iterator(X, stratify_col, strategy, n_splits):
-    if strategy == SplitStrategy.STRATIFY:
-        return StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42).split(
-            X, stratify_col
-        )
-    elif strategy == SplitStrategy.RANDOM:
-        return KFold(n_splits=n_splits, shuffle=True, random_state=42).split(X)
-    elif strategy == SplitStrategy.CLUSTER:
+def get_split_iterator(X, stratify_col):
+    if config.SPLIT_STRATEGY.name == SplitStrategy.STRATIFY.name:
+        return StratifiedKFold(
+            n_splits=config.NUMBER_OF_FOLDS, shuffle=True, random_state=42
+        ).split(X, stratify_col)
+    elif config.SPLIT_STRATEGY.name == SplitStrategy.RANDOM.name:
+        return KFold(
+            n_splits=config.NUMBER_OF_FOLDS, shuffle=True, random_state=42
+        ).split(X)
+    elif config.SPLIT_STRATEGY.name == SplitStrategy.CLUSTER.name:
         cluster_labels = KMeans(
             n_clusters=int(len(X) / 10), random_state=42
         ).fit_predict(X)
         unique_clusters = np.unique(cluster_labels)
-        kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+        kf = KFold(n_splits=config.NUMBER_OF_FOLDS, shuffle=True, random_state=42)
         return (
             (
                 np.where(np.isin(cluster_labels, unique_clusters[train_idx]))[0],
@@ -792,9 +917,7 @@ def average_per_organism_results(per_fold_results_list):
     return averaged
 
 
-def run_cross_validated_random_forest(
-    preprocessed_data, n_splits, split_strategy, rf_settings_cv
-):
+def run_cross_validated_random_forest(preprocessed_data, rf_settings_cv):
     cv_results = []
     test_label_counts = []
     train_label_counts = []
@@ -813,7 +936,7 @@ def run_cross_validated_random_forest(
         y = df[col]
         stratify_col = df[ORGANISM_COLUMN]
 
-        split_iterator = get_split_iterator(X, stratify_col, split_strategy, n_splits)
+        split_iterator = get_split_iterator(X, stratify_col)
 
         fold_per_organism_results = defaultdict(list)
 
@@ -1020,7 +1143,7 @@ def per_organism_evaluation_to_csv(
             print(f"{metric.title()}-table saved at: {metric_output_path}")
 
 
-def tune_hyperparameter(preprocessed_data, number_of_folds):
+def tune_hyperparameter(preprocessed_data):
     param_grid = {
         "n_estimators": [10, 50, 100, 200, 500],
         "max_depth": [None, 10, 20, 50],
@@ -1068,8 +1191,6 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
 
         rf_cv_results, _, _, _ = run_cross_validated_random_forest(
             preprocessed_data,
-            number_of_folds,
-            SplitStrategy(combo["split_strategy"].value),
             rf_settings,
         )
 
@@ -1101,9 +1222,9 @@ def tune_hyperparameter(preprocessed_data, number_of_folds):
 def feature_importance_to_csv(results_dto):
     importance_df = pd.DataFrame(columns=results_dto.keys())
     importance_df[ORGANISM_COLUMN] = None
+    prefixes = ("S_", "I_", "R_")
     for name in results_dto:
         importance_df.loc[name] = 0.0
-        prefixes = ("S_", "I_", "R_")
 
         def strip_prefix(name: str) -> str:
             for p in prefixes:
@@ -1119,15 +1240,23 @@ def feature_importance_to_csv(results_dto):
     importance_df.to_csv("Evaluation/feature_importance.csv")
 
 
-if __name__ == "__main__":
-    TUNE_HYPERPARAMETER = False
-    STACK_MODEL = True
-    CROSS_VALIDATE = False
+def generate_prediction_results(dataset_input, preprocessed_input, rf_results_input):
+    preds_dict = {name: result.y_pred for name, result in rf_results_input[0].items()}
+    preds_df = pd.DataFrame(preds_dict)
 
-    NUMBER_OF_FOLDS = 5
-    TEST_SIZE = 0.3
+    inv_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
+    preds_df = preds_df.replace(inv_mapping)
 
-    SPLIT_STRATEGY = SplitStrategy.STRATIFY
+    preds_df[ID_COLUMN] = preprocessed_input.merged_input[ID_COLUMN]
+    cols = [ID_COLUMN] + [col for col in preds_df.columns if col != ID_COLUMN]
+    preds_df = preds_df[cols]
+    path = Path(dataset_input["PathToCsv"][0])
+    new_path = path.parent / f"Result_{path.name}"
+    preds_df.to_csv(new_path, index=False)
+    print(preds_df)
+
+
+def process(dataset_list_input):
     rf_settings_input = RandomForestSettings(
         n_estimators=100,
         class_weight="balanced_subsample",
@@ -1139,7 +1268,7 @@ if __name__ == "__main__":
     )
 
     rf_settings_stacked = RandomForestSettings(
-        n_estimators=500,
+        n_estimators=1500,
         class_weight="balanced_subsample",
         max_depth=20,
         min_samples_split=2,
@@ -1148,37 +1277,36 @@ if __name__ == "__main__":
         bootstrap=True,
     )
 
-    parser = argparse.ArgumentParser(
-        description="Run RF on multiple datasets from a settings file"
-    )
-    parser.add_argument("path_file", help="Path to the settings CSV file")
-    args = parser.parse_args()
-
-    dataset_list = load_dataset_paths(args.path_file)
-
     data_loader = preprocessing.DataLoader()
-    preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list)
 
-    preprocessed_data_input = filter_merged_input(preprocessed_data_input, 20)
-
-    start_time = time.time()
-    if TUNE_HYPERPARAMETER is True:
-        tune_hyperparameter(preprocessed_data_input, NUMBER_OF_FOLDS)
+    if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+        preprocessed_data_input = data_loader.get_genotype_data_for_prediction(
+            dataset_list_input
+        )
 
     else:
-        if not STACK_MODEL and not CROSS_VALIDATE:
+        preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list_input)
+        preprocessed_data_input = filter_merged_input(preprocessed_data_input, 20)
+
+    start_time = time.time()
+    if config.EXECUTION_MODE == ExecutionMode.TUNE_HYPERPARAMETER:
+        tune_hyperparameter(preprocessed_data_input)
+
+    else:
+        if not config.STACK_MODEL and not config.CROSS_VALIDATE:
             (
                 rf_results,
                 y_test_count_result,
                 y_train_count_result,
                 per_organism_results,
             ) = run_splitted_random_forest(
-                preprocessed_data_input, TEST_SIZE, SPLIT_STRATEGY, rf_settings_input
+                preprocessed_data_input,
+                rf_settings_input,
             )
 
             display_results(rf_results[0], False)
 
-        elif not STACK_MODEL and CROSS_VALIDATE:
+        elif not config.STACK_MODEL and config.CROSS_VALIDATE:
             # display not possible with CV.
             # S/R/I Set changes with every fold -> fpr size changes as well
             (
@@ -1188,12 +1316,10 @@ if __name__ == "__main__":
                 per_organism_results,
             ) = run_cross_validated_random_forest(
                 preprocessed_data_input,
-                NUMBER_OF_FOLDS,
-                SPLIT_STRATEGY,
                 rf_settings_input,
             )
-        # TODO: Tune Hyperparameters for each model
-        elif STACK_MODEL and not CROSS_VALIDATE:
+
+        elif config.STACK_MODEL and not config.CROSS_VALIDATE:
             (
                 rf_results,
                 y_test_count_result,
@@ -1201,16 +1327,21 @@ if __name__ == "__main__":
                 per_organism_results,
             ) = run_stacked_random_forest(
                 preprocessed_data_input,
-                TEST_SIZE,
-                SPLIT_STRATEGY,
                 rf_settings_input,
                 rf_settings_stacked,
                 False,
             )
-            display_results(rf_results[0], False)
-            feature_importance_to_csv(rf_results[0])
 
-        elif STACK_MODEL and CROSS_VALIDATE:
+            if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+                generate_prediction_results(
+                    dataset_list_input, preprocessed_data_input, rf_results
+                )
+
+            else:
+                display_results(rf_results[0], False)
+                feature_importance_to_csv(rf_results[0])
+
+        elif config.STACK_MODEL and config.CROSS_VALIDATE:
             (
                 rf_results,
                 y_test_count_result,
@@ -1218,8 +1349,6 @@ if __name__ == "__main__":
                 per_organism_results,
             ) = run_stacked_random_forest(
                 preprocessed_data_input,
-                TEST_SIZE,
-                SPLIT_STRATEGY,
                 rf_settings_input,
                 rf_settings_stacked,
                 True,
@@ -1227,6 +1356,20 @@ if __name__ == "__main__":
 
         else:
             raise ValueError("Model strategy is invalid")
-        per_organism_evaluation_to_csv(per_organism_results)
-        evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
+        if config.EXECUTION_MODE != ExecutionMode.PREDICT_ON_SAVED:
+            per_organism_evaluation_to_csv(per_organism_results)
+            evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
         print("--- %s seconds for ML---" % (time.time() - start_time))
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Run RF on multiple datasets from a settings file"
+    )
+    parser.add_argument("path_file", help="Path to the settings CSV file")
+
+    args = parser.parse_args()
+
+    dataset_list = load_dataset_paths(args.path_file)
+
+    process(dataset_list)
