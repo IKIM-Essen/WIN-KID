@@ -1239,7 +1239,6 @@ def feature_importance_to_csv(results_dto_list):
             s_clean = s_clean.groupby(s_clean.index).sum()
             importance_df.loc[name, s_clean.index] += s_clean
         importance_df_list.append(importance_df)
-        print(importance_df)
     pd.concat(importance_df_list).groupby(level=0).mean().to_csv(
         "Evaluation/feature_importance.csv"
     )
