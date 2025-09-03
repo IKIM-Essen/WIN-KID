@@ -1219,25 +1219,30 @@ def tune_hyperparameter(preprocessed_data):
     )
 
 
-def feature_importance_to_csv(results_dto):
-    importance_df = pd.DataFrame(columns=results_dto.keys())
-    importance_df[ORGANISM_COLUMN] = None
-    prefixes = ("S_", "I_", "R_")
-    for name in results_dto:
-        importance_df.loc[name] = 0.0
+def feature_importance_to_csv(results_dto_list):
+    importance_df_list = []
+    for results_dto in results_dto_list:
+        importance_df = pd.DataFrame(columns=results_dto.keys())
+        importance_df[ORGANISM_COLUMN] = None
+        prefixes = ("S_", "I_", "R_")
+        for name in results_dto:
+            importance_df.loc[name] = 0.0
 
-        def strip_prefix(name: str) -> str:
-            for p in prefixes:
-                if name.startswith(p):
-                    return name[len(p) :]
-            return name
+            def strip_prefix(name: str) -> str:
+                for p in prefixes:
+                    if name.startswith(p):
+                        return name[len(p) :]
+                return name
 
-        result = results_dto[name]
-        s_clean = result.feature_importance.rename(index=strip_prefix)
-        s_clean = s_clean.groupby(s_clean.index).sum()
-        importance_df.loc[name, s_clean.index] += s_clean
-
-    importance_df.to_csv("Evaluation/feature_importance.csv")
+            result = results_dto[name]
+            s_clean = result.feature_importance.rename(index=strip_prefix)
+            s_clean = s_clean.groupby(s_clean.index).sum()
+            importance_df.loc[name, s_clean.index] += s_clean
+        importance_df_list.append(importance_df)
+        print(importance_df)
+    pd.concat(importance_df_list).groupby(level=0).mean().to_csv(
+        "Evaluation/feature_importance.csv"
+    )
 
 
 def generate_prediction_results(dataset_input, preprocessed_input, rf_results_input):
@@ -1339,7 +1344,7 @@ def process(dataset_list_input):
 
             else:
                 display_results(rf_results[0], False)
-                feature_importance_to_csv(rf_results[0])
+                feature_importance_to_csv(rf_results)
 
         elif config.STACK_MODEL and config.CROSS_VALIDATE:
             (
@@ -1359,6 +1364,7 @@ def process(dataset_list_input):
         if config.EXECUTION_MODE != ExecutionMode.PREDICT_ON_SAVED:
             per_organism_evaluation_to_csv(per_organism_results)
             evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
+            feature_importance_to_csv(rf_results)
         print("--- %s seconds for ML---" % (time.time() - start_time))
 
 
