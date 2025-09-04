@@ -203,7 +203,7 @@ class DataLoader:
                     input_phenotype[input_phenotype[col].isin(rare_classes)].index
                 )
 
-            if not updated:
+            if not updated or EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
                 break
 
             if rows_to_remove:
@@ -252,15 +252,16 @@ class DataLoader:
     def get_genotype_data_for_prediction(self, dataset_list):
         input_genotype = self.preprocess_genotype_data(dataset_list)
 
-        # Add missing features and set them to 0
+        # Load allowed features
         features = pd.read_csv("resources/settings/FeatureList.csv", header=None)
         all_features = features[0].tolist()
-        missing = [f for f in all_features if f not in input_genotype.columns]
 
-        # Create a DataFrame with missing columns set to 0
-        if missing:
-            missing_df = pd.DataFrame(0, index=input_genotype.index, columns=missing)
-            input_genotype = pd.concat([input_genotype, missing_df], axis=1)
+        # Always keep Sample_ID_IfH
+        if "Sample_ID_IfH" not in all_features:
+            all_features = ["Sample_ID_IfH"] + all_features
+
+        # Reindex the dataframe: add missing columns (fill with 0), drop extra ones (except Sample_ID_IfH)
+        input_genotype = input_genotype.reindex(columns=all_features, fill_value=0)
 
         # Drop organism column
         input_genotype = input_genotype.drop(ORGANISM_COLUMN, axis=1)

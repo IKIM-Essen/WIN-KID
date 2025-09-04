@@ -1244,20 +1244,123 @@ def feature_importance_to_csv(results_dto_list):
     )
 
 
-def generate_prediction_results(dataset_input, preprocessed_input, rf_results_input):
-    preds_dict = {name: result.y_pred for name, result in rf_results_input[0].items()}
-    preds_df = pd.DataFrame(preds_dict)
+def generate_prediction_results(
+    dataset_input, preprocessed_input, rf_results_input, real_path
+):
+    pred_dict = {name: result.y_pred for name, result in rf_results_input[0].items()}
+    pred_df = pd.DataFrame(pred_dict)
 
     inv_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
-    preds_df = preds_df.replace(inv_mapping)
+    pred_df = pred_df.replace(inv_mapping)
 
-    preds_df[ID_COLUMN] = preprocessed_input.merged_input[ID_COLUMN]
-    cols = [ID_COLUMN] + [col for col in preds_df.columns if col != ID_COLUMN]
-    preds_df = preds_df[cols]
+    pred_df[ID_COLUMN] = preprocessed_input.merged_input[ID_COLUMN]
+    cols = [ID_COLUMN] + [col for col in pred_df.columns if col != ID_COLUMN]
+    pred_df = pred_df[cols]
     path = Path(dataset_input["PathToCsv"][0])
     new_path = path.parent / f"Result_{path.name}"
-    preds_df.to_csv(new_path, index=False)
-    print(preds_df)
+    pred_df.to_csv(new_path, index=False)
+    print(pred_df)
+
+    accuracy_df = calc_accuracy(real_path, pred_df)
+    print(accuracy_df)
+    evaluation_path = path.parent / f"Evaluation_{path.name}"
+    accuracy_df.to_csv(evaluation_path, index=False)
+
+
+def calc_accuracy(real_path, pred_df):
+    real_df = pd.read_csv(
+        real_path.iloc[0],
+        na_values=["NA", "NaN", "nan", "N/A", ""],  # normalize common NA strings
+        keep_default_na=True,
+    )
+
+    # Drop metadata
+    real_df = real_df.drop(columns=["Sample_ID_IfH", "Organism_Code"])
+    pred_df = pred_df.drop(columns=["Sample_ID_IfH"])
+
+    # Normalize predicted column names to match real names
+    pred_df.columns = [
+        c.replace("_AB", "")
+        .replace("Cefazolin", "Cefalexin")
+        .replace("Trimethoprim", "Trimethoprim-Sulfamethoxazol")
+        for c in pred_df.columns
+    ]
+
+    # Find antibiotics present in both datasets
+    common_abs = sorted(set(real_df.columns) & set(pred_df.columns))
+    print("Common antibiotics:", common_abs)
+
+    # Restrict to common antibiotics only
+    real_df = real_df[common_abs]
+    pred_df = pred_df[common_abs]
+
+    # Compute per-antibiotic accuracy
+    results = []
+    for ab in common_abs:
+        mask = real_df[ab].notna()  # ignore NA values in real
+        if mask.sum() > 0:
+            acc = (real_df.loc[mask, ab] == pred_df.loc[mask, ab]).mean()
+            results.append({"antibiotic": ab, "n_samples": mask.sum(), "accuracy": acc})
+        else:
+            results.append({"antibiotic": ab, "n_samples": 0, "accuracy": None})
+
+    accuracy_df = pd.DataFrame(results)
+
+    # Remove rows with missing accuracy
+    valid_df = accuracy_df.dropna(subset=["accuracy"])
+
+    # Calc weighted median
+    sorted_df = valid_df.sort_values("accuracy")
+    acc_values = sorted_df["accuracy"].to_numpy()
+    weights = sorted_df["n_samples"].to_numpy()
+
+    def weighted_median(values, weights):
+        sorter = np.argsort(values)
+        values, weights = values[sorter], weights[sorter]
+        cumsum = np.cumsum(weights)
+        cutoff = weights.sum() / 2
+        return values[np.searchsorted(cumsum, cutoff)]
+
+    wm = weighted_median(acc_values, weights)
+
+    # Add weighted median
+    accuracy_df = pd.concat(
+        [
+            accuracy_df,
+            pd.DataFrame(
+                [
+                    {
+                        "antibiotic": "Weighted_median",
+                        "n_samples": weights.sum(),
+                        "accuracy": wm,
+                    }
+                ]
+            ),
+        ],
+        ignore_index=True,
+    )
+
+    return accuracy_df
+
+
+def remove_unsaved_targets(preprocessed_data_input):
+    # Remove antibiotics that do not have a saved model
+    pkl_files = {
+        os.path.splitext(f)[0]
+        for f in os.listdir(MODEL_FOLDER + "second_layer")
+        if f.endswith(".pkl")
+    }
+    filtered_names = [
+        name for name in preprocessed_data_input.target_cols if name in pkl_files
+    ]
+    dropped_names = [
+        name for name in preprocessed_data_input.target_cols if name not in pkl_files
+    ]
+    if dropped_names:
+        print("Dropped target columns (no matching .pkl file):")
+        for name in dropped_names:
+            print(" -", name)
+    preprocessed_data_input.target_cols = filtered_names
 
 
 def process(dataset_list_input):
@@ -1287,6 +1390,7 @@ def process(dataset_list_input):
         preprocessed_data_input = data_loader.get_genotype_data_for_prediction(
             dataset_list_input
         )
+        remove_unsaved_targets(preprocessed_data_input)
 
     else:
         preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list_input)
@@ -1338,7 +1442,10 @@ def process(dataset_list_input):
 
             if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
                 generate_prediction_results(
-                    dataset_list_input, preprocessed_data_input, rf_results
+                    dataset_list_input,
+                    preprocessed_data_input,
+                    rf_results,
+                    dataset_list_input["PathToCsv"],
                 )
 
             else:
