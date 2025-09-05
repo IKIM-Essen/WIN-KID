@@ -109,3 +109,7 @@ Relies on two RF layers for prediction
 ## ToDo
 - Differentiate between oral and non oral?
 - What shall happen with EUCAST values that are doublets (e.g.: due extra information)
+
+## Notes
+- UME test data: `/groups/ds/Win-KID/UKM_Sciebo/Essen_Isolates/subset_0125_UME_Paper`
+- UKM test data: `/groups/ds/Win-KID/UKM_Sciebo/Retrospective_Dec22-Jul24_all-species/subset_retro_UKM_Paper`
