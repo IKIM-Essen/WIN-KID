@@ -274,7 +274,7 @@ class DataLoader:
         if "Sample_ID_IfH" not in all_features:
             all_features = ["Sample_ID_IfH"] + all_features
 
-        # Reindex the dataframe: add missing columns (fill with 0), drop extra ones (except Sample_ID_IfH)
+        # Reindex the dataframe: add missing columns (fill with 0), drop extra ones
         input_genotype = input_genotype.reindex(columns=all_features, fill_value=0)
 
         # Drop organism column

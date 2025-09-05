@@ -1224,11 +1224,11 @@ def feature_importance_to_csv(results_dto_list):
     for results_dto in results_dto_list:
         importance_df = pd.DataFrame(columns=results_dto.keys())
         importance_df[ORGANISM_COLUMN] = None
-        prefixes = ("S_", "I_", "R_")
         for name in results_dto:
             importance_df.loc[name] = 0.0
 
             def strip_prefix(name: str) -> str:
+                prefixes = ("S_", "I_", "R_")
                 for p in prefixes:
                     if name.startswith(p):
                         return name[len(p) :]
@@ -1332,28 +1332,6 @@ def calc_accuracy(real_path, pred_df):
     )
 
     return accuracy_df
-
-
-def remove_unsaved_targets(preprocessed_data_input):
-    # Remove antibiotics that do not have a saved model
-    pkl_files = {
-        os.path.splitext(f)[0]
-        for f in os.listdir(MODEL_FOLDER + "second_layer")
-        if f.endswith(".pkl")
-    }
-    filtered_names = [
-        name for name in preprocessed_data_input.target_cols if name in pkl_files
-    ]
-    dropped_names = [
-        name for name in preprocessed_data_input.target_cols if name not in pkl_files
-    ]
-    if dropped_names:
-        print("Dropped target columns (no matching .pkl file):")
-        for name in dropped_names:
-            print(" -", name)
-    preprocessed_data_input.target_cols = filtered_names
-    print("HELLLLOOO?")
-    print(preprocessed_data_input.merged_input[preprocessed_data_input.target_cols])
 
 
 def process(dataset_list_input):
