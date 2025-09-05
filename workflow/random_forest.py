@@ -1261,36 +1261,28 @@ def generate_prediction_results(
     pred_df.to_csv(new_path, index=False)
     print(pred_df)
 
-    accuracy_df = calc_accuracy(real_path, pred_df)
-    print(accuracy_df)
-    evaluation_path = path.parent / f"Evaluation_{path.name}"
-    accuracy_df.to_csv(evaluation_path, index=False)
+    if config.EVALUATE_PREDICTION:
+        accuracy_df = calc_accuracy(real_path, pred_df)
+        print(accuracy_df)
+        evaluation_path = path.parent / f"Evaluation_{path.name}"
+        accuracy_df.to_csv(evaluation_path, index=False)
 
 
 def calc_accuracy(real_path, pred_df):
     real_df = pd.read_csv(
         real_path.iloc[0],
-        na_values=["NA", "NaN", "nan", "N/A", ""],  # normalize common NA strings
+        na_values=["NA", "NaN", "nan", "N/A", ""],
         keep_default_na=True,
     )
 
-    # Drop metadata
+    # Clean up
     real_df = real_df.drop(columns=["Sample_ID_IfH", "Organism_Code"])
     pred_df = pred_df.drop(columns=["Sample_ID_IfH"])
+    pred_df.columns = [c.replace("_AB", "") for c in pred_df.columns]
 
-    # Normalize predicted column names to match real names
-    pred_df.columns = [
-        c.replace("_AB", "")
-        .replace("Cefazolin", "Cefalexin")
-        .replace("Trimethoprim", "Trimethoprim-Sulfamethoxazol")
-        for c in pred_df.columns
-    ]
-
-    # Find antibiotics present in both datasets
+    # Find common antibiotics
     common_abs = sorted(set(real_df.columns) & set(pred_df.columns))
     print("Common antibiotics:", common_abs)
-
-    # Restrict to common antibiotics only
     real_df = real_df[common_abs]
     pred_df = pred_df[common_abs]
 
@@ -1303,7 +1295,6 @@ def calc_accuracy(real_path, pred_df):
             results.append({"antibiotic": ab, "n_samples": mask.sum(), "accuracy": acc})
         else:
             results.append({"antibiotic": ab, "n_samples": 0, "accuracy": None})
-
     accuracy_df = pd.DataFrame(results)
 
     # Remove rows with missing accuracy
@@ -1361,6 +1352,8 @@ def remove_unsaved_targets(preprocessed_data_input):
         for name in dropped_names:
             print(" -", name)
     preprocessed_data_input.target_cols = filtered_names
+    print("HELLLLOOO?")
+    print(preprocessed_data_input.merged_input[preprocessed_data_input.target_cols])
 
 
 def process(dataset_list_input):
@@ -1390,7 +1383,6 @@ def process(dataset_list_input):
         preprocessed_data_input = data_loader.get_genotype_data_for_prediction(
             dataset_list_input
         )
-        remove_unsaved_targets(preprocessed_data_input)
 
     else:
         preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list_input)
