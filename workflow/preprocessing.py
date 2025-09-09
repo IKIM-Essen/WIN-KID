@@ -169,6 +169,20 @@ class DataLoader:
                 + phenotype_file_row["DataSetName"]
             )
 
+            # Check for and remove duplicates inside dataset
+            duplicate_ids = input_phenotype_data[ID_COLUMN][
+                input_phenotype_data[ID_COLUMN].duplicated()
+            ].unique()
+            if len(duplicate_ids) > 0:
+                print(
+                    f"Removed {len(duplicate_ids)} duplicate IDs: {list(duplicate_ids)}"
+                )
+            else:
+                print("No duplicate IDs found.")
+            input_phenotype_data = input_phenotype_data[
+                ~input_phenotype_data[ID_COLUMN].isin(duplicate_ids)
+            ]
+
             # Check for duplicates across datasets
             ids_in_current = set(input_phenotype_data[ID_COLUMN])
             common_ids = ids_in_current & seen_once
@@ -203,7 +217,7 @@ class DataLoader:
                     input_phenotype[input_phenotype[col].isin(rare_classes)].index
                 )
 
-            if not updated:
+            if not updated or EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
                 break
 
             if rows_to_remove:
@@ -252,15 +266,16 @@ class DataLoader:
     def get_genotype_data_for_prediction(self, dataset_list):
         input_genotype = self.preprocess_genotype_data(dataset_list)
 
-        # Add missing features and set them to 0
+        # Load allowed features
         features = pd.read_csv("resources/settings/FeatureList.csv", header=None)
         all_features = features[0].tolist()
-        missing = [f for f in all_features if f not in input_genotype.columns]
 
-        # Create a DataFrame with missing columns set to 0
-        if missing:
-            missing_df = pd.DataFrame(0, index=input_genotype.index, columns=missing)
-            input_genotype = pd.concat([input_genotype, missing_df], axis=1)
+        # Always keep Sample_ID_IfH
+        if "Sample_ID_IfH" not in all_features:
+            all_features = ["Sample_ID_IfH"] + all_features
+
+        # Reindex the dataframe: add missing columns (fill with 0), drop extra ones
+        input_genotype = input_genotype.reindex(columns=all_features, fill_value=0)
 
         # Drop organism column
         input_genotype = input_genotype.drop(ORGANISM_COLUMN, axis=1)
@@ -293,7 +308,7 @@ class DataLoader:
         feature_cols_merged.append(ORGANISM_COLUMN)
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
-            self.merged_input.columns[2:num_phenotype_cols],
+            names,
             feature_cols_merged,
             organism_mapping=organism_mapping,
         )
