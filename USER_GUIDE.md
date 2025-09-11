@@ -1,3 +1,5 @@
+# User Guide
+
 ## Phenotype Prediction
 ### Preprocessing
 - Genotypic and phenotypic data are read in directly, preprocessed and fed into an RF model
