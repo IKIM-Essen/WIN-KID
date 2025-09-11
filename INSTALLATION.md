@@ -1,14 +1,16 @@
 
+# Installation and Quick Start Guide
+
 This guide explains how to install and set up the **WIN-KID** repository on your local system.
 
 ## Prerequisites
 
 Before starting, ensure you have the following installed on your system:
 
-- **Git**  
-- **Conda** (or **Miniconda** / **Anaconda**) for environment management  
-- Compatible operating system: **MacOS** or **Linux**  
-- Tested hardware: Apple M3 with 24 GB RAM  
+- **Git**
+- **Conda** (or **Miniconda** / **Anaconda**) for environment management
+- Compatible operating system: **MacOS** or **Linux**
+- Tested hardware: Apple M3 with 24 GB RAM
 
 
 ## Step 1: Clone the Repository
@@ -45,4 +47,3 @@ See [USER-GUIDE.md](./USER-GUIDE.md) for an overview of all applications and the
 ## Dependencies
 
 See [environment.yml](./environment.yml) for a list of all used dependencies
-
