@@ -10,23 +10,23 @@
 ### Stacked Random Forest Example
 Predict antibiogram for PATRIC samples on prepareddata and trained models:
 - Set `MODE = Execution_Mode.PREDICT_ON_SAVED` in the `config.py`
-- Run `path/to/python workflow/random_forest.py resources/settings/DataPaths_predict.csv`
-- See result at `/Users/julianzander/Code/WIN-KID/resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv`
+- Run `python workflow/random_forest.py resources/settings/DataPaths_predict.csv`
+- See result at `resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv`
 
 ### Stacked Random Forest Instructions
 - Set `STACK_MODEL = True` in the `config.py`
 - Train and Test:
   - Set `EXECUTION_MODE = Execution_Mode.TRAIN_TEST` in the `config.py`
   - Add the paths to the data records that shall be processed to `resources/settings/DataPaths.csv`
-  - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
+  - Run `python workflow/random_forest.py resources/settings/DataPaths.csv`
 - Train models and save them for later predictions:
   - Set `EXECUTION_MODE = Execution_Mode.SAVE_TRAINED` in the `config.py`
   - Add the paths to the data records that shall be processed to `resources/settings/DataPaths.csv`
-  - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
+  - Run `python workflow/random_forest.py resources/settings/DataPaths.csv`
 - Make predictions with earlier saved models:
   - Set `EXECUTION_MODE = Execution_Mode.PREDICT_ON_SAVED` in the `config.py`
   - Add the paths to the data records that shall be processed to `resources/settings/DataPaths.csv`. The csv corresponding to `PathToCsv` only needs to hold `Sample_ID_IfH` and `Organism_Code`
-  - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
+  - Run `python workflow/random_forest.py resources/settings/DataPaths.csv`
 
 ### Stacked Random Forest Architecture
 Relies on two RF layers for prediction
@@ -36,7 +36,7 @@ Relies on two RF layers for prediction
   - For each AB one RF model
   - The models are validated using out-of-fold iterations -> Test data is split into test and validation data
   - Output: Probabilities for each class (S/I/R)
-- The layer 1 results for each AB are combined
+- The Layer 1 results for each AB are combined
 - Layer 2:
   - Input: combined input of Layer 1
   - For each AB one RF model
@@ -52,7 +52,7 @@ Relies on two RF layers for prediction
 - Set `STACK_MODEL = False` and `EXECUTION_MODE` according to the desired outcome(see stacked RF) in the `config.py`
 - Add the paths to the data records that are processed to the `resources/settings/DataPaths.csv`
 - The starting point is the class `random_forest.py` which is used as follows:
-`path/to/python workflow/random_forest.py resources/settings/DataPaths.csv`
+`python workflow/random_forest.py resources/settings/DataPaths.csv`
 
 ## Further scripts
 
@@ -64,28 +64,27 @@ Relies on two RF layers for prediction
 - Run via: `python workflow/vitek_parser_ume.py directory/vitek.csv directory/output/file.csv` with test data at `resources/test_data`
 - works with tab seperated csv files only
 - Removes unnecessary columns
-- specify output FILE for the parsed vitek file
+- specify output **file** for the parsed VITEK file
 
 ### Parser UKM
 - Run via: `python workflow/vitek_parser_ukm.py directory/vitek.csv directory/output/file.csv` with test data at `resources/test_data`
-- Splits the Vitek file by bacteria name and replaces them with bactia code (see names.csv)
+- Splits the VITEK file by bacteria name and replaces them with bacteria code (see names.csv)
 - Removes unnecessary data and restructures the file
-- specify output FOLDER for the parsed vitek files
+- specify output **folder** for the parsed VITEK files
 - works with ";" seperated csv files only
 
 ### Parser BVBCR
-- Run via: `python workflow/vitek_parser_bvbcr.py Prospective_Jan25/MHKs_prospective_Jan25_parsed.csv Prospective_Jan25/MHKs_prospective_Jan25_interpreted.csv` with test data at `resources/test_data`
 - Run via: `python workflow/vitek_parser_bvbcr.py directory/vitek.csv directory/output/file.csv` with test data at `resources/test_data`
-- Splits the Vitek file by bacteria name and replaces them with bactia code (see names.csv)
+- Splits the VITEK file by bacteria name and replaces them with bacteria code (see names.csv)
 - Removes unnecessary data and restructures the file
-- specify output FOLDER for the parsed vitek files
+- specify output **folder** for the parsed VITEK files
 - works with tab seperated csv files only
 
 ### Interpreter
-- Run mic_interpreter.py to interpret any parsed files:
+- Run MIC interpreter to interpret any parsed files:
   `python workflow/mic_interpreter.py Prospective_Jan25/ToInterpret Prospective_Jan25/Interpreted`
 - Can handle single and multiple Input files and can handle multiple organisms in one file
-- Antibiotics from a vitek file that can not be matched to an EUCAST antibiotic are skipped and logged via print
+- Antibiotics from a VITEK file that can not be matched to an EUCAST antibiotic are skipped and logged via print
 - Antibiotics with missing EUCAST Values (e.g.: '"S <=": "-",') are removed from the interpreted table
 - For a match, the name of the VITEK antibiotic must be found in full in the EUCAST table
 - If several values are found, the one with the highest similarity score is used. If two values have the same similarity, any one is used.

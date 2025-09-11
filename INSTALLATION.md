@@ -22,7 +22,7 @@ cd WIN-KID
 
 ## Step 2: Set Up the Environment
 
-The project environment is defined in environment.yml. To create and activate it:
+The project environment is defined in the [environment.yml](./environment.yml). To create and activate it:
 
 ```bash
 # Create the environment
@@ -36,13 +36,13 @@ conda activate WIN-KID_env
 Predict antibiogram for PATRIC samples on prepared data and trained models:
 - Set `MODE = Execution_Mode.PREDICT_ON_SAVED` in the `config.py`
 - Run `path/to/python workflow/random_forest.py resources/settings/DataPaths_predict.csv`
-- See result at `/Users/julianzander/Code/WIN-KID/resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv`
+- See results at `resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv`
 
 ## Further Usages
 
-See `USER_GUIDE.md` for an overview of all applications and their instructions
+See [USER-GUIDE.md](./USER-GUIDE.md) for an overview of all applications and their instructions
 
 ## Dependencies
 
-See `environment.yml` for a list of all used dependencies
+See [environment.yml](./environment.yml) for a list of all used dependencies
 
