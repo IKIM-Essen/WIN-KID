@@ -36,9 +36,8 @@ conda activate WIN-KID_env
 
 ## Step 3: Quick Start
 Predict antibiogram for PATRIC samples on prepared data and trained models:
-- Set `MODE = Execution_Mode.PREDICT_ON_SAVED` in the `config.py`
-- Run `path/to/python workflow/random_forest.py resources/settings/DataPaths_predict.csv`
-- See results at `resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv`
+- Run `python workflow/random_forest.py resources/settings/DataPaths_predict.csv`
+- See results in terminal or at `resources/DataSets/BVBRC_use_case/Result_BVBCR_use_case.csv`
 
 ## Further Usages
 
