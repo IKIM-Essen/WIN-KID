@@ -71,7 +71,4 @@ For questions, please contact the WIN-KID team at [IKIM Essen](https://www.ikim.
 
 ## Funding
 
-<p float="left">
-  <img src="resources/images/nrw_funding.png" width="40%" />
-  <img src="resources/images/eu_funding.png" width="40%" />
-</p>
+![alt text](resources/images/funding.png)
