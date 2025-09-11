@@ -16,6 +16,18 @@ We compared two approaches:
 
 Evaluation was performed on *E. coli*, *K. pneumoniae*, and *A. baumannii* using Accuracy, F1-score, and ROC AUC.
 
+## ⚙️ Installation and Quick Start
+
+Follow the steps in [INSTALLATION.md](./INSTALLATION.md) to set everything up.  
+The repository provides an `environment.yml` file for reproducibility.
+
+
+## 🚀 Usage
+
+Detailed usage instructions are provided in [USER_GUIDE.md](./USER_GUIDE.md).  
+This includes preprocessing data, training models, and reproducing figures and evaluation metrics.
+
+
 ## 🎯 Goals of the Project
 
 The **WIN-KID project** aims to develop and provide open tools for predicting antimicrobial resistance (AMR) directly from genomic data using machine learning.  
@@ -51,19 +63,6 @@ Key takeaways:
 - `rf_models/` – previously trained and saved models
 - `INSTALLATION.md` – installation guide  
 - `USER_GUIDE.md` – user guide  
-
-
-## ⚙️ Installation
-
-Follow the steps in [INSTALLATION.md](./INSTALLATION.md) to set everything up.  
-The repository provides an `environment.yml` file for reproducibility.
-
-
-## 🚀 Usage
-
-Detailed usage instructions are provided in [USER_GUIDE.md](./USER_GUIDE.md).  
-This includes preprocessing data, training models, and reproducing figures and evaluation metrics.
-
 
 
 ## 📧 Contact
