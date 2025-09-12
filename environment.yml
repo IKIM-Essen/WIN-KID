@@ -4,8 +4,9 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - cloudpickle
-  - fuzzywuzzy
-  - matplotlib
-  - scikit-learn
-  - pandas
+  - python=3.13
+  - cloudpickle=3.1.1
+  - fuzzywuzzy=0.18.0
+  - matplotlib=3.10.6
+  - scikit-learn=1.7.2
+  - pandas=2.3.1
