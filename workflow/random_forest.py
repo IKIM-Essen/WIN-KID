@@ -1440,7 +1440,8 @@ def process(dataset_list_input):
         if config.EXECUTION_MODE != ExecutionMode.PREDICT_ON_SAVED:
             per_organism_evaluation_to_csv(per_organism_results)
             evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
-            feature_importance_to_csv(rf_results)
+            if config.STACK_MODEL:
+                feature_importance_to_csv(rf_results)
         print("--- %s seconds for ML---" % (time.time() - start_time))
 
 
