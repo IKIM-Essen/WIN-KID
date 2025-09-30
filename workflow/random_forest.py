@@ -57,6 +57,8 @@ class ResultDTO:
     precision: dict
     recall: dict
     f1: dict
+    vme: dict
+    me: dict
     y_pred: np.ndarray
     y_score: np.ndarray
     feature_importance: dict
@@ -83,9 +85,13 @@ def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import
     precision = {}
     recall = {}
     f1 = {}
+    vme = {}
+    me = {}
 
     if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
-        fpr, tpr, roc_auc, accuracy, precision, recall, f1 = (
+        fpr, tpr, roc_auc, accuracy, precision, recall, f1, vme, me = (
+            [],
+            [],
             [],
             [],
             [],
@@ -124,6 +130,8 @@ def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import
             )
 
         accuracy = accuracy_score(y_test_col, y_pred_col)
+        vme = calc_very_major_errors(y_test_col, y_pred_col)
+        me = calc_major_errors(y_test_col, y_pred_col)
 
     return ResultDTO(
         fpr=fpr,
@@ -134,10 +142,26 @@ def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import
         precision=precision,
         recall=recall,
         f1=f1,
+        vme=vme,
+        me=me,
         y_pred=y_pred_col,
         y_score=y_score_col,
         feature_importance=feat_import,
     )
+
+
+def calc_very_major_errors(y_test_col, y_pred_col):
+    mask = (y_test_col == 3) & np.isin(y_pred_col, [1, 2])
+    count = mask.sum()
+    percentage_vme = count / len(y_test_col) * 100
+    return percentage_vme
+
+
+def calc_major_errors(y_test_col, y_pred_col):
+    mask = (y_pred_col == 3) & (y_test_col == 1)
+    count = mask.sum()
+    percentage_all = count / len(y_test_col) * 100
+    return percentage_all
 
 
 def run_random_forest(
@@ -1037,6 +1061,8 @@ def evaluation_to_csv(results_dto_list, y_test_input_list, y_train_input_list):
                 "Precision_Mean",
                 "Recall_Mean",
                 "F1_Mean",
+                "VME",
+                "ME",
                 "Test_Count_S",
                 "Test_Count_I",
                 "Test_Count_R",
@@ -1057,6 +1083,8 @@ def evaluation_to_csv(results_dto_list, y_test_input_list, y_train_input_list):
                 np.nanmean(list(result.precision.values())),
                 np.nanmean(list(result.recall.values())),
                 np.nanmean(list(result.f1.values())),
+                result.vme,
+                result.me,
                 test_label_counts.get(1, 0),
                 test_label_counts.get(2, 0),
                 test_label_counts.get(3, 0),
@@ -1072,6 +1100,8 @@ def evaluation_to_csv(results_dto_list, y_test_input_list, y_train_input_list):
             median(evaluation_df["Precision_Mean"].dropna()),
             median(evaluation_df["Recall_Mean"].dropna()),
             median(evaluation_df["F1_Mean"].dropna()),
+            median(evaluation_df["VME"].dropna()),
+            median(evaluation_df["ME"].dropna()),
             pd.NA,
             pd.NA,
             pd.NA,
