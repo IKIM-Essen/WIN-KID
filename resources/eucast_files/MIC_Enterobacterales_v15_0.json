@@ -427,7 +427,8 @@
     {
         "Name": "Tigecycline",
         "S <=": "0.5",
-        "R >": "0.5"
+        "R >": "0.5",
+        "Species": "ECO"
     },
     {
         "Name": "Linezolid",
@@ -492,7 +493,8 @@
     {
         "Name": "Nitrofurantoin ",
         "S <=": "64",
-        "R >": "64"
+        "R >": "64",
+        "Species": "ECO"
     },
     {
         "Name": "Nitroxoline ",
