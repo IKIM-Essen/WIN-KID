@@ -158,7 +158,7 @@ def calc_very_major_errors(y_test_col, y_pred_col):
 
 
 def calc_major_errors(y_test_col, y_pred_col):
-    mask = (y_pred_col == 3) & (y_test_col == 1)
+    mask = (y_pred_col == 3) & np.isin(y_test_col, [1, 2])
     count = mask.sum()
     percentage_all = count / len(y_test_col) * 100
     return percentage_all
