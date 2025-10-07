@@ -71,4 +71,4 @@ For questions, please contact the WIN-KID team at [IKIM Essen](https://www.ikim.
 
 ## Funding
 
-![alt text](resources/images/funding.png)
+<img src="resources/images/funding.png" alt="Funding" width="300"/>

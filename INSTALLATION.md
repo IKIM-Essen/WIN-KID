@@ -41,7 +41,7 @@ Predict antibiogram for PATRIC samples on prepared data and trained models:
 
 ## Further Usages
 
-See [USER-GUIDE.md](./USER-GUIDE.md) for an overview of all applications and their instructions
+See [USER-GUIDE.md](./USER_GUIDE.md) for an overview of all applications and their instructions
 
 ## Dependencies
 
