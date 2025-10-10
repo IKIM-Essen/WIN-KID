@@ -514,6 +514,10 @@ def filter_merged_input(preprocessed_data, min_sample_number):
             preprocessed_data.target_cols = preprocessed_data.target_cols.difference(
                 [col_name]
             )
+    # Remove full NaN rows
+    mask = (merged_filtered_input[preprocessed_data.target_cols] != 0).any(axis=1)
+    merged_filtered_input = merged_filtered_input[mask]
+
     preprocessed_data.merged_input = merged_filtered_input
     print(
         "Number of samples after sample number filtering: "
