@@ -465,12 +465,13 @@ def run_stacked_random_forest(
         else:
             y_test, y_train, X_test, X_train = split_sets_for_stacked(X, y)
             if config.EXECUTION_MODE == ExecutionMode.TRAIN_TEST:
+                os.makedirs("Evaluation", exist_ok=True)
                 X_train[ID_COLUMN].to_csv(
-                    "resources/DataSets/BVBRC/sorted_samples_train.csv",
+                    "Evaluation/sorted_samples_train.csv",
                     index=False,
                 )
                 X_test[ID_COLUMN].to_csv(
-                    "resources/DataSets/BVBRC/sorted_samples_test.csv",
+                    "resources/sorted_samples_test.csv",
                     index=False,
                 )
 
