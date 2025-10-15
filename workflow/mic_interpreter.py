@@ -60,7 +60,8 @@ def get_most_similar_name(input_df, target_name, cut_off):
 
 def get_mic_interpretation(columns_vitek, rows_eucast, antibiotic_name_vitek, df):
     index = 0
-    for data in columns_vitek:
+    for _, row in columns_vitek.iterrows():
+        data = row.iloc[0]
         interpretation = ""
         if isinstance(data, float):
             interpretation = EucastInterpretation(4).name
@@ -84,7 +85,14 @@ def get_mic_interpretation(columns_vitek, rows_eucast, antibiotic_name_vitek, df
                 interpretation = EucastInterpretation(3).name
             else:
                 interpretation = EucastInterpretation(2).name
-
+            # Sort out species specific classifications
+            # TODO: Implement automatic "Species" generation for
+            if (
+                "Species" in rows_eucast.columns
+                and not rows_eucast["Species"].isna().all()
+            ):
+                if row.iloc[1] not in rows_eucast["Species"].values:
+                    interpretation = EucastInterpretation(4).name
         df = df.reset_index(drop=True)
         df.at[index, antibiotic_name_vitek] = interpretation
         index += 1
@@ -113,9 +121,12 @@ def interpret_vitek(input_vitek, input_eucast):
             )
         if matching_rows_eucast.empty:
             continue
-        column_data_vitek = input_vitek[column_vitek]
+        column_data_vitek = input_vitek[[column_vitek, "Organism_Code"]]
         df = get_mic_interpretation(
-            column_data_vitek, matching_rows_eucast, column_vitek, df
+            column_data_vitek,
+            matching_rows_eucast,
+            column_vitek,
+            df,
         )
     # Convert all data types to object
     df = df.astype("object")
@@ -146,6 +157,7 @@ def interpret_folder(vitek_folder, output_folder_df):
                 output_df = pd.concat(
                     [output_df, interpreted_df], ignore_index=True
                 ).fillna("NA")
+
             output_df_dic[output_path] = output_df
     return output_df_dic
 

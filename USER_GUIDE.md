@@ -56,6 +56,12 @@ Relies on two RF layers for prediction
 - The starting point is the class `random_forest.py` which is used as follows:
 `python workflow/random_forest.py resources/settings/DataPaths.csv`
 
+### Evaluate Prediction
+- Set `EVALUATE_PREDICTION` to true if predicted and real results shall be compared
+- The real result csv file needs to contain resistance classification to perform that
+- UME test data: `/groups/ds/Win-KID/UKM_Sciebo/Essen_Isolates/subset_0125_UME_Paper`
+- UKM test data: `/groups/ds/Win-KID/UKM_Sciebo/Retrospective_Dec22-Jul24_all-species/subset_retro_UKM_Paper`
+
 ## Further scripts
 
 ### Settings
@@ -106,9 +112,3 @@ Relies on two RF layers for prediction
 ## ToDo
 - Differentiate between oral and non oral?
 - What shall happen with EUCAST values that are doublets (e.g.: due extra information)
-
-## Evaluate Prediction
-- Set `EVALUATE_PREDICTION` to true if predicted and real results shall be compared
-- The real result csv file needs to contain resistance classification to perform that
-- UME test data: `/groups/ds/Win-KID/UKM_Sciebo/Essen_Isolates/subset_0125_UME_Paper`
-- UKM test data: `/groups/ds/Win-KID/UKM_Sciebo/Retrospective_Dec22-Jul24_all-species/subset_retro_UKM_Paper`

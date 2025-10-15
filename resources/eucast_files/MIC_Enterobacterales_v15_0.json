@@ -240,11 +240,6 @@
         "R >": "4"
     },
     {
-        "Name": "Imipenem",
-        "S <=": "0.001",
-        "R >": "4"
-    },
-    {
         "Name": "Imipenem-relebactam",
         "S <=": "2",
         "R >": "2"
@@ -273,11 +268,6 @@
         "Name": "Aztreonam-avibactam",
         "S <=": "4",
         "R >": "4"
-    },
-    {
-        "Name": "Ciprofloxacin ",
-        "S <=": "0.06",
-        "R >": "0.06"
     },
     {
         "Name": "Ciprofloxacin ",
@@ -437,7 +427,8 @@
     {
         "Name": "Tigecycline",
         "S <=": "0.5",
-        "R >": "0.5"
+        "R >": "0.5",
+        "Species": "ECO"
     },
     {
         "Name": "Linezolid",
@@ -502,7 +493,8 @@
     {
         "Name": "Nitrofurantoin ",
         "S <=": "64",
-        "R >": "64"
+        "R >": "64",
+        "Species": "ECO"
     },
     {
         "Name": "Nitroxoline ",
