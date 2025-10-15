@@ -200,6 +200,16 @@
         "R >": "8"
     },
     {
+        "Name": "Meropenem",
+        "S <=": "2",
+        "R >": "8"
+    },
+    {
+        "Name": "Meropenem ",
+        "S <=": "2",
+        "R >": "2"
+    },
+    {
         "Name": "Meropenem-vaborbactam ",
         "S <=": "8",
         "R >": "8"
