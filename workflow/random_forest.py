@@ -1305,6 +1305,7 @@ def feature_importance_to_csv(results_dto_list):
             s_clean = s_clean.groupby(s_clean.index).sum()
             importance_df.loc[name, s_clean.index] += s_clean
         importance_df_list.append(importance_df)
+    os.makedirs("Evaluation", exist_ok=True)
     pd.concat(importance_df_list).groupby(level=0).mean().to_csv(
         "Evaluation/feature_importance.csv"
     )
@@ -1359,7 +1360,7 @@ def process(dataset_list_input):
         preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list_input)
     else:
         preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list_input)
-        preprocessed_data_input = filter_merged_input(preprocessed_data_input, 20)
+        preprocessed_data_input = filter_merged_input(preprocessed_data_input, 15)
 
     start_time = time.time()
     if config.EXECUTION_MODE == ExecutionMode.TUNE_HYPERPARAMETER:
