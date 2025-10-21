@@ -2,7 +2,7 @@
 
 
 This repository contains code and resources used accompanying the [WIN-KID](https://www.medizin.uni-muenster.de/win-kid/startseite.html) project.  
-It includes data preprocessing pipelines, feature engineering, and machine learning models for **predicting antimicrobial resistance (AMR)** from bacterial whole-genome sequencing data.
+It includes data preprocessing pipeline, feature engineering, and machine learning models for **predicting antimicrobial resistance (AMR)** from AMR gene annotation gff3 files.
 
 
 ## 📖 About the Project
