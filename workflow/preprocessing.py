@@ -217,7 +217,7 @@ class DataLoader:
                     input_phenotype[input_phenotype[col].isin(rare_classes)].index
                 )
 
-            if not updated or EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+            if not updated or EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
                 break
 
             if rows_to_remove:

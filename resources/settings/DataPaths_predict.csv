@@ -1,2 +1,2 @@
 DataSetName,PathToCsv,PathToGff
-BVBRC_use_case,resources/DataSets/BVBRC_use_case/BVBCR_use_case.csv,resources/DataSets/BVBRC_use_case/gff_card
+BVBRC_use_case,resources/DataSets/BVBRC_use_case/BVBCR_use_case.csv,resources/DataSets/BVBRC/gff_card_401

@@ -57,6 +57,8 @@ class ResultDTO:
     precision: dict
     recall: dict
     f1: dict
+    vme: dict
+    me: dict
     y_pred: np.ndarray
     y_score: np.ndarray
     feature_importance: dict
@@ -83,9 +85,13 @@ def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import
     precision = {}
     recall = {}
     f1 = {}
+    vme = {}
+    me = {}
 
-    if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
-        fpr, tpr, roc_auc, accuracy, precision, recall, f1 = (
+    if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
+        fpr, tpr, roc_auc, accuracy, precision, recall, f1, vme, me = (
+            [],
+            [],
             [],
             [],
             [],
@@ -124,6 +130,8 @@ def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import
             )
 
         accuracy = accuracy_score(y_test_col, y_pred_col)
+        vme = calc_very_major_errors(y_test_col, y_pred_col)
+        me = calc_major_errors(y_test_col, y_pred_col)
 
     return ResultDTO(
         fpr=fpr,
@@ -134,10 +142,26 @@ def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import
         precision=precision,
         recall=recall,
         f1=f1,
+        vme=vme,
+        me=me,
         y_pred=y_pred_col,
         y_score=y_score_col,
         feature_importance=feat_import,
     )
+
+
+def calc_very_major_errors(y_test_col, y_pred_col):
+    mask = (y_test_col == 3) & np.isin(y_pred_col, [1, 2])
+    count = mask.sum()
+    percentage_vme = count / len(y_test_col) * 100
+    return percentage_vme
+
+
+def calc_major_errors(y_test_col, y_pred_col):
+    mask = (y_pred_col == 3) & np.isin(y_test_col, [1, 2])
+    count = mask.sum()
+    percentage_all = count / len(y_test_col) * 100
+    return percentage_all
 
 
 def run_random_forest(
@@ -178,7 +202,10 @@ def run_random_forest(
         with open(model_path, "wb") as f:
             cloudpickle.dump(model, f)
 
-    elif config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+    elif (
+        config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
+        or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
+    ):
         with open(model_path, "rb") as f:
             model = cloudpickle.load(f)
 
@@ -243,7 +270,10 @@ def run_layer_one_random_forest(
         with open(model_path, "wb") as f:
             cloudpickle.dump(model, f)
 
-    elif config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+    elif (
+        config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
+        or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
+    ):
         X_test_input = X_test_input.drop(ID_COLUMN, axis=1)
         with open(model_path, "rb") as f:
             model = cloudpickle.load(f)
@@ -351,7 +381,10 @@ def run_stacked_random_forest(
 
     merged_filtered_input = preprocessed_data.merged_input
 
-    if config.EXECUTION_MODE != ExecutionMode.PREDICT_ON_SAVED:
+    if (
+        config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE
+        or config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_EVALUATE
+    ):
         # Drop rows of Organisms that occur only once
         value_counts = preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts()
         rare_values = value_counts[value_counts == 1].index
@@ -416,7 +449,10 @@ def run_stacked_random_forest(
         )
     else:
         # SPLITTING
-        if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+        if (
+            config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
+            or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
+        ):
             print(
                 "WARNING in "
                 + config.EXECUTION_MODE.value
@@ -428,6 +464,16 @@ def run_stacked_random_forest(
             X_train = X
         else:
             y_test, y_train, X_test, X_train = split_sets_for_stacked(X, y)
+            if config.EXECUTION_MODE == ExecutionMode.TRAIN_TEST:
+                os.makedirs("Evaluation", exist_ok=True)
+                X_train[ID_COLUMN].to_csv(
+                    "Evaluation/sorted_samples_train.csv",
+                    index=False,
+                )
+                X_test[ID_COLUMN].to_csv(
+                    "resources/sorted_samples_test.csv",
+                    index=False,
+                )
 
         # Train with all sample if saved
         if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
@@ -490,6 +536,10 @@ def filter_merged_input(preprocessed_data, min_sample_number):
             preprocessed_data.target_cols = preprocessed_data.target_cols.difference(
                 [col_name]
             )
+    # Remove full NaN rows
+    mask = (merged_filtered_input[preprocessed_data.target_cols] != 0).any(axis=1)
+    merged_filtered_input = merged_filtered_input[mask]
+
     preprocessed_data.merged_input = merged_filtered_input
     print(
         "Number of samples after sample number filtering: "
@@ -604,11 +654,18 @@ def compute_stacked_random_forest(
         y_test_filtered = y_proba_test[target][test_mask]
         organism_test_filtered = organism_test[test_mask]
 
-        if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+        if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
             X_train_filtered = X_proba_train
             y_train_filtered = y_proba_train[target]
             X_test_filtered = X_proba_test
             y_test_filtered = y_proba_test[target]
+
+        if (
+            config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
+            or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
+        ):
+            X_train_filtered = X_test_filtered
+            y_train_filtered = y_test_filtered
 
         second_layer_result = run_random_forest(
             X_train_filtered,
@@ -724,7 +781,10 @@ def run_first_layer(
 
         y_train_count[target] = Counter(y_train_target)
         y_test_count[target] = Counter(y_test_target)
-        if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+        if (
+            config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
+            or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
+        ):
             X_train_target = X_test
             X_test_target = X_test
             X_test_target_id = X_test_target[ID_COLUMN]
@@ -775,9 +835,9 @@ def compute_oof_predictions(
     run_counter = 0
     # Add additional train data if necessary for splitting. Train data has no effect on prediction.
     if (
-        config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED
-        and len(X_train_target) < 5
-    ):
+        config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
+        or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
+    ) and len(X_train_target) < 5:
         X_first_row_repeated = pd.concat(
             [X_train_target.iloc[[0]]] * 4, ignore_index=True
         )
@@ -1037,6 +1097,8 @@ def evaluation_to_csv(results_dto_list, y_test_input_list, y_train_input_list):
                 "Precision_Mean",
                 "Recall_Mean",
                 "F1_Mean",
+                "VME",
+                "ME",
                 "Test_Count_S",
                 "Test_Count_I",
                 "Test_Count_R",
@@ -1057,6 +1119,8 @@ def evaluation_to_csv(results_dto_list, y_test_input_list, y_train_input_list):
                 np.nanmean(list(result.precision.values())),
                 np.nanmean(list(result.recall.values())),
                 np.nanmean(list(result.f1.values())),
+                result.vme,
+                result.me,
                 test_label_counts.get(1, 0),
                 test_label_counts.get(2, 0),
                 test_label_counts.get(3, 0),
@@ -1072,6 +1136,8 @@ def evaluation_to_csv(results_dto_list, y_test_input_list, y_train_input_list):
             median(evaluation_df["Precision_Mean"].dropna()),
             median(evaluation_df["Recall_Mean"].dropna()),
             median(evaluation_df["F1_Mean"].dropna()),
+            median(evaluation_df["VME"].dropna()),
+            median(evaluation_df["ME"].dropna()),
             pd.NA,
             pd.NA,
             pd.NA,
@@ -1239,12 +1305,13 @@ def feature_importance_to_csv(results_dto_list):
             s_clean = s_clean.groupby(s_clean.index).sum()
             importance_df.loc[name, s_clean.index] += s_clean
         importance_df_list.append(importance_df)
+    os.makedirs("Evaluation", exist_ok=True)
     pd.concat(importance_df_list).groupby(level=0).mean().to_csv(
         "Evaluation/feature_importance.csv"
     )
 
 
-def generate_prediction_results(
+def save_prediction_results(
     dataset_input, preprocessed_input, rf_results_input, real_path
 ):
     pred_dict = {name: result.y_pred for name, result in rf_results_input[0].items()}
@@ -1260,78 +1327,6 @@ def generate_prediction_results(
     new_path = path.parent / f"Result_{path.name}"
     pred_df.to_csv(new_path, index=False)
     print(pred_df)
-
-    if config.EVALUATE_PREDICTION:
-        accuracy_df = calc_accuracy(real_path, pred_df)
-        print(accuracy_df)
-        evaluation_path = path.parent / f"Evaluation_{path.name}"
-        accuracy_df.to_csv(evaluation_path, index=False)
-
-
-def calc_accuracy(real_path, pred_df):
-    real_df = pd.read_csv(
-        real_path.iloc[0],
-        na_values=["NA", "NaN", "nan", "N/A", ""],
-        keep_default_na=True,
-    )
-
-    # Clean up
-    real_df = real_df.drop(columns=["Sample_ID_IfH", "Organism_Code"])
-    pred_df = pred_df.drop(columns=["Sample_ID_IfH"])
-    pred_df.columns = [c.replace("_AB", "") for c in pred_df.columns]
-
-    # Find common antibiotics
-    common_abs = sorted(set(real_df.columns) & set(pred_df.columns))
-    print("Common antibiotics:", common_abs)
-    real_df = real_df[common_abs]
-    pred_df = pred_df[common_abs]
-
-    # Compute per-antibiotic accuracy
-    results = []
-    for ab in common_abs:
-        mask = real_df[ab].notna()  # ignore NA values in real
-        if mask.sum() > 0:
-            acc = (real_df.loc[mask, ab] == pred_df.loc[mask, ab]).mean()
-            results.append({"antibiotic": ab, "n_samples": mask.sum(), "accuracy": acc})
-        else:
-            results.append({"antibiotic": ab, "n_samples": 0, "accuracy": None})
-    accuracy_df = pd.DataFrame(results)
-
-    # Remove rows with missing accuracy
-    valid_df = accuracy_df.dropna(subset=["accuracy"])
-
-    # Calc weighted median
-    sorted_df = valid_df.sort_values("accuracy")
-    acc_values = sorted_df["accuracy"].to_numpy()
-    weights = sorted_df["n_samples"].to_numpy()
-
-    def weighted_median(values, weights):
-        sorter = np.argsort(values)
-        values, weights = values[sorter], weights[sorter]
-        cumsum = np.cumsum(weights)
-        cutoff = weights.sum() / 2
-        return values[np.searchsorted(cumsum, cutoff)]
-
-    wm = weighted_median(acc_values, weights)
-
-    # Add weighted median
-    accuracy_df = pd.concat(
-        [
-            accuracy_df,
-            pd.DataFrame(
-                [
-                    {
-                        "antibiotic": "Weighted_median",
-                        "n_samples": weights.sum(),
-                        "accuracy": wm,
-                    }
-                ]
-            ),
-        ],
-        ignore_index=True,
-    )
-
-    return accuracy_df
 
 
 def process(dataset_list_input):
@@ -1357,14 +1352,15 @@ def process(dataset_list_input):
 
     data_loader = preprocessing.DataLoader()
 
-    if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
+    if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
         preprocessed_data_input = data_loader.get_genotype_data_for_prediction(
             dataset_list_input
         )
-
+    elif config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE:
+        preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list_input)
     else:
         preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list_input)
-        preprocessed_data_input = filter_merged_input(preprocessed_data_input, 20)
+        preprocessed_data_input = filter_merged_input(preprocessed_data_input, 15)
 
     start_time = time.time()
     if config.EXECUTION_MODE == ExecutionMode.TUNE_HYPERPARAMETER:
@@ -1410,15 +1406,15 @@ def process(dataset_list_input):
                 False,
             )
 
-            if config.EXECUTION_MODE == ExecutionMode.PREDICT_ON_SAVED:
-                generate_prediction_results(
+            if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
+                save_prediction_results(
                     dataset_list_input,
                     preprocessed_data_input,
                     rf_results,
                     dataset_list_input["PathToCsv"],
                 )
 
-            else:
+            if config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE:
                 display_results(rf_results[0], False)
                 feature_importance_to_csv(rf_results)
 
@@ -1437,7 +1433,7 @@ def process(dataset_list_input):
 
         else:
             raise ValueError("Model strategy is invalid")
-        if config.EXECUTION_MODE != ExecutionMode.PREDICT_ON_SAVED:
+        if config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE:
             per_organism_evaluation_to_csv(per_organism_results)
             evaluation_to_csv(rf_results, y_test_count_result, y_train_count_result)
             if config.STACK_MODEL:

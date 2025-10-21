@@ -7,6 +7,7 @@ from enum import Enum
 
 class ExecutionMode(Enum):
     SAVE_TRAINED = "SAVE_TRAINED"
-    PREDICT_ON_SAVED = "PREDICT_ON_SAVED"
+    PREDICT_AND_SAVE = "PREDICT_AND_SAVE"
+    PREDICT_AND_EVALUATE = "PREDICT_AND_EVALUATE"
     TRAIN_TEST = "TRAIN_TEST"
     TUNE_HYPERPARAMETER = "tune_hyperparameter"
