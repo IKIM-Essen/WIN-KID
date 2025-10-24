@@ -298,73 +298,49 @@ def run_layer_one_random_forest(
     return proba_full_val_df, proba_full_test_df
 
 
-def run_splitted_random_forest(preprocessed_data, rf_settings):
-
-    y_test_count, y_train_count, result_dic = ({}, {}, {})
-    y_test, y_train, X_test, X_train = ([], [], [], [])
-    org_res = {}
-
-    for col in preprocessed_data.target_cols:
-        merged_filtered_input = preprocessed_data.merged_input
-        merged_filtered_input = merged_filtered_input[merged_filtered_input[col] != 0]
-
-        # Drop rows of Organisms that occur only once
-        value_counts = merged_filtered_input[ORGANISM_COLUMN].value_counts()
-        rare_values = value_counts[value_counts == 1].index
-        merged_filtered_input = merged_filtered_input[
-            ~merged_filtered_input[ORGANISM_COLUMN].isin(rare_values)
-        ]
-
-        X = merged_filtered_input[preprocessed_data.feature_cols]
-        y = merged_filtered_input[col]
-
-        if config.SPLIT_STRATEGY.name == SplitStrategy.STRATIFY.name:
-            X_train, X_test, y_train, y_test = train_test_split(
-                X,
-                y,
-                test_size=config.TEST_SIZE,  # Not splitting further, just rebalancing
-                stratify=X[ORGANISM_COLUMN],
-            )
-        elif config.SPLIT_STRATEGY.name == SplitStrategy.RANDOM.name:
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=config.TEST_SIZE, random_state=42
-            )
-        elif config.SPLIT_STRATEGY.name == SplitStrategy.CLUSTER.name:
-            cluster_labels = KMeans(
-                n_clusters=int((len(merged_filtered_input) / 10)), random_state=42
-            ).fit_predict(X)
-            unique_clusters = np.unique(cluster_labels)
-            train_clusters, test_clusters = train_test_split(
-                unique_clusters, test_size=config.TEST_SIZE, random_state=42
-            )
-            train_idx = np.isin(cluster_labels, train_clusters)
-            test_idx = np.isin(cluster_labels, test_clusters)
-            X_train, X_test, y_train, y_test = (
-                X[train_idx],
-                X[test_idx],
-                y[train_idx],
-                y[test_idx],
-            )
-
-        y_test_count[col] = Counter(y_test)
-        y_train_count[col] = Counter(y_train)
-
-        sinlge_result = run_random_forest(
-            X_train, y_train, X_test, y_test, col, rf_settings
+def split_train_test(merged_filtered_input, X, y):
+    if config.SPLIT_STRATEGY.name == SplitStrategy.STRATIFY.name:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            test_size=config.TEST_SIZE,  # Not splitting further, just rebalancing
+            stratify=X[ORGANISM_COLUMN],
         )
-        result_dic[col] = sinlge_result
-
-        organism_test = merged_filtered_input.loc[y_test.index, ORGANISM_COLUMN]
-        org_res[col] = evaluate_per_organism(
-            sinlge_result.y_pred, y_test, organism_test, sinlge_result.y_score, col
+    elif config.SPLIT_STRATEGY.name == SplitStrategy.RANDOM.name:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=config.TEST_SIZE, random_state=42
+        )
+    elif config.SPLIT_STRATEGY.name == SplitStrategy.CLUSTER.name:
+        cluster_labels = KMeans(
+            n_clusters=int((len(merged_filtered_input) / 10)), random_state=42
+        ).fit_predict(X)
+        unique_clusters = np.unique(cluster_labels)
+        train_clusters, test_clusters = train_test_split(
+            unique_clusters, test_size=config.TEST_SIZE, random_state=42
+        )
+        train_idx = np.isin(cluster_labels, train_clusters)
+        test_idx = np.isin(cluster_labels, test_clusters)
+        X_train, X_test, y_train, y_test = (
+            X[train_idx],
+            X[test_idx],
+            y[train_idx],
+            y[test_idx],
         )
 
-    return (
-        [result_dic],
-        [y_test_count],
-        [y_train_count],
-        org_res,
-    )
+    return y_test, y_train, X_test, X_train
+
+
+def filter_preprocessed_data(merged_filtered_input, col):
+    # Remove rows with label 0 (unlabeled)
+    merged_filtered_input = merged_filtered_input[merged_filtered_input[col] != 0]
+
+    # Drop rows of Organisms that occur only once
+    value_counts = merged_filtered_input[ORGANISM_COLUMN].value_counts()
+    rare_values = value_counts[value_counts == 1].index
+    merged_filtered_input = merged_filtered_input[
+        ~merged_filtered_input[ORGANISM_COLUMN].isin(rare_values)
+    ]
+    return merged_filtered_input
 
 
 def run_stacked_random_forest(
@@ -960,65 +936,6 @@ def average_per_organism_results(per_fold_results_list):
     return averaged
 
 
-def run_cross_validated_random_forest(preprocessed_data, rf_settings_cv):
-    cv_results = []
-    test_label_counts = []
-    train_label_counts = []
-    org_res = {}
-
-    for col in preprocessed_data.target_cols:
-
-        # Remove rows with label 0 (unlabeled)
-        df = preprocessed_data.merged_input[preprocessed_data.merged_input[col] != 0]
-        # Remove rare Organism_Code values (only occur once)
-        organism_counts = df[ORGANISM_COLUMN].value_counts()
-        common_organisms = organism_counts[organism_counts > 1].index
-        df = df[df[ORGANISM_COLUMN].isin(common_organisms)]
-
-        X = df[preprocessed_data.feature_cols]
-        y = df[col]
-        stratify_col = df[ORGANISM_COLUMN]
-
-        split_iterator = get_split_iterator(X, stratify_col)
-
-        fold_per_organism_results = defaultdict(list)
-
-        idx = 0
-        for train_idx, test_idx in split_iterator:
-            X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
-            y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-
-            if set(y_train.unique()) != set(y_test.unique()):
-                print(
-                    f"Skipped fold for {col}: y_train and y_test have different classes."
-                )
-                continue
-
-            result = run_random_forest(
-                X_train, y_train, X_test, y_test, col, rf_settings_cv
-            )
-
-            # Add results to list
-            if len(cv_results) <= idx:
-                cv_results.append({})
-                test_label_counts.append({})
-                train_label_counts.append({})
-            (cv_results[idx])[col] = result
-            (test_label_counts[idx])[col] = y_test.value_counts()
-            (train_label_counts[idx])[col] = y_train.value_counts()
-            idx = idx + 1
-
-            organism_test = df.iloc[test_idx][ORGANISM_COLUMN]
-            per_fold_result = evaluate_per_organism(
-                result.y_pred, y_test, organism_test, result.y_score, col
-            )
-            fold_per_organism_results[col].append(per_fold_result)
-
-        org_res[col] = average_per_organism_results(fold_per_organism_results[col])
-
-    return cv_results, test_label_counts, train_label_counts, org_res
-
-
 def display_results(results_dto, print_feat_imp):
     reverse_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
     with PdfPages("rf_roc_report.pdf") as pdf:
@@ -1192,80 +1109,80 @@ def per_organism_evaluation_to_csv(
             print(f"{metric.title()}-table saved at: {metric_output_path}")
 
 
-def tune_hyperparameter(preprocessed_data):
-    param_grid = {
-        "n_estimators": [10, 50, 100, 200, 500],
-        "max_depth": [None, 10, 20, 50],
-        "min_samples_split": [2, 5, 10],
-        "min_samples_leaf": [1, 2, 4],
-        "max_features": ["sqrt", "log2", 0.3, None],
-        "class_weight": [None, "balanced", "balanced_subsample"],
-        "bootstrap": [True, False],
-        "split_strategy": list(SplitStrategy),
-    }
+# def tune_hyperparameter(preprocessed_data):
+#     param_grid = {
+#         "n_estimators": [10, 50, 100, 200, 500],
+#         "max_depth": [None, 10, 20, 50],
+#         "min_samples_split": [2, 5, 10],
+#         "min_samples_leaf": [1, 2, 4],
+#         "max_features": ["sqrt", "log2", 0.3, None],
+#         "class_weight": [None, "balanced", "balanced_subsample"],
+#         "bootstrap": [True, False],
+#         "split_strategy": list(SplitStrategy),
+#     }
 
-    keys, values = zip(*param_grid.items())
-    combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
+#     keys, values = zip(*param_grid.items())
+#     combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
 
-    combinations_subsample = random.sample(combinations, min(3, len(combinations)))
+#     combinations_subsample = random.sample(combinations, min(3, len(combinations)))
 
-    metrics = {
-        "Accuracy": [],
-        "ROC_AUC": [],
-        "PR_AUC": [],
-        "Precision": [],
-        "Recall": [],
-        "f1": [],
-    }
+#     metrics = {
+#         "Accuracy": [],
+#         "ROC_AUC": [],
+#         "PR_AUC": [],
+#         "Precision": [],
+#         "Recall": [],
+#         "f1": [],
+#     }
 
-    combinations_subsample_df = pd.DataFrame(combinations_subsample)
-    counter = 1
-    for combo in combinations_subsample:
-        print(f"{counter} of {len(combinations_subsample)} subsampled combinations")
-        counter = counter + 1
+#     combinations_subsample_df = pd.DataFrame(combinations_subsample)
+#     counter = 1
+#     for combo in combinations_subsample:
+#         print(f"{counter} of {len(combinations_subsample)} subsampled combinations")
+#         counter = counter + 1
 
-        max_depth_value = combo["max_depth"]
-        if combo["max_depth"] != combo["max_depth"]:
-            max_depth_value = None
+#         max_depth_value = combo["max_depth"]
+#         if combo["max_depth"] != combo["max_depth"]:
+#             max_depth_value = None
 
-        rf_settings = RandomForestSettings(
-            n_estimators=combo["n_estimators"],
-            class_weight=combo["class_weight"],
-            max_depth=max_depth_value,
-            min_samples_split=combo["min_samples_split"],
-            min_samples_leaf=combo["min_samples_leaf"],
-            max_features=combo["max_features"],
-            bootstrap=combo["bootstrap"],
-        )
+#         rf_settings = RandomForestSettings(
+#             n_estimators=combo["n_estimators"],
+#             class_weight=combo["class_weight"],
+#             max_depth=max_depth_value,
+#             min_samples_split=combo["min_samples_split"],
+#             min_samples_leaf=combo["min_samples_leaf"],
+#             max_features=combo["max_features"],
+#             bootstrap=combo["bootstrap"],
+#         )
 
-        rf_cv_results, _, _, _ = run_cross_validated_random_forest(
-            preprocessed_data,
-            rf_settings,
-        )
+#         rf_cv_results, _, _, _ = run_cross_validated_random_forest(
+#             preprocessed_data,
+#             rf_settings,
+#         )
 
-        accs, rocs, prs, precs, recs, f1s = [], [], [], [], [], []
-        for result_dic in rf_cv_results:
-            for result in result_dic.values():
-                accs.append(result.accuracy)
-                rocs.append(np.nanmean(list(result.roc_auc.values())))
-                prs.append(np.nanmean(list(result.pr_auc.values())))
-                precs.append(np.nanmean(list(result.precision.values())))
-                recs.append(np.nanmean(list(result.recall.values())))
-                f1s.append(np.nanmean(list(result.f1.values())))
+#         accs, rocs, prs, precs, recs, f1s = [], [], [], [], [], []
+#         for result_dic in rf_cv_results:
+#             for result in result_dic.values():
+#                 accs.append(result.accuracy)
+#                 rocs.append(np.nanmean(list(result.roc_auc.values())))
+#                 prs.append(np.nanmean(list(result.pr_auc.values())))
+#                 precs.append(np.nanmean(list(result.precision.values())))
+#                 recs.append(np.nanmean(list(result.recall.values())))
+#                 f1s.append(np.nanmean(list(result.f1.values())))
 
-        metrics["Accuracy"].append(median(accs))
-        metrics["ROC_AUC"].append(median(rocs))
-        metrics["PR_AUC"].append(median(prs))
-        metrics["Precision"].append(median(precs))
-        metrics["Recall"].append(median(recs))
-        metrics["f1"].append(median(f1s))
+#         metrics["Accuracy"].append(median(accs))
+#         metrics["ROC_AUC"].append(median(rocs))
+#         metrics["PR_AUC"].append(median(prs))
+#         metrics["Precision"].append(median(precs))
+#         metrics["Recall"].append(median(recs))
+#         metrics["f1"].append(median(f1s))
 
-    for key, values in metrics.items():
-        combinations_subsample_df[key] = values
+#     for key, values in metrics.items():
+#         combinations_subsample_df[key] = values
 
-    combinations_subsample_df.to_csv(
-        "Evaluation/Hyperparameter.csv", index=True, header=True
-    )
+#     combinations_subsample_df.to_csv(
+#         "Evaluation/Hyperparameter.csv", index=True, header=True
+#     )
 
 
 def feature_importance_to_csv(results_dto_list):
