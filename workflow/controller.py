@@ -2,6 +2,7 @@ import argparse
 from collections import Counter, defaultdict
 import os
 import time
+import logging
 
 import pandas as pd
 
@@ -37,9 +38,8 @@ def process(dataset_list_input):
         preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list_input)
     else:
         preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list_input)
-        # TODO: Shall be a config
         preprocessed_data_input = random_forest.filter_merged_input(
-            preprocessed_data_input, 15
+            preprocessed_data_input, config.MIN_SAMPLE_NUMBER
         )
 
     # Random Forest
@@ -57,7 +57,7 @@ def process(dataset_list_input):
             y_test_count_results,
             y_train_count_results,
         ) = run_classic_rf(preprocessed_data_input)
-        random_forest.display_results(rf_results[0], False)
+        random_forest.display_results(rf_results[0])
 
     elif not config.STACK_MODEL and config.CROSS_VALIDATE:
         (
@@ -89,7 +89,7 @@ def process(dataset_list_input):
             )
 
         if config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE:
-            random_forest.display_results(rf_results[0], False)
+            random_forest.display_results(rf_results[0])
             random_forest.feature_importance_to_csv(rf_results)
 
     elif config.STACK_MODEL and config.CROSS_VALIDATE:
@@ -114,7 +114,7 @@ def process(dataset_list_input):
         )
         if config.STACK_MODEL:
             random_forest.feature_importance_to_csv(rf_results)
-    print("--- %s seconds for ML---" % (time.time() - start_time))
+    logging.info("--- %s seconds for ML---", (time.time() - start_time))
 
 
 def run_classic_rf(preprocessed_data_input):
@@ -188,8 +188,9 @@ def run_classic_rc_cv(preprocessed_data_input):
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
             if set(y_train.unique()) != set(y_test.unique()):
-                print(
-                    f"Skipped fold for {col}: y_train and y_test have different classes."
+                logging.warning(
+                    "Skipped fold for %s: y_train and y_test have different classes.",
+                    col,
                 )
                 continue
 
@@ -233,6 +234,7 @@ def run_classic_rc_cv(preprocessed_data_input):
 
 # TODO: Add logger
 if __name__ == "__main__":
+    logging.basicConfig(level=config.LOGGING_LEVEL)
     parser = argparse.ArgumentParser(
         description="Run stackPred on multiple datasets from a settings file"
     )

@@ -2,6 +2,7 @@
 # Licensed under the MIT License
 # This file may be copied, modified, and distributed under the terms of the MIT License.
 
+import logging
 import os
 import itertools
 import random
@@ -103,8 +104,10 @@ def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import
             y_pred_binarized = (y_pred_col == label_class).astype(int)
 
             if label_class >= y_score_col.shape[1]:
-                print(
-                    f"Skipping class {label_class} for {target_col}, not in predictions"
+                logging.warning(
+                    f"Skipping class %s for %s, not in predictions",
+                    label_class,
+                    target_col,
                 )
                 continue
 
@@ -426,10 +429,8 @@ def run_stacked_random_forest(
             config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
             or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
         ):
-            print(
-                "WARNING in "
-                + config.EXECUTION_MODE.value
-                + " all samples are used for test"
+            logging.warning(
+                "In %s all samples are used for test", config.EXECUTION_MODE.value
             )
             y_test = y
             y_train = y
@@ -450,10 +451,8 @@ def run_stacked_random_forest(
 
         # Train with all sample if saved
         if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
-            print(
-                "WARNING in "
-                + config.EXECUTION_MODE.value
-                + " all samples are used for training"
+            logging.WARNING(
+                "n %s all samples are used for training", config.EXECUTION_MODE.value
             )
             y_train = pd.concat([y_train, y_test], ignore_index=True)
             X_train = pd.concat([X_train, X_test], ignore_index=True)
@@ -496,7 +495,11 @@ def filter_merged_input(preprocessed_data, min_sample_number):
         low_freq_values = value_counts[value_counts < min_sample_number].index
 
         if len(list(low_freq_values)) > 0:
-            print(f"Removed values for column '{col_name}': {list(low_freq_values)}")
+            logging.warning(
+                "Removed values for column %s: %s",
+                col_name,
+                list(low_freq_values),
+            )
 
         merged_filtered_input = merged_filtered_input[
             ~merged_filtered_input[col_name].isin(low_freq_values)
@@ -505,7 +508,10 @@ def filter_merged_input(preprocessed_data, min_sample_number):
 
         if len(updated_value_counts) <= 2:
             merged_filtered_input = merged_filtered_input.drop(col_name, axis=1)
-            print(col_name + " removed because only one class is left after filtering")
+            logging.warning(
+                "%s removed because only one class is left after filtering",
+                col_name,
+            )
             preprocessed_data.target_cols = preprocessed_data.target_cols.difference(
                 [col_name]
             )
@@ -514,11 +520,11 @@ def filter_merged_input(preprocessed_data, min_sample_number):
     merged_filtered_input = merged_filtered_input[mask]
 
     preprocessed_data.merged_input = merged_filtered_input
-    print(
-        "Number of samples after sample number filtering: "
-        + str(len(preprocessed_data.merged_input))
+    logging.info(
+        "Number of samples after sample number filtering: %s",
+        len(preprocessed_data.merged_input),
     )
-    print(preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts())
+    logging.info(preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts())
     os.makedirs("Evaluation", exist_ok=True)
     preprocessed_data.merged_input[ID_COLUMN].to_csv(
         "Evaluation/samples_used.csv", index=False
@@ -544,8 +550,10 @@ def evaluate_per_organism(y_pred, y_true, organism_codes, y_score, target_name):
 
         # Skip if only 1 class is present (not valid for AUC)
         if len(np.unique(y_t)) < 2:
-            print(
-                f"[WARN] Skipping evaluation per organism for organism {org_code} due to single class in target '{target_name}'."
+            logging.warning(
+                "Skipping evaluation per organism for organism %s due to single class in target '%s'.",
+                org_code,
+                target_name,
             )
 
             roc_auc = pr_auc = np.nan
@@ -936,39 +944,22 @@ def average_per_organism_results(per_fold_results_list):
     return averaged
 
 
-def display_results(results_dto, print_feat_imp):
+def display_results(results_dto):
     reverse_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
     with PdfPages("rf_roc_report.pdf") as pdf:
         for name in results_dto:
             result = results_dto[name]
-            print(f"{name}    Accuracy: {result.accuracy}")
-            # Investigate feature importance
-            if print_feat_imp:
-                print("Ranked Feature Importance:")
-                print(result.feature_importance)
-                value_sum = 0.0
-                counter = 0
-                target_value_sum = 0.95  # Max is 1.0
-                for value in result.feature_importance:
-                    value_sum = value_sum + value
-                    counter = counter + 1
-                    if value_sum > target_value_sum:
-                        print(
-                            "Top "
-                            + str(counter)
-                            + " of "
-                            + str(len(result.feature_importance))
-                            + " Features needed for an Impact of "
-                            + str(target_value_sum)
-                        )
-                        break
             for class_label in result.roc_auc:
                 if np.isnan(result.roc_auc[class_label]):
                     continue
 
                 class_name = reverse_mapping.get(class_label, str(class_label))
 
-                print(f"  Class {class_name} ROC AUC: {result.roc_auc[class_label]}")
+                logging.debug(
+                    "  Class %s ROC AUC: %s}",
+                    class_name,
+                    result.roc_auc[class_label],
+                )
 
                 display = RocCurveDisplay(
                     fpr=result.fpr[class_label],
@@ -1106,7 +1097,7 @@ def per_organism_evaluation_to_csv(
             metric_df.loc["Median"] = metric_df.median(numeric_only=True)
             metric_output_path = output_path.replace(".csv", f"_{metric}.csv")
             metric_df.to_csv(metric_output_path)
-            print(f"{metric.title()}-table saved at: {metric_output_path}")
+            logging.info("%s -table saved at: %s", metric.title(), metric_output_path)
 
 
 # def tune_hyperparameter(preprocessed_data):
