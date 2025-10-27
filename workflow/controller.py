@@ -1,5 +1,6 @@
 import argparse
 from collections import Counter, defaultdict
+from datetime import datetime
 import os
 import time
 import logging
@@ -8,7 +9,7 @@ import pandas as pd
 
 import config, preprocessing, random_forest
 from execution_modes import ExecutionMode
-from constants import ORGANISM_COLUMN
+from constants import MODEL_FOLDER, ORGANISM_COLUMN
 
 
 # TODO: Outsource to util?
@@ -60,37 +61,16 @@ def process(dataset_list_input):
         random_forest.display_results(rf_results[0])
 
     elif not config.STACK_MODEL and config.CROSS_VALIDATE:
+        # TODO: Interface sollte überall möglichst gleich sein.
         (
             rf_results,
             per_organism_results,
             y_test_count_results,
             y_train_count_results,
-        ) = run_classic_rc_cv(preprocessed_data_input)
+        ) = run_classic_rf_cv(preprocessed_data_input)
 
     elif config.STACK_MODEL and not config.CROSS_VALIDATE:
-        (
-            rf_results,
-            y_test_count_results,
-            y_train_count_results,
-            per_organism_results,
-        ) = random_forest.run_stacked_random_forest(
-            preprocessed_data_input,
-            rf_settings_input,
-            rf_settings_stacked,
-            False,
-        )
-
-        if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
-            random_forest.save_prediction_results(
-                dataset_list_input,
-                preprocessed_data_input,
-                rf_results,
-                dataset_list_input["PathToCsv"],
-            )
-
-        if config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE:
-            random_forest.display_results(rf_results[0])
-            random_forest.feature_importance_to_csv(rf_results)
+        run_stacked_rf(dataset_list_input, preprocessed_data_input)
 
     elif config.STACK_MODEL and config.CROSS_VALIDATE:
         (
@@ -107,6 +87,7 @@ def process(dataset_list_input):
 
     else:
         raise ValueError("Model strategy is invalid")
+    # TODO: Where are those defined?
     if config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE:
         random_forest.per_organism_evaluation_to_csv(per_organism_results)
         random_forest.evaluation_to_csv(
@@ -115,6 +96,114 @@ def process(dataset_list_input):
         if config.STACK_MODEL:
             random_forest.feature_importance_to_csv(rf_results)
     logging.info("--- %s seconds for ML---", (time.time() - start_time))
+
+
+def run_stacked_rf(dataset_list_input, preprocessed_data_input):
+    merged_filtered_input, X, y = random_forest.prepare_first_layer(
+        preprocessed_data_input
+    )
+    X_train, X_test, y_train, y_test = random_forest.split_stacked_rf(X, y)
+
+    (
+        y_train_count_results,
+        y_test_count_results,
+        rf_results,
+        per_organism_results,
+    ) = ({}, {}, {}, {})
+
+    proba_train_joined = pd.DataFrame([])
+    proba_test_joined = pd.DataFrame([])
+
+    proba_train_joined, proba_test_joined = random_forest.run_first_layer(
+        preprocessed_data_input,
+        random_forest.get_default_rf_settings(),
+        y_test,
+        y_train,
+        X_test,
+        X_train,
+        proba_train_joined,
+        y_train_count_results,
+        y_test_count_results,
+    )
+
+    (
+        y_proba_train,
+        X_proba_train,
+        y_proba_test,
+        X_proba_test,
+        organism_test,
+    ) = random_forest.prepare_second_layer_data(
+        preprocessed_data_input,
+        merged_filtered_input,
+        proba_train_joined,
+        proba_test_joined,
+    )
+
+    # SECOND LAYER
+    for target in preprocessed_data_input.target_cols:
+        # Filter out NA values
+        (
+            X_train_filtered,
+            y_train_filtered,
+            X_test_filtered,
+            y_test_filtered,
+            organism_test_filtered,
+        ) = random_forest.filter_na_values(
+            y_proba_train,
+            X_proba_train,
+            y_proba_test,
+            X_proba_test,
+            organism_test,
+            target,
+        )
+
+        second_layer_result = random_forest.run_random_forest(
+            X_train_filtered,
+            y_train_filtered,
+            X_test_filtered,
+            y_test_filtered,
+            target,
+            random_forest.get_stacked_rf_settings(),
+        )
+        rf_results[target] = second_layer_result
+
+        y_pred = second_layer_result.y_pred
+
+        per_organism_perf = random_forest.evaluate_per_organism(
+            y_pred,
+            y_test_filtered,
+            organism_test_filtered,
+            second_layer_result.y_score,
+            target,
+        )
+
+        # Mapping organism name to string
+        organism_mapping = preprocessed_data_input.organism_mapping
+
+        per_organism_results[target] = {
+            organism_mapping.get(org_code, f"Unknown ({org_code})"): metrics
+            for org_code, metrics in per_organism_perf.items()
+        }
+
+    rf_results = [rf_results]
+    y_test_count_results = [y_test_count_results]
+    y_train_count_results = [y_train_count_results]
+    if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open((MODEL_FOLDER + "run_info.txt"), "w", encoding="utf-8") as f:
+            f.write(f"Run executed at: {now}\n")
+
+    if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
+        random_forest.save_prediction_results(
+            dataset_list_input,
+            preprocessed_data_input,
+            rf_results,
+            dataset_list_input["PathToCsv"],
+        )
+
+    if config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE:
+        random_forest.display_results(rf_results[0])
+        random_forest.feature_importance_to_csv(rf_results)
 
 
 def run_classic_rf(preprocessed_data_input):
@@ -158,7 +247,7 @@ def run_classic_rf(preprocessed_data_input):
     )
 
 
-def run_classic_rc_cv(preprocessed_data_input):
+def run_classic_rf_cv(preprocessed_data_input):
     rf_results_return, y_test_count_results_return, y_train_count_results_return = (
         [],
         [],
@@ -232,7 +321,6 @@ def run_classic_rc_cv(preprocessed_data_input):
     )
 
 
-# TODO: Add logger
 if __name__ == "__main__":
     logging.basicConfig(level=config.LOGGING_LEVEL)
     parser = argparse.ArgumentParser(

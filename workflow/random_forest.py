@@ -355,22 +355,7 @@ def run_stacked_random_forest(
 
     # Prepare first layer data
 
-    merged_filtered_input = preprocessed_data.merged_input
-
-    if (
-        config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE
-        or config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_EVALUATE
-    ):
-        # Drop rows of Organisms that occur only once
-        value_counts = preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts()
-        rare_values = value_counts[value_counts == 1].index
-        merged_filtered_input = merged_filtered_input[
-            ~merged_filtered_input[ORGANISM_COLUMN].isin(rare_values)
-        ]
-
-    feature_cols_with_id = preprocessed_data.feature_cols + [ID_COLUMN]
-    X = merged_filtered_input[feature_cols_with_id]
-    y = merged_filtered_input[preprocessed_data.target_cols]
+    merged_filtered_input, X, y = prepare_first_layer(preprocessed_data)
 
     if cross_validate:
 
@@ -425,37 +410,7 @@ def run_stacked_random_forest(
         )
     else:
         # SPLITTING
-        if (
-            config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
-            or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
-        ):
-            logging.warning(
-                "In %s all samples are used for test", config.EXECUTION_MODE.value
-            )
-            y_test = y
-            y_train = y
-            X_test = X
-            X_train = X
-        else:
-            y_test, y_train, X_test, X_train = split_sets_for_stacked(X, y)
-            if config.EXECUTION_MODE == ExecutionMode.TRAIN_TEST:
-                os.makedirs("Evaluation", exist_ok=True)
-                X_train[ID_COLUMN].to_csv(
-                    "Evaluation/sorted_samples_train.csv",
-                    index=False,
-                )
-                X_test[ID_COLUMN].to_csv(
-                    "resources/sorted_samples_test.csv",
-                    index=False,
-                )
-
-        # Train with all sample if saved
-        if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
-            logging.WARNING(
-                "n %s all samples are used for training", config.EXECUTION_MODE.value
-            )
-            y_train = pd.concat([y_train, y_test], ignore_index=True)
-            X_train = pd.concat([X_train, X_test], ignore_index=True)
+        X_train, X_test, y_train, y_test = split_stacked_rf(X, y)
 
         (
             result_dic,
@@ -484,6 +439,61 @@ def run_stacked_random_forest(
             [y_train_count],
             org_res,
         )
+
+
+def split_stacked_rf(X, y):
+    if (
+        config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
+        or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
+    ):
+        logging.warning(
+            "In %s all samples are used for test", config.EXECUTION_MODE.value
+        )
+        y_test = y
+        y_train = y
+        X_test = X
+        X_train = X
+    else:
+        y_test, y_train, X_test, X_train = split_sets_for_stacked(X, y)
+        if config.EXECUTION_MODE == ExecutionMode.TRAIN_TEST:
+            os.makedirs("Evaluation", exist_ok=True)
+            X_train[ID_COLUMN].to_csv(
+                "Evaluation/sorted_samples_train.csv",
+                index=False,
+            )
+            X_test[ID_COLUMN].to_csv(
+                "resources/sorted_samples_test.csv",
+                index=False,
+            )
+
+        # Train with all sample if saved
+    if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
+        logging.warning(
+            "n %s all samples are used for training", config.EXECUTION_MODE.value
+        )
+        y_train = pd.concat([y_train, y_test], ignore_index=True)
+        X_train = pd.concat([X_train, X_test], ignore_index=True)
+    return X_train, X_test, y_train, y_test
+
+
+def prepare_first_layer(preprocessed_data):
+    merged_filtered_input = preprocessed_data.merged_input
+
+    if (
+        config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE
+        or config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_EVALUATE
+    ):
+        # Drop rows of Organisms that occur only once
+        value_counts = preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts()
+        rare_values = value_counts[value_counts == 1].index
+        merged_filtered_input = merged_filtered_input[
+            ~merged_filtered_input[ORGANISM_COLUMN].isin(rare_values)
+        ]
+
+    feature_cols_with_id = preprocessed_data.feature_cols + [ID_COLUMN]
+    X = merged_filtered_input[feature_cols_with_id]
+    y = merged_filtered_input[preprocessed_data.target_cols]
+    return merged_filtered_input, X, y
 
 
 def filter_merged_input(preprocessed_data, min_sample_number):
@@ -627,26 +637,20 @@ def compute_stacked_random_forest(
     for target in preprocessed_data.target_cols:
 
         # Filter out NA values
-        train_mask = y_proba_train[target] != 0
-        X_train_filtered = X_proba_train[train_mask]
-        y_train_filtered = y_proba_train[target][train_mask]
-        test_mask = y_proba_test[target] != 0
-        X_test_filtered = X_proba_test[test_mask]
-        y_test_filtered = y_proba_test[target][test_mask]
-        organism_test_filtered = organism_test[test_mask]
-
-        if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
-            X_train_filtered = X_proba_train
-            y_train_filtered = y_proba_train[target]
-            X_test_filtered = X_proba_test
-            y_test_filtered = y_proba_test[target]
-
-        if (
-            config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
-            or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
-        ):
-            X_train_filtered = X_test_filtered
-            y_train_filtered = y_test_filtered
+        (
+            X_train_filtered,
+            y_train_filtered,
+            X_test_filtered,
+            y_test_filtered,
+            organism_test_filtered,
+        ) = filter_na_values(
+            y_proba_train,
+            X_proba_train,
+            y_proba_test,
+            X_proba_test,
+            organism_test,
+            target,
+        )
 
         second_layer_result = run_random_forest(
             X_train_filtered,
@@ -677,6 +681,38 @@ def compute_stacked_random_forest(
         }
 
     return result_dic, y_test_count, y_train_count, org_res
+
+
+def filter_na_values(
+    y_proba_train, X_proba_train, y_proba_test, X_proba_test, organism_test, target
+):
+    train_mask = y_proba_train[target] != 0
+    X_train_filtered = X_proba_train[train_mask]
+    y_train_filtered = y_proba_train[target][train_mask]
+    test_mask = y_proba_test[target] != 0
+    X_test_filtered = X_proba_test[test_mask]
+    y_test_filtered = y_proba_test[target][test_mask]
+    organism_test_filtered = organism_test[test_mask]
+
+    if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
+        X_train_filtered = X_proba_train
+        y_train_filtered = y_proba_train[target]
+        X_test_filtered = X_proba_test
+        y_test_filtered = y_proba_test[target]
+
+    if (
+        config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
+        or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
+    ):
+        X_train_filtered = X_test_filtered
+        y_train_filtered = y_test_filtered
+    return (
+        X_train_filtered,
+        y_train_filtered,
+        X_test_filtered,
+        y_test_filtered,
+        organism_test_filtered,
+    )
 
 
 def validate_target_values(y_train, y_test, target_name):
