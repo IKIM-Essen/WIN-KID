@@ -70,7 +70,12 @@ def process(dataset_list_input):
         ) = run_classic_rf_cv(preprocessed_data_input)
 
     elif config.STACK_MODEL and not config.CROSS_VALIDATE:
-        run_stacked_rf(dataset_list_input, preprocessed_data_input)
+        (
+            rf_results,
+            per_organism_results,
+            y_test_count_results,
+            y_train_count_results,
+        ) = run_stacked_rf(dataset_list_input, preprocessed_data_input)
 
     elif config.STACK_MODEL and config.CROSS_VALIDATE:
         (
@@ -204,6 +209,8 @@ def run_stacked_rf(dataset_list_input, preprocessed_data_input):
     if config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE:
         random_forest.display_results(rf_results[0])
         random_forest.feature_importance_to_csv(rf_results)
+
+    return rf_results, per_organism_results, y_test_count_results, y_train_count_results
 
 
 def run_classic_rf(preprocessed_data_input):
