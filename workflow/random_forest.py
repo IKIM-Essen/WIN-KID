@@ -362,10 +362,7 @@ def run_stacked_random_forest(
         if config.EXECUTION_MODE != ExecutionMode.TRAIN_TEST:
             raise ValueError("--mode shall be TRAIN_TEST for cross validation")
 
-        skf = StratifiedKFold(
-            n_splits=config.NUMBER_OF_FOLDS, shuffle=True, random_state=42
-        )
-        stratify_col = preprocessed_data.merged_input[ORGANISM_COLUMN]
+        skf, stratify_col = get_stratified_split(preprocessed_data)
 
         cv_results = []
         test_label_counts = []
@@ -439,6 +436,14 @@ def run_stacked_random_forest(
             [y_train_count],
             org_res,
         )
+
+
+def get_stratified_split(preprocessed_data):
+    skf = StratifiedKFold(
+        n_splits=config.NUMBER_OF_FOLDS, shuffle=True, random_state=42
+    )
+    stratify_col = preprocessed_data.merged_input[ORGANISM_COLUMN]
+    return skf, stratify_col
 
 
 def split_stacked_rf(X, y):

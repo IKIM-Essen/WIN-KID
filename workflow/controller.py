@@ -45,8 +45,6 @@ def process(dataset_list_input):
 
     # Random Forest
     start_time = time.time()
-    rf_settings_input = random_forest.get_default_rf_settings()
-    rf_settings_stacked = random_forest.get_stacked_rf_settings()
     # if config.EXECUTION_MODE == ExecutionMode.TUNE_HYPERPARAMETER:
     #     random_forest.tune_hyperparameter(preprocessed_data_input)
 
@@ -80,19 +78,15 @@ def process(dataset_list_input):
     elif config.STACK_MODEL and config.CROSS_VALIDATE:
         (
             rf_results,
+            per_organism_results,
             y_test_count_results,
             y_train_count_results,
-            per_organism_results,
-        ) = random_forest.run_stacked_random_forest(
-            preprocessed_data_input,
-            rf_settings_input,
-            rf_settings_stacked,
-            True,
-        )
+        ) = run_stacked_rf_cv(preprocessed_data_input)
 
     else:
         raise ValueError("Model strategy is invalid")
-    # TODO: Where are those defined?
+
+    # Save Evaluation
     if config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE:
         random_forest.per_organism_evaluation_to_csv(per_organism_results)
         random_forest.evaluation_to_csv(
@@ -103,12 +97,95 @@ def process(dataset_list_input):
     logging.info("--- %s seconds for ML---", (time.time() - start_time))
 
 
+def run_stacked_rf_cv(preprocessed_data_input):
+    merged_filtered_input, X, y = random_forest.prepare_first_layer(
+        preprocessed_data_input
+    )
+    if config.EXECUTION_MODE != ExecutionMode.TRAIN_TEST:
+        raise ValueError("--mode shall be TRAIN_TEST for cross validation")
+
+    skf, stratify_col = random_forest.get_stratified_split(preprocessed_data_input)
+
+    rf_results = []
+    y_test_count_results = []
+    y_train_count_results = []
+    per_organism_results = {}
+    fold_per_organism_results = defaultdict(list)
+    for train_idx, test_idx in skf.split(X, stratify_col):
+        X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+        (
+            y_train_count,
+            y_test_count,
+            result_dic,
+            fold_per_organism_result,
+        ) = compute_stacked_rf(
+            preprocessed_data_input,
+            merged_filtered_input,
+            X_train,
+            X_test,
+            y_train,
+            y_test,
+        )
+
+        rf_results.append(result_dic)
+        y_test_count_results.append(y_test_count)
+        y_train_count_results.append(y_train_count)
+
+        for target, per_target_result in fold_per_organism_result.items():
+            fold_per_organism_results[target].append(per_target_result)
+    for target, per_target_results in fold_per_organism_results.items():
+        per_organism_results[target] = random_forest.average_per_organism_results(
+            per_target_results
+        )
+
+    return rf_results, per_organism_results, y_test_count_results, y_train_count_results
+
+
 def run_stacked_rf(dataset_list_input, preprocessed_data_input):
     merged_filtered_input, X, y = random_forest.prepare_first_layer(
         preprocessed_data_input
     )
     X_train, X_test, y_train, y_test = random_forest.split_stacked_rf(X, y)
 
+    y_train_count_results, y_test_count_results, rf_results, per_organism_results = (
+        compute_stacked_rf(
+            preprocessed_data_input,
+            merged_filtered_input,
+            X_train,
+            X_test,
+            y_train,
+            y_test,
+        )
+    )
+
+    rf_results = [rf_results]
+    y_test_count_results = [y_test_count_results]
+    y_train_count_results = [y_train_count_results]
+    if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open((MODEL_FOLDER + "run_info.txt"), "w", encoding="utf-8") as f:
+            f.write(f"Run executed at: {now}\n")
+
+    if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
+        random_forest.save_prediction_results(
+            dataset_list_input,
+            preprocessed_data_input,
+            rf_results,
+            dataset_list_input["PathToCsv"],
+        )
+
+    if config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE:
+        random_forest.display_results(rf_results[0])
+        random_forest.feature_importance_to_csv(rf_results)
+
+    return rf_results, per_organism_results, y_test_count_results, y_train_count_results
+
+
+def compute_stacked_rf(
+    preprocessed_data_input, merged_filtered_input, X_train, X_test, y_train, y_test
+):
     (
         y_train_count_results,
         y_test_count_results,
@@ -190,27 +267,7 @@ def run_stacked_rf(dataset_list_input, preprocessed_data_input):
             for org_code, metrics in per_organism_perf.items()
         }
 
-    rf_results = [rf_results]
-    y_test_count_results = [y_test_count_results]
-    y_train_count_results = [y_train_count_results]
-    if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with open((MODEL_FOLDER + "run_info.txt"), "w", encoding="utf-8") as f:
-            f.write(f"Run executed at: {now}\n")
-
-    if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
-        random_forest.save_prediction_results(
-            dataset_list_input,
-            preprocessed_data_input,
-            rf_results,
-            dataset_list_input["PathToCsv"],
-        )
-
-    if config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE:
-        random_forest.display_results(rf_results[0])
-        random_forest.feature_importance_to_csv(rf_results)
-
-    return rf_results, per_organism_results, y_test_count_results, y_train_count_results
+    return y_train_count_results, y_test_count_results, rf_results, per_organism_results
 
 
 def run_classic_rf(preprocessed_data_input):
