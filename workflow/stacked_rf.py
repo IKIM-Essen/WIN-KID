@@ -15,6 +15,8 @@ import config
 from execution_modes import ExecutionMode
 from split_strategies import SplitStrategy
 
+logger = logging.getLogger(__name__)
+
 
 def run_layer_one_random_forest(
     X_train_input,
@@ -101,7 +103,7 @@ def split_stacked_rf(X, y):
         config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
         or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
     ):
-        logging.warning(
+        logger.warning(
             "In %s all samples are used for test", config.EXECUTION_MODE.value
         )
         y_test = y
@@ -123,7 +125,7 @@ def split_stacked_rf(X, y):
 
         # Train with all sample if saved
     if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
-        logging.warning(
+        logger.warning(
             "n %s all samples are used for training", config.EXECUTION_MODE.value
         )
         y_train = pd.concat([y_train, y_test], ignore_index=True)

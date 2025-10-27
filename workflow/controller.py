@@ -1,7 +1,6 @@
 import argparse
 from collections import Counter, defaultdict
 from datetime import datetime
-import os
 import time
 import logging
 
@@ -15,6 +14,8 @@ import constants
 import utils
 from execution_modes import ExecutionMode
 from constants import MODEL_FOLDER, ORGANISM_COLUMN
+
+logger = logging.getLogger(__name__)
 
 
 def process(dataset_list_input):
@@ -81,7 +82,7 @@ def process(dataset_list_input):
         utils.evaluation_to_csv(rf_results, y_test_count_results, y_train_count_results)
         if config.STACK_MODEL:
             utils.feature_importance_to_csv(rf_results)
-    logging.info("--- %s seconds for ML---", (time.time() - start_time))
+    logger.info("--- %s seconds for ML---", (time.time() - start_time))
 
 
 def run_stacked_rf_cv(preprocessed_data_input):
@@ -326,7 +327,7 @@ def run_classic_rf_cv(preprocessed_data_input):
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
             if set(y_train.unique()) != set(y_test.unique()):
-                logging.warning(
+                logger.warning(
                     "Skipped fold for %s: y_train and y_test have different classes.",
                     col,
                 )

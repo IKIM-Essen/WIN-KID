@@ -24,6 +24,8 @@ from sklearn.metrics import (
 
 from constants import ID_COLUMN, ORGANISM_COLUMN, RESISTANCE_MAPPING
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class ResultDTO:
@@ -98,7 +100,7 @@ def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import
             y_pred_binarized = (y_pred_col == label_class).astype(int)
 
             if label_class >= y_score_col.shape[1]:
-                logging.warning(
+                logger.warning(
                     "Skipping class %s for %s, not in predictions",
                     label_class,
                     target_col,
@@ -175,7 +177,7 @@ def evaluate_per_organism(y_pred, y_true, organism_codes, y_score, target_name):
 
         # Skip if only 1 class is present (not valid for AUC)
         if len(np.unique(y_t)) < 2:
-            logging.warning(
+            logger.warning(
                 "Skipping evaluation per organism for organism %s due to single class in target '%s'.",
                 org_code,
                 target_name,
@@ -233,7 +235,7 @@ def display_results(results_dto):
 
                 class_name = reverse_mapping.get(class_label, str(class_label))
 
-                logging.debug(
+                logger.debug(
                     "  Class %s ROC AUC: %s}",
                     class_name,
                     result.roc_auc[class_label],
@@ -375,7 +377,7 @@ def per_organism_evaluation_to_csv(
             metric_df.loc["Median"] = metric_df.median(numeric_only=True)
             metric_output_path = output_path.replace(".csv", f"_{metric}.csv")
             metric_df.to_csv(metric_output_path)
-            logging.info("%s -table saved at: %s", metric.title(), metric_output_path)
+            logger.info("%s -table saved at: %s", metric.title(), metric_output_path)
 
 
 def feature_importance_to_csv(results_dto_list):
