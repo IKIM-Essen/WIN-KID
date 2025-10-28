@@ -214,7 +214,7 @@ def run_stacked_rf(dataset_list_input, preprocessed_data_input):
     X_train, X_test, y_train, y_test = stacked_rf.split_stacked_rf(X, y)
 
     # Run first and second layer
-    y_train_count_results, y_test_count_results, rf_results, per_organism_results = (
+    (y_train_count_results, y_test_count_results, rf_results, per_organism_results) = (
         compute_stacked_rf(
             preprocessed_data_input,
             merged_filtered_input,
