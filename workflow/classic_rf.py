@@ -7,12 +7,12 @@ from constants import MODEL_FOLDER
 import config
 import utils
 from split_strategies import SplitStrategy
-from sklearn.cluster import KMeans
 import numpy as np
 from execution_modes import ExecutionMode
 import cloudpickle
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.cluster import KMeans
 
 
 def filter_preprocessed_data(merged_filtered_input, col):

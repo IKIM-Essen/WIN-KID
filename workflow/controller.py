@@ -13,11 +13,17 @@ import stacked_rf
 import constants
 import utils
 from execution_modes import ExecutionMode
-from constants import MODEL_FOLDER, ORGANISM_COLUMN
+from constants import (
+    CLASSIC_RF_SETTINGS,
+    MODEL_FOLDER,
+    ORGANISM_COLUMN,
+    STACKED_RF_SETTINGS,
+)
 
 logger = logging.getLogger(__name__)
 
 
+# TODO: Add Hyperparameter tuning
 def process(dataset_list_input):
 
     # Preprocessing
@@ -34,13 +40,9 @@ def process(dataset_list_input):
             preprocessed_data_input, config.MIN_SAMPLE_NUMBER
         )
 
-    # Random Forest
     start_time = time.time()
-    # if config.EXECUTION_MODE == ExecutionMode.TUNE_HYPERPARAMETER:
-    #     random_forest.tune_hyperparameter(preprocessed_data_input)
-
+    # Compute
     if not config.STACK_MODEL and not config.CROSS_VALIDATE:
-
         (
             rf_results,
             per_organism_results,
@@ -85,186 +87,17 @@ def process(dataset_list_input):
     logger.info("--- %s seconds for ML---", (time.time() - start_time))
 
 
-def run_stacked_rf_cv(preprocessed_data_input):
-    merged_filtered_input, X, y = stacked_rf.prepare_first_layer(
-        preprocessed_data_input
-    )
-    if config.EXECUTION_MODE != ExecutionMode.TRAIN_TEST:
-        raise ValueError("--mode shall be TRAIN_TEST for cross validation")
-
-    skf, stratify_col = stacked_rf.get_stratified_split(preprocessed_data_input)
-
-    rf_results = []
-    y_test_count_results = []
-    y_train_count_results = []
-    per_organism_results = {}
-    fold_per_organism_results = defaultdict(list)
-    for train_idx, test_idx in skf.split(X, stratify_col):
-        X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
-        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-
-        (
-            y_train_count,
-            y_test_count,
-            result_dic,
-            fold_per_organism_result,
-        ) = compute_stacked_rf(
-            preprocessed_data_input,
-            merged_filtered_input,
-            X_train,
-            X_test,
-            y_train,
-            y_test,
-        )
-
-        rf_results.append(result_dic)
-        y_test_count_results.append(y_test_count)
-        y_train_count_results.append(y_train_count)
-
-        for target, per_target_result in fold_per_organism_result.items():
-            fold_per_organism_results[target].append(per_target_result)
-    for target, per_target_results in fold_per_organism_results.items():
-        per_organism_results[target] = utils.average_per_organism_results(
-            per_target_results
-        )
-
-    return rf_results, per_organism_results, y_test_count_results, y_train_count_results
-
-
-def run_stacked_rf(dataset_list_input, preprocessed_data_input):
-    merged_filtered_input, X, y = stacked_rf.prepare_first_layer(
-        preprocessed_data_input
-    )
-    X_train, X_test, y_train, y_test = stacked_rf.split_stacked_rf(X, y)
-
-    y_train_count_results, y_test_count_results, rf_results, per_organism_results = (
-        compute_stacked_rf(
-            preprocessed_data_input,
-            merged_filtered_input,
-            X_train,
-            X_test,
-            y_train,
-            y_test,
-        )
-    )
-
-    rf_results = [rf_results]
-    y_test_count_results = [y_test_count_results]
-    y_train_count_results = [y_train_count_results]
-    if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with open((MODEL_FOLDER + "run_info.txt"), "w", encoding="utf-8") as f:
-            f.write(f"Run executed at: {now}\n")
-
-    if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
-        utils.save_prediction_results(
-            dataset_list_input, preprocessed_data_input, rf_results
-        )
-
-    if config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE:
-        utils.display_results(rf_results[0])
-        utils.feature_importance_to_csv(rf_results)
-
-    return rf_results, per_organism_results, y_test_count_results, y_train_count_results
-
-
-def compute_stacked_rf(
-    preprocessed_data_input, merged_filtered_input, X_train, X_test, y_train, y_test
-):
-    (
-        y_train_count_results,
-        y_test_count_results,
-        rf_results,
-        per_organism_results,
-    ) = ({}, {}, {}, {})
-
-    proba_train_joined = pd.DataFrame([])
-    proba_test_joined = pd.DataFrame([])
-
-    # FIRST Layer
-    proba_train_joined, proba_test_joined = stacked_rf.run_first_layer(
-        preprocessed_data_input,
-        constants.CLASSIC_RF_SETTINGS,
-        y_test,
-        y_train,
-        X_test,
-        X_train,
-        proba_train_joined,
-        y_train_count_results,
-        y_test_count_results,
-    )
-
-    (
-        y_proba_train,
-        X_proba_train,
-        y_proba_test,
-        X_proba_test,
-        organism_test,
-    ) = stacked_rf.prepare_second_layer_data(
-        preprocessed_data_input,
-        merged_filtered_input,
-        proba_train_joined,
-        proba_test_joined,
-    )
-
-    # SECOND LAYER
-    for target in preprocessed_data_input.target_cols:
-        # Filter out NA values
-        (
-            X_train_filtered,
-            y_train_filtered,
-            X_test_filtered,
-            y_test_filtered,
-            organism_test_filtered,
-        ) = stacked_rf.filter_na_values(
-            y_proba_train,
-            X_proba_train,
-            y_proba_test,
-            X_proba_test,
-            organism_test,
-            target,
-        )
-
-        second_layer_result = classic_rf.run_random_forest(
-            X_train_filtered,
-            y_train_filtered,
-            X_test_filtered,
-            y_test_filtered,
-            target,
-            constants.STACKED_RF_SETTINGS,
-        )
-        rf_results[target] = second_layer_result
-
-        y_pred = second_layer_result.y_pred
-
-        per_organism_perf = utils.evaluate_per_organism(
-            y_pred,
-            y_test_filtered,
-            organism_test_filtered,
-            second_layer_result.y_score,
-            target,
-        )
-
-        # Mapping organism name to string
-        organism_mapping = preprocessed_data_input.organism_mapping
-
-        per_organism_results[target] = {
-            organism_mapping.get(org_code, f"Unknown ({org_code})"): metrics
-            for org_code, metrics in per_organism_perf.items()
-        }
-
-    return y_train_count_results, y_test_count_results, rf_results, per_organism_results
-
-
 def run_classic_rf(preprocessed_data_input):
     y_test_count_result, y_train_count_result, rf_result = ({}, {}, {})
     per_organism_results = {}
 
     for col in preprocessed_data_input.target_cols:
+        # Filter and prepare data
         merged_filtered_input = preprocessed_data_input.merged_input
         merged_filtered_input = classic_rf.filter_preprocessed_data(
             merged_filtered_input, col
         )
+        # Split data
         y_test, y_train, X_test, X_train = classic_rf.split_train_test(
             merged_filtered_input,
             merged_filtered_input[preprocessed_data_input.feature_cols],
@@ -274,6 +107,7 @@ def run_classic_rf(preprocessed_data_input):
         y_test_count_result[col] = Counter(y_test)
         y_train_count_result[col] = Counter(y_train)
 
+        # Train and predict
         single_result = classic_rf.run_random_forest(
             X_train,
             y_train,
@@ -284,6 +118,7 @@ def run_classic_rf(preprocessed_data_input):
         )
         rf_result[col] = single_result
 
+        # Arrange and evaluate results
         organism_test = merged_filtered_input.loc[y_test.index, ORGANISM_COLUMN]
         per_organism_results[col] = utils.evaluate_per_organism(
             single_result.y_pred, y_test, organism_test, single_result.y_score, col
@@ -369,6 +204,181 @@ def run_classic_rf_cv(preprocessed_data_input):
         y_test_count_results_return,
         y_train_count_results_return,
     )
+
+
+def run_stacked_rf(dataset_list_input, preprocessed_data_input):
+    # Prepare for first layer
+    merged_filtered_input, X, y = stacked_rf.prepare_first_layer(
+        preprocessed_data_input
+    )
+    X_train, X_test, y_train, y_test = stacked_rf.split_stacked_rf(X, y)
+
+    # Run first and second layer
+    y_train_count_results, y_test_count_results, rf_results, per_organism_results = (
+        compute_stacked_rf(
+            preprocessed_data_input,
+            merged_filtered_input,
+            X_train,
+            X_test,
+            y_train,
+            y_test,
+        )
+    )
+
+    # Add overall results and evaluate
+    rf_results = [rf_results]
+    y_test_count_results = [y_test_count_results]
+    y_train_count_results = [y_train_count_results]
+    if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open((MODEL_FOLDER + "run_info.txt"), "w", encoding="utf-8") as f:
+            f.write(f"Run executed at: {now}\n")
+
+    if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
+        utils.save_prediction_results(
+            dataset_list_input, preprocessed_data_input, rf_results
+        )
+
+    if config.EXECUTION_MODE != ExecutionMode.PREDICT_AND_SAVE:
+        utils.display_results(rf_results[0])
+        utils.feature_importance_to_csv(rf_results)
+
+    return rf_results, per_organism_results, y_test_count_results, y_train_count_results
+
+
+def run_stacked_rf_cv(preprocessed_data_input):
+    rf_results, y_test_count_results, y_train_count_results = [], [], []
+    per_organism_results = {}
+    fold_per_organism_results = defaultdict(list)
+    # Prepare for first layer
+    merged_filtered_input, X, y = stacked_rf.prepare_first_layer(
+        preprocessed_data_input
+    )
+    if config.EXECUTION_MODE != ExecutionMode.TRAIN_TEST:
+        raise ValueError("--mode shall be TRAIN_TEST for cross validation")
+
+    # Split
+    skf, stratify_col = stacked_rf.get_stratified_split(preprocessed_data_input)
+
+    # Run first and second layer
+    for train_idx, test_idx in skf.split(X, stratify_col):
+        X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+        (
+            y_train_count,
+            y_test_count,
+            result_dic,
+            fold_per_organism_result,
+        ) = compute_stacked_rf(
+            preprocessed_data_input,
+            merged_filtered_input,
+            X_train,
+            X_test,
+            y_train,
+            y_test,
+        )
+
+        # Add overall results and evaluate
+        rf_results.append(result_dic)
+        y_test_count_results.append(y_test_count)
+        y_train_count_results.append(y_train_count)
+
+        # Add per organism result
+        for target, per_target_result in fold_per_organism_result.items():
+            fold_per_organism_results[target].append(per_target_result)
+    for target, per_target_results in fold_per_organism_results.items():
+        per_organism_results[target] = utils.average_per_organism_results(
+            per_target_results
+        )
+
+    return rf_results, per_organism_results, y_test_count_results, y_train_count_results
+
+
+def compute_stacked_rf(
+    preprocessed_data_input, merged_filtered_input, X_train, X_test, y_train, y_test
+):
+    (
+        y_train_count_results,
+        y_test_count_results,
+        rf_results,
+        per_organism_results,
+    ) = ({}, {}, {}, {})
+
+    proba_train_joined = pd.DataFrame([])
+    proba_test_joined = pd.DataFrame([])
+
+    # first layer
+    proba_train_joined, proba_test_joined = stacked_rf.run_first_layer(
+        preprocessed_data_input,
+        CLASSIC_RF_SETTINGS,
+        y_test,
+        y_train,
+        X_test,
+        X_train,
+        proba_train_joined,
+        y_train_count_results,
+        y_test_count_results,
+    )
+
+    # Second layer
+    (
+        y_proba_train,
+        X_proba_train,
+        y_proba_test,
+        X_proba_test,
+        organism_test,
+    ) = stacked_rf.prepare_second_layer_data(
+        preprocessed_data_input,
+        merged_filtered_input,
+        proba_train_joined,
+        proba_test_joined,
+    )
+    for target in preprocessed_data_input.target_cols:
+        # Filter out NA values
+        (
+            X_train_filtered,
+            y_train_filtered,
+            X_test_filtered,
+            y_test_filtered,
+            organism_test_filtered,
+        ) = stacked_rf.filter_na_values(
+            y_proba_train,
+            X_proba_train,
+            y_proba_test,
+            X_proba_test,
+            organism_test,
+            target,
+        )
+
+        second_layer_result = classic_rf.run_random_forest(
+            X_train_filtered,
+            y_train_filtered,
+            X_test_filtered,
+            y_test_filtered,
+            target,
+            STACKED_RF_SETTINGS,
+        )
+
+        # Add results and evaluate
+        rf_results[target] = second_layer_result
+        y_pred = second_layer_result.y_pred
+        per_organism_perf = utils.evaluate_per_organism(
+            y_pred,
+            y_test_filtered,
+            organism_test_filtered,
+            second_layer_result.y_score,
+            target,
+        )
+
+        # Mapping organism name to string
+        organism_mapping = preprocessed_data_input.organism_mapping
+        per_organism_results[target] = {
+            organism_mapping.get(org_code, f"Unknown ({org_code})"): metrics
+            for org_code, metrics in per_organism_perf.items()
+        }
+
+    return y_train_count_results, y_test_count_results, rf_results, per_organism_results
 
 
 if __name__ == "__main__":

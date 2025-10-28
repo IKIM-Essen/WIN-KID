@@ -9,7 +9,12 @@ from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold, train_test_split
 
-from constants import ID_COLUMN, MODEL_FOLDER, ORGANISM_COLUMN, RESISTANCE_MAPPING
+from constants import (
+    ID_COLUMN,
+    MODEL_FOLDER,
+    ORGANISM_COLUMN,
+    RESISTANCE_MAPPING,
+)
 import utils
 import config
 from execution_modes import ExecutionMode

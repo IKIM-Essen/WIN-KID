@@ -5,17 +5,18 @@
 import os
 import unittest
 import pandas as pd
-import random_forest
+import utils
+import controller
 
 
 class TestRandomForest(unittest.TestCase):
     def test_process(self):
 
-        dataset_list = random_forest.load_dataset_paths(
+        dataset_list = utils.load_dataset_paths(
             "resources/test_data/random_forest_TestSet/DataPaths_predict.csv"
         )
 
-        random_forest.process(dataset_list)
+        controller.process(dataset_list)
 
         output_path = (
             "resources/test_data/random_forest_TestSet/Result_BVBCR_use_case.csv"
