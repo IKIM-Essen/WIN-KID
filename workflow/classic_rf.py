@@ -18,6 +18,8 @@ from sklearn.cluster import KMeans
 def filter_preprocessed_data(merged_filtered_input, col):
     # Remove rows with label 0 (unlabeled)
     merged_filtered_input = merged_filtered_input[merged_filtered_input[col] != 0]
+    if merged_filtered_input.empty:
+        raise ValueError(f"After removing unlabeled rows for {col}, dataset is empty.")
 
     # Drop rows of Organisms that occur only once
     value_counts = merged_filtered_input[ORGANISM_COLUMN].value_counts()
