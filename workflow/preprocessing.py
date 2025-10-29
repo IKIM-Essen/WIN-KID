@@ -4,6 +4,7 @@
 
 import os
 import re
+import logging
 from dataclasses import dataclass, field
 from warnings import simplefilter
 from itertools import combinations
@@ -23,6 +24,8 @@ simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 GFF_DIR = "resources/genotype"
 MIN_SAMPLES_PER_ORG = 70
 
+logger = logging.getLogger(__name__)
+
 
 def extract_gene_attribute(attribute_string, key):
     pattern = rf"{key}=([^;]+)"
@@ -31,7 +34,7 @@ def extract_gene_attribute(attribute_string, key):
 
 
 def extract_single_features(gff_df_input, features):
-    print(gff_df_input.columns)
+    logging.info(gff_df_input.columns)
 
     gff_df = gff_df_input.copy()
     for feature in features:
@@ -105,8 +108,10 @@ def load_genotypes(directory_row):
 
             data.append(gff_df)
 
-    print(
-        str(len(data)) + " input genotype samples from " + directory_row["DataSetName"]
+    logger.info(
+        "%s input genotype samples from %s",
+        str(len(data)),
+        directory_row["DataSetName"],
     )
     genotype_df = pd.concat(data, ignore_index=True) if data else pd.DataFrame()
 
@@ -150,7 +155,59 @@ def find_similar_columns(df, threshold=90):
     for col1, col2 in combinations(columns, 2):
         score = fuzz.ratio(col1, col2)
         if score >= threshold:
-            print(f"⚠️ Similar columns: '{col1}' ↔ '{col2}' (Score: {score})")
+            logger.warning(
+                "⚠️ Similar columns: '%s' ↔ '%s' (Score: %s)",
+                col1,
+                {col2},
+                score,
+            )
+
+
+def filter_merged_input(preprocessed_data, min_sample_number):
+    merged_filtered_input = preprocessed_data.merged_input
+
+    # Remove classes and ABs that rarely occur
+    for col_name in preprocessed_data.target_cols:
+        value_counts = merged_filtered_input[col_name].value_counts()
+        low_freq_values = value_counts[value_counts < min_sample_number].index
+
+        if len(list(low_freq_values)) > 0:
+            logger.warning(
+                "Removed values for column %s: %s",
+                col_name,
+                list(low_freq_values),
+            )
+
+        merged_filtered_input = merged_filtered_input[
+            ~merged_filtered_input[col_name].isin(low_freq_values)
+        ]
+        updated_value_counts = merged_filtered_input[col_name].value_counts()
+
+        if len(updated_value_counts) <= 2:
+            merged_filtered_input = merged_filtered_input.drop(col_name, axis=1)
+            logger.warning(
+                "%s removed because only one class is left after filtering",
+                col_name,
+            )
+            preprocessed_data.target_cols = preprocessed_data.target_cols.difference(
+                [col_name]
+            )
+    # Remove full NaN rows
+    mask = (merged_filtered_input[preprocessed_data.target_cols] != 0).any(axis=1)
+    merged_filtered_input = merged_filtered_input[mask]
+
+    preprocessed_data.merged_input = merged_filtered_input
+    logger.info(
+        "Number of samples after sample number filtering: %s",
+        len(preprocessed_data.merged_input),
+    )
+    logger.info(preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts())
+    os.makedirs("Evaluation", exist_ok=True)
+    preprocessed_data.merged_input[ID_COLUMN].to_csv(
+        "Evaluation/samples_used.csv", index=False
+    )
+
+    return preprocessed_data
 
 
 class DataLoader:
@@ -163,10 +220,10 @@ class DataLoader:
         input_phenotype_list = []
         for _, phenotype_file_row in dataset_list.iterrows():
             input_phenotype_data = pd.read_csv(phenotype_file_row["PathToCsv"])
-            print(
-                str(len(input_phenotype_data))
-                + " input phenotype samples from "
-                + phenotype_file_row["DataSetName"]
+            logger.info(
+                "%s input phenotype samples from %s",
+                str(len(input_phenotype_data)),
+                phenotype_file_row["DataSetName"],
             )
 
             # Check for and remove duplicates inside dataset
@@ -174,11 +231,13 @@ class DataLoader:
                 input_phenotype_data[ID_COLUMN].duplicated()
             ].unique()
             if len(duplicate_ids) > 0:
-                print(
-                    f"Removed {len(duplicate_ids)} duplicate IDs: {list(duplicate_ids)}"
+                logger.info(
+                    "Removed %s duplicate IDs: %s",
+                    len(duplicate_ids),
+                    list(duplicate_ids),
                 )
             else:
-                print("No duplicate IDs found.")
+                logger.info("No duplicate IDs found.")
             input_phenotype_data = input_phenotype_data[
                 ~input_phenotype_data[ID_COLUMN].isin(duplicate_ids)
             ]
@@ -200,7 +259,7 @@ class DataLoader:
             )
         input_phenotype = pd.concat(input_phenotype_list, ignore_index=True)
         find_similar_columns(input_phenotype)
-        print(str(len(input_phenotype)) + " input phenotype samples overall")
+        logger.info("%s input phenotype samples overall", str(len(input_phenotype)))
 
         while True:
             rows_to_remove = set()
@@ -221,8 +280,8 @@ class DataLoader:
                 break
 
             if rows_to_remove:
-                print("🔻 Removing rows due to rare classes:")
-                print(input_phenotype.loc[sorted(rows_to_remove)])
+                logger.info("🔻 Removing rows due to rare classes:")
+                logger.info(input_phenotype.loc[sorted(rows_to_remove)])
             input_phenotype = input_phenotype.drop(index=rows_to_remove)
 
         input_phenotype = input_phenotype.loc[
@@ -259,7 +318,9 @@ class DataLoader:
             on=ID_COLUMN,
             how="inner",
         )
-        print(str(len(input_genotype_combined)) + " input genotype samples overall")
+        logger.info(
+            "%s input genotype samples overall", str(len(input_genotype_combined))
+        )
 
         return input_genotype_combined
 
@@ -312,8 +373,10 @@ class DataLoader:
             feature_cols_merged,
             organism_mapping=organism_mapping,
         )
-        print("Total number of samples: " + str(len(preprocessed_data.merged_input)))
-        print("Number of features: " + str(len(preprocessed_data.feature_cols)))
+        logger.info(
+            "Total number of samples: %s", str(len(preprocessed_data.merged_input))
+        )
+        logger.info("Number of features: %s", str(len(preprocessed_data.feature_cols)))
         return preprocessed_data
 
     def get_preprocessed_data(self, dataset_list):
@@ -332,8 +395,8 @@ class DataLoader:
             )
         ]
         removed_species = counts[counts < MIN_SAMPLES_PER_ORG]
-        print("Removed species (less than " + str(MIN_SAMPLES_PER_ORG) + " samples):")
-        print(removed_species)
+        logger.info("Removed species (less than %s samples):", str(MIN_SAMPLES_PER_ORG))
+        logger.info(removed_species)
         input_phenotype[ORGANISM_COLUMN] = organism_cat.cat.codes
         organism_mapping = dict(enumerate(organism_cat.cat.categories))
 
@@ -366,8 +429,10 @@ class DataLoader:
             pd.DataFrame(preprocessed_data.feature_cols).to_csv(
                 "resources/settings/FeatureList.csv", index=False, header=False
             )
-        print("Total number of samples: " + str(len(preprocessed_data.merged_input)))
-        print("Number of features: " + str(len(preprocessed_data.feature_cols)))
+        logger.info(
+            "Total number of samples: %s", str(len(preprocessed_data.merged_input))
+        )
+        logger.info("Number of features: %s", str(len(preprocessed_data.feature_cols)))
         return preprocessed_data
 
 
