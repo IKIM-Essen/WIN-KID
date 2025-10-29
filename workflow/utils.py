@@ -72,28 +72,20 @@ def validate_target_values(y_train, y_test, target_name):
 def generate_result(target_col, y_test_col, y_score_col, y_pred_col, feat_import):
     unique_classes = np.unique(y_test_col)
 
-    fpr = {}
-    tpr = {}
-    roc_auc = {}
-    pr_auc = {}
-    precision = {}
-    recall = {}
-    f1 = {}
-    vme = {}
-    me = {}
+    fpr, tpr, roc_auc, pr_auc, precision, recall, f1, vme, me = (
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
 
     if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
-        fpr, tpr, roc_auc, accuracy, precision, recall, f1, vme, me = (
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
+        accuracy = np.nan
     else:
         for label_class in unique_classes:
             y_test_binarized = (y_test_col == label_class).astype(int)

@@ -156,19 +156,17 @@ def run_classic_rf_cv(preprocessed_data_input):
         )
         fold_per_organism_results = defaultdict(list)
 
+        skipped_fold_counter = 0
         # Iterate over folds
         for fold_idx, (train_idx, test_idx) in enumerate(split_iterator):
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
             if set(y_train.unique()) != set(y_test.unique()):
-                logger.warning(
-                    "Skipped fold for %s: y_train and y_test have different classes.",
-                    col,
-                )
+                skipped_fold_counter = +1
                 continue
 
-                # Train and predict
+            # Train and predict
             result = classic_rf.run_random_forest(
                 X_train,
                 y_train,
@@ -194,6 +192,12 @@ def run_classic_rf_cv(preprocessed_data_input):
             )
             fold_per_organism_results[col].append(per_fold_result)
 
+        if skipped_fold_counter > 0:
+            logger.warning(
+                "Skipped fold for %s %s times: y_train and y_test have different classes.",
+                col,
+                skipped_fold_counter,
+            )
         per_organism_results_return[col] = utils.average_per_organism_results(
             fold_per_organism_results[col]
         )
