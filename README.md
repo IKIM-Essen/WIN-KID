@@ -44,7 +44,7 @@
 
 ## GFF3 formatter
 
-- Run via: `python gff3_formatter.py /groups/ds/Win-KID/UKM_Sciebo/Prospective_Jan25/card /groups/ds/Win-KID/UKM_Sciebo/Prospective_Jan25/gff_card`
+- Run via: `python gff3_formatter.py /groups/ds/Win-KID/UKM_Sciebo/Essen_Isolates/card_401 /groups/ds/Win-KID/UKM_Sciebo/Essen_Isolates/gff_card_401`
 - Transforms card annotation txt files in gff3 files
 
 ## Settings
