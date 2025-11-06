@@ -351,10 +351,30 @@ class DataLoader:
             for f in os.listdir((MODEL_FOLDER + "second_layer"))
             if f.endswith(".pkl")
         ]
+
+        # Harmonise target antibiotics
+        input_phenotype.columns = [
+            (
+                col
+                if col == ID_COLUMN or col == ORGANISM_COLUMN or col.endswith("_AB")
+                else f"{col}_AB"
+            )
+            for col in input_phenotype.columns
+        ]
         for col in names:
             if col not in input_phenotype.columns:
                 input_phenotype[col] = 0
+        for col in input_phenotype.columns:
+            if col not in names and col != ID_COLUMN:
+                input_phenotype.drop(columns=[col])
 
+        # Encode target values as specific ints
+        for col in input_phenotype.columns[2:]:
+            input_phenotype[col] = (
+                input_phenotype[col].map(RESISTANCE_MAPPING).fillna(-1).astype(int)
+            )
+
+        # print(names)
         # Encode Organism Code
         organism_cat = input_phenotype[ORGANISM_COLUMN].astype("category")
         input_phenotype[ORGANISM_COLUMN] = organism_cat.cat.codes

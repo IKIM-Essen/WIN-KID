@@ -33,7 +33,9 @@ def process(dataset_list_input):
             dataset_list_input
         )
     elif config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE:
-        preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list_input)
+        preprocessed_data_input = data_loader.get_genotype_data_for_prediction(
+            dataset_list_input
+        )
     else:
         preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list_input)
         preprocessed_data_input = preprocessing.filter_merged_input(
