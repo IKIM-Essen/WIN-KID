@@ -17,7 +17,8 @@ from constants import ORGANISM_COLUMN
 from constants import MODEL_FOLDER
 from config import EXECUTION_MODE
 from execution_modes import ExecutionMode
-
+import random
+from workflow.kmers import train_word2vec_model_streaming, encode_all_samples
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
@@ -417,6 +418,45 @@ class DataLoader:
 
         feature_cols_merged = list(self.merged_input.columns[num_phenotype_cols:])
         feature_cols_merged.append(ORGANISM_COLUMN)
+
+
+        # add kmere embaddings
+        fasta_dir = FASTA_DIR
+        fasta_ids = self.merged_input[ID_COLUMN].unique().tolist()
+
+        train_ids = random.sample(fasta_ids, min(TRAIN_SUBSET_SIZE, len(fasta_ids)))
+        #train_ids = fasta_ids
+        logger.info(f"Train Word2Vec on all {len(train_ids)} FASTA files using streaming...")
+        w2v_model = train_word2vec_model_streaming(train_ids, fasta_dir, min_count=2)
+
+
+        logger.info("Generate aggregated k-mer embeddings...")
+        embedding_df = encode_all_samples(fasta_ids, fasta_dir, w2v_model)
+
+        logger.info(f"🧬 Embedding DataFrame shape: {embedding_df.shape}")
+        logger.info(f"🧬 Embedding columns: {embedding_df.columns.tolist()[:5]}...")
+
+
+        logger.info(f"Add {embedding_df.shape[1]-1} k-mer embeddings to feature columns ...")
+        self.merged_input = pd.merge(self.merged_input, embedding_df, on=ID_COLUMN, how="left")
+        # Entferne alle Zeilen, bei denen keine Kmer-Embeddings generiert wurden
+        num_before = len(self.merged_input)
+        self.merged_input = self.merged_input.dropna(subset=[col for col in embedding_df.columns if col.startswith("kmer_")])
+        num_after = len(self.merged_input)
+
+        logger.info(f"❌ Remove {num_before - num_after} samples without k-mer-Embeddings (NaN in k-mer-column)")
+
+        self.merged_input.fillna(0, inplace=True)
+
+        new_kmer_cols = [col for col in embedding_df.columns if col.startswith("kmer_")]
+        feature_cols_merged += new_kmer_cols
+
+        #logger.info(f"✅ Final merged_input shape after k-mers: {self.merged_input.shape}")
+        logger.info(self.merged_input.head(4))
+        logger.info(f"🧪 Total features (excluding targets): {len(feature_cols_merged)}")
+        logger.info(f"🎯 Total targets: {num_phenotype_cols - 2}")
+        logger.info(f"🧾 Feature column sample: {feature_cols_merged} ")
+
 
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
