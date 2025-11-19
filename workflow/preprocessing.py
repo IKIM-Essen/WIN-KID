@@ -15,10 +15,11 @@ from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
 from constants import MODEL_FOLDER
+from constants import FASTA_DIR
 from config import EXECUTION_MODE
 from execution_modes import ExecutionMode
 import random
-from workflow.kmers import train_word2vec_model_streaming, encode_all_samples
+from kmers import train_word2vec_model_streaming, encode_all_samples, TRAIN_SUBSET_SIZE
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 

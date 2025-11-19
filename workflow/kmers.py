@@ -11,11 +11,10 @@ from constants import ID_COLUMN
 
 
 
-K = 6
+K = 8
 VEC_SIZE = 40
 W2V_EPOCHS = 5
-FASTA_DIR = "/groups/ds/Win-KID/BVBRC/vitek_ii_cleaned/VITEK_cleaned"
-INCLUDE_POSITION = False
+INCLUDE_POSITION = True
 TRAIN_SUBSET_SIZE = 1000
 WINDOW = 5
 random.seed(42)
@@ -76,12 +75,15 @@ def train_word2vec_model_streaming(
     model = Word2Vec(
         vector_size=VEC_SIZE,
         window=WINDOW,
-        min_count=min_count,
+        min_count=min_count, # all 'words' with frequency < min_count are ignored do we want that?
         workers=workers,
-        sg=0,           # CBOW (lower memory). switching to skip-gram?
+        sg=0,           # CBOW (lower memory). switching to skip-gram (sg=1)?
         sample=1e-4,
-        negative=5
+        negative=5,
+        seed=42
     )
+    # hs=1 to use herachical softmax?
+    # negative=int -> If > 0, negative sampling will be used, the int for negative specifies how many "noise words" should be drown.use?
     
     print("📦 Building vocabulary...")
     log_memory("Before vocab build:")

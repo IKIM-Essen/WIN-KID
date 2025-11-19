@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 
-
+FASTA_DIR = "/groups/ds/Win-KID/BVBRC/vitek_ii_cleaned/VITEK_cleaned/"
 NAMES_PATH = "resources/settings/names.csv"
 TRANSLATIONS_PATH = "resources/settings/translations.csv"
 IGNORE_PATH = "resources/settings/ignore.csv"
