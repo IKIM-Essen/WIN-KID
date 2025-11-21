@@ -374,7 +374,6 @@ class DataLoader:
                 input_phenotype[col].map(RESISTANCE_MAPPING).fillna(-1).astype(int)
             )
 
-        # print(names)
         # Encode Organism Code
         organism_cat = input_phenotype[ORGANISM_COLUMN].astype("category")
         input_phenotype[ORGANISM_COLUMN] = organism_cat.cat.codes

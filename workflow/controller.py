@@ -6,12 +6,14 @@ import logging
 
 import pandas as pd
 
+import os
 import config
 import preprocessing
 import classic_rf
 import stacked_rf
 import constants
 import utils
+import shutil
 from execution_modes import ExecutionMode
 from constants import (
     CLASSIC_RF_SETTINGS,
@@ -213,6 +215,11 @@ def run_classic_rf_cv(preprocessed_data_input):
 
 
 def run_stacked_rf(dataset_list_input, preprocessed_data_input):
+    if config.EXECUTION_MODE == ExecutionMode.SAVE_TRAINED and os.path.exists(
+        MODEL_FOLDER
+    ):
+        shutil.rmtree(MODEL_FOLDER)
+        print("Folder removed:", MODEL_FOLDER)
     # Prepare for first layer
     merged_filtered_input, X, y = stacked_rf.prepare_first_layer(
         preprocessed_data_input
