@@ -21,17 +21,18 @@ random.seed(42)
 
 
 def fasta_to_kmers(fasta_path, k=K):
-    kmers = []
     open_func = gzip.open if fasta_path.endswith(".gz") else open
     with open_func(fasta_path, "rt") as handle:
-        records = list(SeqIO.parse(handle, "fasta"))
-        for record in records:
+        for record in SeqIO.parse(handle, "fasta"):
             seq = str(record.seq).upper()
-            kmers.extend([
-                seq[i:i+k] for i in range(len(seq)-k+1)
-                if set(seq[i:i+k]).issubset({'A', 'C', 'G', 'T'})
-            ])
-    return kmers
+            valid = {'A','C','G','T'}
+            contig_kmers = []
+            for i in range(len(seq) - k + 1):
+                kmer = seq[i:i+k]
+                if set(kmer).issubset(valid):
+                    contig_kmers.append(kmer)
+            if contig_kmers:
+                yield contig_kmers
 
 def iter_kmer_sequences(fasta_ids, fasta_dir, k=K):
     """
@@ -41,7 +42,7 @@ def iter_kmer_sequences(fasta_ids, fasta_dir, k=K):
     for sid in fasta_ids:
         fpath = os.path.join(fasta_dir, f"{sid}.fna.gz")
         if os.path.exists(fpath):
-            yield fasta_to_kmers(fpath, k)
+            yield from fasta_to_kmers(fpath, k)
 
 
 def log_memory(prefix=""):
@@ -63,7 +64,7 @@ class KmerCorpus:
         for sid in self.fasta_ids:
             fpath = os.path.join(self.fasta_dir, f"{sid}.fna.gz")
             if os.path.exists(fpath):
-                yield fasta_to_kmers(fpath, self.k)
+                yield from fasta_to_kmers(fpath, self.k)
 
 def train_word2vec_model_streaming(
     all_fasta_ids,
@@ -87,7 +88,10 @@ def train_word2vec_model_streaming(
     
     print("📦 Building vocabulary...")
     log_memory("Before vocab build:")
-    model.build_vocab(KmerCorpus(all_fasta_ids, fasta_dir, k=K))
+    model.build_vocab(
+        KmerCorpus(all_fasta_ids, fasta_dir, k=K),
+        progress_per=1000
+    )
     log_memory("After vocab build:")
     print(f"✅ Vocab size: {len(model.wv)} k-mers")
     
@@ -100,7 +104,7 @@ def train_word2vec_model_streaming(
         corpus = KmerCorpus(batch_ids, fasta_dir, k=K)
         model.train(
             corpus,
-            total_examples=len(batch_ids),
+            total_examples=model.corpus_count,
             epochs=W2V_EPOCHS
         )
         log_memory("After training batch:")
@@ -112,22 +116,42 @@ def encode_sample(sample_id, fasta_dir, model, k=K):
     fpath = os.path.join(fasta_dir, f"{sample_id}.fna.gz")
     if not os.path.exists(fpath):
         return None
-    emb_vectors = []
+    sample_sum = None
+    sample_count = 0
     open_func = gzip.open if fpath.endswith(".gz") else open
     with open_func(fpath, "rt") as handle:
         for record in SeqIO.parse(handle, "fasta"):
             seq = str(record.seq).upper()
+            contig_sum = None
+            contig_count = 0
             for i in range(len(seq) - k + 1):
                 kmer = seq[i:i+k]
                 if set(kmer).issubset({'A', 'C', 'G', 'T'}) and kmer in model.wv:
                     vec = model.wv[kmer]
+
+                    # CHANGED: build final vector without np.append (which allocates!)
                     if INCLUDE_POSITION:
                         rel_pos = i / len(seq)
-                        vec = np.append(vec, rel_pos)
-                    emb_vectors.append(vec)
-    if not emb_vectors:
+                        # CHANGED: manual concatenate (no Python list → no realloc)
+                        vec = np.concatenate((vec, [rel_pos]))
+
+                    # CHANGED: accumulate sum instead of storing full list
+                    if contig_sum is None:
+                        contig_sum = vec.astype(np.float64)
+                    else:
+                        contig_sum += vec
+                    contig_count += 1
+
+            if contig_count > 0:
+                contig_mean = contig_sum / contig_count
+                if sample_sum is None:
+                    sample_sum = contig_mean
+                else:
+                    sample_sum += contig_mean
+                sample_count += 1    
+    if sample_count == 0:
         return None
-    return sample_id, np.mean(emb_vectors, axis=0)
+    return sample_id, (sample_sum / sample_count)
 
 def encode_all_samples(fasta_ids, fasta_dir, model, k=K):
     all_vecs = []
