@@ -98,7 +98,7 @@ def train_word2vec_model_streaming(
     batch_size = 300
     for i in range(0, len(all_fasta_ids), batch_size):
         batch_ids = all_fasta_ids[i:i+batch_size]
-        print(f"🚀 Training batch {i//batch_size + 1} ({len(batch_ids)} files)")
+        print(f"Training batch {i//batch_size + 1} ({len(batch_ids)} files)")
         log_memory("Before training batch:")
         
         corpus = KmerCorpus(batch_ids, fasta_dir, k=K)
@@ -131,7 +131,6 @@ def encode_sample(sample_id, fasta_dir, model, k=K):
                     
                     if INCLUDE_POSITION:
                         rel_pos = i / len(seq)
-                        # CHANGED: manual concatenate (no Python list → no realloc)
                         vec = np.concatenate((vec, [rel_pos]))
                         
                     if contig_sum is None:
