@@ -128,14 +128,12 @@ def encode_sample(sample_id, fasta_dir, model, k=K):
                 kmer = seq[i:i+k]
                 if set(kmer).issubset({'A', 'C', 'G', 'T'}) and kmer in model.wv:
                     vec = model.wv[kmer]
-
-                    # CHANGED: build final vector without np.append (which allocates!)
+                    
                     if INCLUDE_POSITION:
                         rel_pos = i / len(seq)
                         # CHANGED: manual concatenate (no Python list → no realloc)
                         vec = np.concatenate((vec, [rel_pos]))
-
-                    # CHANGED: accumulate sum instead of storing full list
+                        
                     if contig_sum is None:
                         contig_sum = vec.astype(np.float64)
                     else:
