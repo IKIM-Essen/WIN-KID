@@ -8,18 +8,16 @@ import psutil
 import pandas as pd
 from Bio import SeqIO
 from constants import ID_COLUMN
+from constants import W2V
 
 
-K = 8
-VEC_SIZE = 40
-W2V_EPOCHS = 5
-INCLUDE_POSITION = True
-TRAIN_SUBSET_SIZE = 1000
-WINDOW = 5
-random.seed(42)
+def log_memory(prefix=""):
+    process = psutil.Process()
+    mem_mb = process.memory_info().rss / 1024**2
+    print(f"[MEM] {prefix} {mem_mb:.1f} MB used")
 
 
-def fasta_to_kmers(fasta_path, k=K):
+def fasta_to_kmers(fasta_path, k=W2V.K_SIZE):
     open_func = gzip.open if fasta_path.endswith(".gz") else open
     with open_func(fasta_path, "rt") as handle:
         for record in SeqIO.parse(handle, "fasta"):
@@ -32,23 +30,6 @@ def fasta_to_kmers(fasta_path, k=K):
                     contig_kmers.append(kmer)
             if contig_kmers:
                 yield contig_kmers
-
-
-def iter_kmer_sequences(fasta_ids, fasta_dir, k=K):
-    """
-    Generator that yields one k-mer sequence list at a time.
-    Does not store all sequences in memory at once to reduce RAM.
-    """
-    for sid in fasta_ids:
-        fpath = os.path.join(fasta_dir, f"{sid}.fna.gz")
-        if os.path.exists(fpath):
-            yield from fasta_to_kmers(fpath, k)
-
-
-def log_memory(prefix=""):
-    process = psutil.Process()
-    mem_mb = process.memory_info().rss / 1024**2
-    print(f"[MEM] {prefix} {mem_mb:.1f} MB used")
 
 
 class KmerCorpus:
@@ -77,8 +58,8 @@ def train_word2vec_model_streaming(
     workers = int(os.environ.get("SLURM_CPUS_PER_TASK", os.cpu_count()))
 
     model = Word2Vec(
-        vector_size=VEC_SIZE,
-        window=WINDOW,
+        vector_size=W2V.VEC_SIZE,
+        window=W2V.WINDOW,
         min_count=min_count,  # all 'words' with frequency < min_count are ignored do we want that?
         workers=workers,
         sg=0,  # CBOW (lower memory). switching to skip-gram (sg=1)?
@@ -91,24 +72,25 @@ def train_word2vec_model_streaming(
 
     print("📦 Building vocabulary...")
     log_memory("Before vocab build:")
-    model.build_vocab(KmerCorpus(all_fasta_ids, fasta_dir, k=K), progress_per=1000)
+    model.build_vocab(
+        KmerCorpus(all_fasta_ids, fasta_dir, k=W2V.K_SIZE), progress_per=1000
+    )
     log_memory("After vocab build:")
     print(f"✅ Vocab size: {len(model.wv)} k-mers")
 
-    batch_size = 300
-    for i in range(0, len(all_fasta_ids), batch_size):
-        batch_ids = all_fasta_ids[i : i + batch_size]
-        print(f"Training batch {i//batch_size + 1} ({len(batch_ids)} files)")
+    for i in range(0, len(all_fasta_ids), W2V.BATCH_SIZE):
+        batch_ids = all_fasta_ids[i : i + W2V.BATCH_SIZE]
+        print(f"Training batch {i//W2V.BATCH_SIZE + 1} ({len(batch_ids)} files)")
         log_memory("Before training batch:")
 
-        corpus = KmerCorpus(batch_ids, fasta_dir, k=K)
-        model.train(corpus, total_examples=model.corpus_count, epochs=W2V_EPOCHS)
+        corpus = KmerCorpus(batch_ids, fasta_dir, k=W2V.K_SIZE)
+        model.train(corpus, total_examples=model.corpus_count, epochs=W2V.W2V_EPOCHS)
         log_memory("After training batch:")
 
     return model
 
 
-def encode_sample(sample_id, fasta_dir, model, k=K):
+def encode_sample(sample_id, fasta_dir, model, k=W2V.K_SIZE):
     fpath = os.path.join(fasta_dir, f"{sample_id}.fna.gz")
     if not os.path.exists(fpath):
         return None
@@ -125,7 +107,7 @@ def encode_sample(sample_id, fasta_dir, model, k=K):
                 if set(kmer).issubset({"A", "C", "G", "T"}) and kmer in model.wv:
                     vec = model.wv[kmer]
 
-                    if INCLUDE_POSITION:
+                    if W2V.INCLUDE_POSITION:
                         rel_pos = i / len(seq)
                         vec = np.concatenate((vec, [rel_pos]))
 
@@ -147,7 +129,7 @@ def encode_sample(sample_id, fasta_dir, model, k=K):
     return sample_id, (sample_sum / sample_count)
 
 
-def encode_all_samples(fasta_ids, fasta_dir, model, k=K):
+def encode_all_samples(fasta_ids, fasta_dir, model, k=W2V.K_SIZE):
     all_vecs = []
     all_ids = []
     for sid in fasta_ids:

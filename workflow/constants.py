@@ -58,3 +58,13 @@ STACKED_RF_SETTINGS = RandomForestSettings(
     max_features=0.3,
     bootstrap=True,
 )
+
+
+class W2V:
+    K_SIZE = 8
+    VEC_SIZE = 40
+    W2V_EPOCHS = 5
+    INCLUDE_POSITION = True
+    TRAIN_SUBSET_SIZE = 1000
+    WINDOW = 5
+    BATCH_SIZE = 300

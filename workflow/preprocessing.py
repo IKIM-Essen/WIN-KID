@@ -16,10 +16,11 @@ from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
 from constants import MODEL_FOLDER
 from constants import FASTA_DIR
+from constants import W2V
 from config import EXECUTION_MODE, KMERE
 from execution_modes import ExecutionMode
 import random
-from kmers import train_word2vec_model_streaming, encode_all_samples, TRAIN_SUBSET_SIZE
+from kmers import train_word2vec_model_streaming, encode_all_samples
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
@@ -422,19 +423,20 @@ class DataLoader:
 
         if KMERE:
             # add kmere embaddings
-            fasta_dir = FASTA_DIR
             fasta_ids = self.merged_input[ID_COLUMN].unique().tolist()
 
-            train_ids = random.sample(fasta_ids, min(TRAIN_SUBSET_SIZE, len(fasta_ids)))
+            train_ids = random.sample(
+                fasta_ids, min(W2V.TRAIN_SUBSET_SIZE, len(fasta_ids))
+            )
             logger.info(
                 f"Train Word2Vec on all {len(train_ids)} FASTA files using streaming..."
             )
             w2v_model = train_word2vec_model_streaming(
-                train_ids, fasta_dir, min_count=2
+                train_ids, FASTA_DIR, min_count=2
             )
 
             logger.info("Generate aggregated k-mer embeddings...")
-            embedding_df = encode_all_samples(fasta_ids, fasta_dir, w2v_model)
+            embedding_df = encode_all_samples(fasta_ids, FASTA_DIR, w2v_model)
 
             logger.info(f" Embedding DataFrame shape: {embedding_df.shape}")
             logger.info(f" Embedding columns: {embedding_df.columns.tolist()[:5]}...")
@@ -466,7 +468,9 @@ class DataLoader:
         else:
             logger.info("KMERE disabled - skipping k-mer embedding step.")
 
-        # logger.info(f"✅ Final merged_input shape after k-mers: {self.merged_input.shape}")
+        logger.info(
+            f"✅ Final merged_input shape after k-mers: {self.merged_input.shape}"
+        )
         logger.info(self.merged_input.head(4))
         logger.info(f"Total features (excluding targets): {len(feature_cols_merged)}")
         logger.info(f"Total targets: {num_phenotype_cols - 2}")
