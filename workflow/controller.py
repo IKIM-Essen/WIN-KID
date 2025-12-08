@@ -20,6 +20,8 @@ from constants import (
     STACKED_RF_SETTINGS,
 )
 
+from log import setup_logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -391,7 +393,13 @@ def compute_stacked_rf(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=config.LOGGING_LEVEL)
+
+    setup_logging(
+        logfile="run.log",
+        console_level=config.LOGGING_LEVEL,
+        file_level=logging.DEBUG,
+    )
+
     parser = argparse.ArgumentParser(
         description="Run stackPred on multiple datasets from a settings file"
     )

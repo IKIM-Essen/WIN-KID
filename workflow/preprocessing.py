@@ -16,11 +16,12 @@ from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
 from constants import MODEL_FOLDER
 from constants import FASTA_DIR
+from constants import W2V_MODEL_PATH
 from constants import W2V
 from config import EXECUTION_MODE, KMERE
 from execution_modes import ExecutionMode
 import random
-from kmers import train_word2vec_model_streaming, encode_all_samples
+from kmers import train_word2vec_model_streaming, encode_all_samples, load_w2v_model
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
@@ -425,15 +426,23 @@ class DataLoader:
             # add kmere embaddings
             fasta_ids = self.merged_input[ID_COLUMN].unique().tolist()
 
-            train_ids = random.sample(
-                fasta_ids, min(W2V.TRAIN_SUBSET_SIZE, len(fasta_ids))
-            )
-            logger.info(
-                f"Train Word2Vec on all {len(train_ids)} FASTA files using streaming..."
-            )
-            w2v_model = train_word2vec_model_streaming(
-                train_ids, FASTA_DIR, min_count=2
-            )
+            if os.path.exists(W2V_MODEL_PATH) and not RETRAIN_W2V:
+                logger.info("📥 Loading existing Word2Vec model...")
+                w2v_model = load_w2v_model(W2V_MODEL_PATH)
+            else:
+                logger.info("🧪 Training new Word2Vec model...")
+                train_ids = random.sample(
+                    fasta_ids, min(W2V.TRAIN_SUBSET_SIZE, len(fasta_ids))
+                )
+                logger.info(
+                    f"Train Word2Vec on all {len(train_ids)} FASTA files using streaming..."
+                )
+                w2v_model = train_word2vec_model_streaming(
+                    train_ids,
+                    FASTA_DIR,
+                    min_count=2,
+                    save_path=W2V_MODEL_PATH,
+                )
 
             logger.info("Generate aggregated k-mer embeddings...")
             embedding_df = encode_all_samples(fasta_ids, FASTA_DIR, w2v_model)

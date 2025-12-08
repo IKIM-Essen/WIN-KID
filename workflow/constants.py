@@ -10,6 +10,10 @@ TRANSLATIONS_PATH = "resources/settings/translations.csv"
 IGNORE_PATH = "resources/settings/ignore.csv"
 INPUT_EUCAST_FOLDER = "resources/eucast_files/"
 MODEL_FOLDER = "rf_models/"
+W2V_MODEL_PATH = (
+    "/groups/ds/Win-KID/development/WIN-KID/WIN-KID/rf_models/w2v_model/w2v_model.bin"
+)
+RETRAIN_W2V = False  # Set to True to retrain model
 
 GFF_COLUMNS = [
     "SeqID",
