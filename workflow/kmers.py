@@ -41,6 +41,7 @@ def save_w2v_model(model, output_path):
     model.save(output_path)
     logger.info(f"💾 Saved Word2Vec model to: {output_path}")
 
+
 def load_w2v_model(model_path):
     """Load a Word2Vec model from disk."""
     if not os.path.exists(model_path):
@@ -49,6 +50,7 @@ def load_w2v_model(model_path):
     model = Word2Vec.load(model_path)
     logger.info(f"📥 Loaded Word2Vec model from: {model_path}")
     return model
+
 
 class KmerCorpus:
     """
