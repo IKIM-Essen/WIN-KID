@@ -15,11 +15,9 @@ from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
 from constants import MODEL_FOLDER
-from constants import FASTA_DIR
 from constants import W2V_MODEL_PATH
-from constants import RETRAIN_W2V
 from constants import W2V
-from config import EXECUTION_MODE, KMERE
+from config import EXECUTION_MODE, KMERE, RETRAIN_W2V, FASTA_DIR
 from execution_modes import ExecutionMode
 import random
 from kmers import train_word2vec_model_streaming, encode_all_samples, load_w2v_model
