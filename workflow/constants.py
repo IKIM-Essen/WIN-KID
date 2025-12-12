@@ -4,7 +4,6 @@
 
 from dataclasses import dataclass
 
-FASTA_DIR = ""
 NAMES_PATH = "resources/settings/names.csv"
 TRANSLATIONS_PATH = "resources/settings/translations.csv"
 IGNORE_PATH = "resources/settings/ignore.csv"
@@ -13,7 +12,6 @@ MODEL_FOLDER = "rf_models/"
 W2V_MODEL_PATH = (
     "/groups/ds/Win-KID/development/WIN-KID/WIN-KID/rf_models/w2v_model/w2v_model.bin"
 )
-RETRAIN_W2V = False  # Set to True to retrain model
 
 GFF_COLUMNS = [
     "SeqID",
