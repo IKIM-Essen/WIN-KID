@@ -4,12 +4,14 @@
 
 from dataclasses import dataclass
 
-
 NAMES_PATH = "resources/settings/names.csv"
 TRANSLATIONS_PATH = "resources/settings/translations.csv"
 IGNORE_PATH = "resources/settings/ignore.csv"
 INPUT_EUCAST_FOLDER = "resources/eucast_files/"
 MODEL_FOLDER = "rf_models/"
+W2V_MODEL_PATH = (
+    "/groups/ds/Win-KID/development/WIN-KID/WIN-KID/rf_models/w2v_model/w2v_model.bin"
+)
 
 GFF_COLUMNS = [
     "SeqID",
@@ -58,3 +60,13 @@ STACKED_RF_SETTINGS = RandomForestSettings(
     max_features=0.3,
     bootstrap=True,
 )
+
+
+class W2V:
+    K_SIZE = 8
+    VEC_SIZE = 40
+    W2V_EPOCHS = 5
+    INCLUDE_POSITION = True
+    TRAIN_SUBSET_SIZE = 1000
+    WINDOW = 5
+    BATCH_SIZE = 300

@@ -9,6 +9,11 @@
 - Genotypic information needs to be provided as derived RGIs CARD results in .gff format
 - Phenotypic information needs to be provided as antibiogram in .csv format
 
+### Sequence information
+- Path to folder containing fasta files needs to be provided at FASTA_DIR in constants.py
+- files need to be zipped fasta format (fna.gz)
+- activate kmere integration by settin KMERE in config.py to TRUE
+
 ### Stacked Random Forest Example
 Predict antibiogram for PATRIC samples on prepareddata and trained models:
 - Set `MODE = Execution_Mode.PREDICT_ON_SAVED` in the `config.py`

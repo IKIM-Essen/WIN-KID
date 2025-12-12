@@ -10,3 +10,6 @@ dependencies:
   - matplotlib=3.10.6
   - scikit-learn=1.7.2
   - pandas=2.3.1
+  - gensim=4.3.3
+  - psutil=7.0.0
+  - biopython=1.85
