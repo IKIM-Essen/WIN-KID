@@ -16,3 +16,5 @@ EXECUTION_MODE = ExecutionMode.PREDICT_AND_SAVE
 MIN_SAMPLE_NUMBER = 15
 LOGGING_LEVEL = logging.INFO
 KMERE = True
+FASTA_DIR = ""
+RETRAIN_W2V = False  # Set to True to retrain model
