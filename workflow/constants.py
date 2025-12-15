@@ -4,7 +4,6 @@
 
 from dataclasses import dataclass
 
-FASTA_DIR = ""
 NAMES_PATH = "resources/settings/names.csv"
 TRANSLATIONS_PATH = "resources/settings/translations.csv"
 IGNORE_PATH = "resources/settings/ignore.csv"
@@ -13,7 +12,7 @@ MODEL_FOLDER = "rf_models/"
 W2V_MODEL_PATH = (
     "/groups/ds/Win-KID/development/WIN-KID/WIN-KID/rf_models/w2v_model/w2v_model.bin"
 )
-RETRAIN_W2V = False  # Set to True to retrain model
+
 
 GFF_COLUMNS = [
     "SeqID",
@@ -64,11 +63,30 @@ STACKED_RF_SETTINGS = RandomForestSettings(
 )
 
 
-class W2V:
-    K_SIZE = 8
-    VEC_SIZE = 40
-    W2V_EPOCHS = 5
-    INCLUDE_POSITION = True
-    TRAIN_SUBSET_SIZE = 1000
-    WINDOW = 5
-    BATCH_SIZE = 300
+@dataclass
+class w2vSettings:
+    k_size: int
+    vec_size: int
+    w2v_epochs: int
+    include_position: bool
+    train_subset_size: int
+    window: int
+    batch_size: int
+    min_count: int
+    sg: int
+    negative: int
+    tuning_trials: int
+
+W2V_SETTINGS = w2vSettings(
+    k_size = 8,
+    vec_size = 40,
+    w2v_epochs = 5,
+    include_position = True,
+    train_subset_size = 1000,
+    window = 5,
+    batch_size = 300,
+    min_count = 1,
+    sg = 0,
+    negative = 5,
+    tuning_trials = 10,
+)

@@ -8,7 +8,7 @@ import psutil
 import pandas as pd
 from Bio import SeqIO
 from constants import ID_COLUMN
-from constants import W2V
+from constants import W2V_SETTINGS
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ def log_memory(prefix=""):
     logger.debug(f"[MEM] {prefix} {mem_mb:.1f} MB used")
 
 
-def fasta_to_kmers(fasta_path, k=W2V.K_SIZE):
+def fasta_to_kmers(fasta_path, k=W2V_SETTINGS.k_size):
     open_func = gzip.open if fasta_path.endswith(".gz") else open
     with open_func(fasta_path, "rt") as handle:
         for record in SeqIO.parse(handle, "fasta"):
@@ -65,19 +65,19 @@ class KmerCorpus:
 def train_word2vec_model_streaming(
     all_fasta_ids,
     fasta_dir,
-    min_count=2,
+    W2V_SETTINGS,
     save_path=None,
 ):
     workers = int(os.environ.get("SLURM_CPUS_PER_TASK", os.cpu_count()))
 
     model = Word2Vec(
-        vector_size=W2V.VEC_SIZE,
-        window=W2V.WINDOW,
-        min_count=min_count,  # all 'words' with frequency < min_count are ignored do we want that?
+        vector_size=W2V_SETTINGS.vec_size,
+        window=W2V_SETTINGS.window,
+        min_count=W2V_SETTINGS.min_count,  # all 'words' with frequency < min_count are ignored do we want that?
         workers=workers,
-        sg=0,  # CBOW (lower memory). switching to skip-gram (sg=1)?
+        sg=W2V_SETTINGS.sg,  # CBOW (lower memory). switching to skip-gram (sg=1)?
         sample=1e-4,
-        negative=5,
+        negative=W2V_SETTINGS.negative,
         seed=42,
     )
     # hs=1 to use herachical softmax?
@@ -86,19 +86,19 @@ def train_word2vec_model_streaming(
     logger.info("📦 Building vocabulary...")
     log_memory("Before vocab build:")
     model.build_vocab(
-        KmerCorpus(all_fasta_ids, fasta_dir, k=W2V.K_SIZE), progress_per=1000
+        KmerCorpus(all_fasta_ids, fasta_dir, k=W2V_SETTINGS.k_size), progress_per=1000
     )
     log_memory("After vocab build:")
     logger.info(f"✅ Vocab size: {len(model.wv)} k-mers")
 
-    for i in range(0, len(all_fasta_ids), W2V.BATCH_SIZE):
-        batch_ids = all_fasta_ids[i : i + W2V.BATCH_SIZE]
-        logger.info(f"Training batch {i//W2V.BATCH_SIZE + 1} ({len(batch_ids)} files)")
+    for i in range(0, len(all_fasta_ids), W2V_SETTINGS.batch_size):
+        batch_ids = all_fasta_ids[i : i + W2V_SETTINGS.batch_size]
+        logger.info(f"Training batch {i//W2V_SETTINGS.batch_size + 1} ({len(batch_ids)} files)")
         log_memory("Before training batch:")
 
-        corpus = KmerCorpus(batch_ids, fasta_dir, k=W2V.K_SIZE)
+        corpus = KmerCorpus(batch_ids, fasta_dir, k=W2V_SETTINGS.k_size)
         num_examples = sum(1 for _ in corpus)  # genaue Anzahl der Sätze
-        model.train(corpus, total_examples=num_examples, epochs=W2V.W2V_EPOCHS)
+        model.train(corpus, total_examples=num_examples, epochs=W2V_SETTINGS.w2v_epochs)
         log_memory("After training batch:")
 
     if save_path:
@@ -107,7 +107,7 @@ def train_word2vec_model_streaming(
     return model
 
 
-def encode_sample(sample_id, fasta_dir, model, k=W2V.K_SIZE):
+def encode_sample(sample_id, fasta_dir, model, k=W2V_SETTINGS.k_size):
     fpath = os.path.join(fasta_dir, f"{sample_id}.fna.gz")
     if not os.path.exists(fpath):
         logger.warning(f"❌ Missing FASTA during encoding: {fpath}")
@@ -125,7 +125,7 @@ def encode_sample(sample_id, fasta_dir, model, k=W2V.K_SIZE):
                 if set(kmer).issubset({"A", "C", "G", "T"}) and kmer in model.wv:
                     vec = model.wv[kmer]
 
-                    if W2V.INCLUDE_POSITION:
+                    if W2V_SETTINGS.include_position:
                         rel_pos = i / len(seq)
                         vec = np.concatenate((vec, [rel_pos]))
 
@@ -147,7 +147,7 @@ def encode_sample(sample_id, fasta_dir, model, k=W2V.K_SIZE):
     return sample_id, (sample_sum / sample_count)
 
 
-def encode_all_samples(fasta_ids, fasta_dir, model, k=W2V.K_SIZE):
+def encode_all_samples(fasta_ids, fasta_dir, model, k=W2V_SETTINGS.k_size):
     all_vecs = []
     all_ids = []
     skipped = 0

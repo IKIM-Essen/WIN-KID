@@ -4,6 +4,7 @@
 
 import logging
 from execution_modes import ExecutionMode
+from execution_modes import W2VMode
 from split_strategies import SplitStrategy
 
 
@@ -16,3 +17,6 @@ EXECUTION_MODE = ExecutionMode.PREDICT_AND_SAVE
 MIN_SAMPLE_NUMBER = 15
 LOGGING_LEVEL = logging.INFO
 KMERE = True
+W2V_MODE = W2VMode.TUNE_W2V
+FASTA_DIR = ""
+RETRAIN_W2V = False  # Set to True to retrain model

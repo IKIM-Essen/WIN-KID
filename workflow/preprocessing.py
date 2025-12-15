@@ -15,14 +15,13 @@ from constants import RESISTANCE_MAPPING
 from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
 from constants import MODEL_FOLDER
-from constants import FASTA_DIR
 from constants import W2V_MODEL_PATH
-from constants import RETRAIN_W2V
-from constants import W2V
-from config import EXECUTION_MODE, KMERE
-from execution_modes import ExecutionMode
+from constants import W2V_SETTINGS
+from config import EXECUTION_MODE, KMERE, W2V_MODE, FASTA_DIR, RETRAIN_W2V,
+from execution_modes import ExecutionMode, W2VMode
 import random
 from kmers import train_word2vec_model_streaming, encode_all_samples, load_w2v_model
+from tune_w2v import tune_word2vec
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
@@ -427,53 +426,70 @@ class DataLoader:
             # add kmere embaddings
             fasta_ids = self.merged_input[ID_COLUMN].unique().tolist()
 
-            if os.path.exists(W2V_MODEL_PATH) and not RETRAIN_W2V:
-                logger.info("📥 Loading existing Word2Vec model...")
-                w2v_model = load_w2v_model(W2V_MODEL_PATH)
-            else:
-                logger.info("🧪 Training new Word2Vec model...")
-                train_ids = random.sample(
-                    fasta_ids, min(W2V.TRAIN_SUBSET_SIZE, len(fasta_ids))
-                )
-                logger.info(
-                    f"Train Word2Vec on all {len(train_ids)} FASTA files using streaming..."
-                )
-                w2v_model = train_word2vec_model_streaming(
-                    train_ids,
+            if W2V_MODE == W2VMode.TRAIN_W2V:
+                logger.info("W2V Mode: TRAIN_W2V")
+                if os.path.exists(W2V_MODEL_PATH) and not RETRAIN_W2V:
+                    logger.info("📥 Loading existing Word2Vec model...")
+                    w2v_model = load_w2v_model(W2V_MODEL_PATH)
+                else:
+                    logger.info("🧪 Training new Word2Vec model...")
+                    train_ids = random.sample(
+                        fasta_ids, min(W2V_SETTINGS.TRAIN_SUBSET_SIZE, len(fasta_ids))
+                    )
+                    logger.info(
+                        f"Train Word2Vec on all {len(train_ids)} FASTA files using streaming..."
+                    )
+                    w2v_model = train_word2vec_model_streaming(
+                        train_ids,
+                        FASTA_DIR,
+                        W2V_SETTINGS,
+                        save_path=W2V_MODEL_PATH,
+                    )
+
+                logger.info("Generate aggregated k-mer embeddings...")
+                embedding_df = encode_all_samples(fasta_ids, FASTA_DIR, w2v_model)
+            elif W2V_MODE == W2VMode.TUNE_W2V:
+                logger.info("🎯 W2V tuning mode selected.")
+                w2v_model = tune_word2vec(
+                    fasta_ids,
                     FASTA_DIR,
-                    min_count=2,
-                    save_path=W2V_MODEL_PATH,
+                    W2V_SETTINGS,
+                    n_samples=W2V_SETTINGS.tuning_trials
                 )
 
-            logger.info("Generate aggregated k-mer embeddings...")
-            embedding_df = encode_all_samples(fasta_ids, FASTA_DIR, w2v_model)
+                logger.info("Generate aggregated k-mer embeddings using best tuned model...")
+                embedding_df = encode_all_samples(fasta_ids, FASTA_DIR, w2v_model)
 
-            logger.info(f" Embedding DataFrame shape: {embedding_df.shape}")
-            logger.info(f" Embedding columns: {embedding_df.columns.tolist()[:5]}...")
+            else:
+                raise ValueError(f"Unknown W2V_MODE: {W2V_MODE}")
 
-            logger.info(
-                f"Add {embedding_df.shape[1]-1} k-mer embeddings to feature columns ..."
-            )
-            self.merged_input = pd.merge(
-                self.merged_input, embedding_df, on=ID_COLUMN, how="left"
-            )
-            # Remove rows without Kmer-Embeddings
-            num_before = len(self.merged_input)
-            self.merged_input = self.merged_input.dropna(
-                subset=[col for col in embedding_df.columns if col.startswith("kmer_")]
-            )
-            num_after = len(self.merged_input)
+            if embedding_df is not None:
+                logger.info(f" Embedding DataFrame shape: {embedding_df.shape}")
+                logger.info(f" Embedding columns: {embedding_df.columns.tolist()[:5]}...")
 
-            logger.info(
-                f"❌ Remove {num_before - num_after} samples without k-mer-Embeddings (NaN in k-mer-column)"
-            )
+                logger.info(
+                    f"Add {embedding_df.shape[1]-1} k-mer embeddings to feature columns ..."
+                )
+                self.merged_input = pd.merge(
+                    self.merged_input, embedding_df, on=ID_COLUMN, how="left"
+                )
+                # Remove rows without Kmer-Embeddings
+                num_before = len(self.merged_input)
+                self.merged_input = self.merged_input.dropna(
+                    subset=[col for col in embedding_df.columns if col.startswith("kmer_")]
+                )
+                num_after = len(self.merged_input)
 
-            self.merged_input.fillna(0, inplace=True)
+                logger.info(
+                    f"❌ Remove {num_before - num_after} samples without k-mer-Embeddings (NaN in k-mer-column)"
+                )
 
-            new_kmer_cols = [
-                col for col in embedding_df.columns if col.startswith("kmer_")
-            ]
-            feature_cols_merged += new_kmer_cols
+                self.merged_input.fillna(0, inplace=True)
+
+                new_kmer_cols = [
+                    col for col in embedding_df.columns if col.startswith("kmer_")
+                ]
+                feature_cols_merged += new_kmer_cols
 
         else:
             logger.info("KMERE disabled - skipping k-mer embedding step.")
