@@ -56,6 +56,11 @@ Key takeaways:
 ![alt text](resources/images/ROC_Imipenem.png)
 
 
+## To dos: 
+
+- integrating Fasta_Dir into DataPaths.csv
+- optimize reading in fasta files to handle different folder structure
+
 ## 📂 Repository Structure
 
 - `resources/` – figures and diagrams for the paper  
