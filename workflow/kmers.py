@@ -42,6 +42,16 @@ def save_w2v_model(model, output_path):
     logger.info(f"💾 Saved Word2Vec model to: {output_path}")
 
 
+def load_w2v_model(model_path):
+    """Load a Word2Vec model from disk."""
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"❌ Word2Vec model not found: {model_path}")
+
+    model = Word2Vec.load(model_path)
+    logger.info(f"📥 Loaded Word2Vec model from: {model_path}")
+    return model
+
+
 class KmerCorpus:
     """
     Re-iterable corpus over a batch of FASTA IDs.
@@ -170,13 +180,3 @@ def encode_all_samples(fasta_ids, fasta_dir, model, k=W2V_SETTINGS.k_size):
     scaler = MinMaxScaler()
     df[cols] = scaler.fit_transform(df[cols])
     return df
-
-
-def load_w2v_model(model_path):
-    """Load a Word2Vec model from disk."""
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"❌ Word2Vec model not found: {model_path}")
-
-    model = Word2Vec.load(model_path)
-    logger.info(f"📥 Loaded Word2Vec model from: {model_path}")
-    return model

@@ -17,7 +17,7 @@ from constants import ORGANISM_COLUMN
 from constants import MODEL_FOLDER
 from constants import W2V_MODEL_PATH
 from constants import W2V_SETTINGS
-from config import EXECUTION_MODE, KMERE, W2V_MODE, FASTA_DIR, RETRAIN_W2V,
+from config import EXECUTION_MODE, KMERE, W2V_MODE, FASTA_DIR, RETRAIN_W2V
 from execution_modes import ExecutionMode, W2VMode
 import random
 from kmers import train_word2vec_model_streaming, encode_all_samples, load_w2v_model
