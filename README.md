@@ -56,11 +56,6 @@ Key takeaways:
 ![alt text](resources/images/ROC_Imipenem.png)
 
 
-## To dos: 
-
-- integrating Fasta_Dir into DataPaths.csv
-- optimize reading in fasta files to handle different folder structure
-
 ## 📂 Repository Structure
 
 - `resources/` – figures and diagrams for the paper  
@@ -73,6 +68,15 @@ Key takeaways:
 ## 📧 Contact
 
 For questions, please contact the WIN-KID team at [IKIM Essen](https://www.ikim.uk-essen.de/groups/ds).  
+
+## ToDos
+
+- ToDos from kmere [PR 45](https://github.com/IKIM-Essen/WIN-KID/pull/45)
+  - Integrating Fasta_Dir into DataPaths.csv.
+  - Optimize reading in fasta files to handle different folder structure.
+  - Use environment.yml for github test env instead of python-test.yml to reduce dublication.
+  - Move KMERE logic from preprocessing to kmers.py
+  - Reduce kmere.encode_sample() complexity. Mabye through encapsulation.
 
 ## Funding
 

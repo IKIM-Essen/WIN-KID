@@ -186,7 +186,9 @@ def filter_merged_input(preprocessed_data, min_sample_number):
         ]
         updated_value_counts = merged_filtered_input[col_name].value_counts()
 
-        if len(updated_value_counts) <= 2:
+        # Remove NaN values from counter
+        updated_value_counts = updated_value_counts.drop(labels=0, errors="ignore")
+        if len(updated_value_counts) < 2:
             merged_filtered_input = merged_filtered_input.drop(col_name, axis=1)
             logger.warning(
                 "%s removed because only one class is left after filtering",
