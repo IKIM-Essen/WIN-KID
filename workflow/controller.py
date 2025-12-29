@@ -285,6 +285,14 @@ def run_stacked_rf_cv(preprocessed_data_input):
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
+        # TODO: Fully implement counts per org
+        counts_test = count_per_org(X_test, y_test)
+        counts_train = count_per_org(X_train, y_train)
+        print("counts_test")
+        print(counts_test)
+        print("counts_train")
+        print(counts_train)
+
         (
             y_train_count,
             y_test_count,
@@ -313,6 +321,25 @@ def run_stacked_rf_cv(preprocessed_data_input):
         )
 
     return rf_results, per_organism_results, y_test_count_results, y_train_count_results
+
+
+def count_per_org(X_input, y_input):
+    count = y_input.copy()
+    count[ORGANISM_COLUMN] = X_input[ORGANISM_COLUMN]
+    long_df = count.melt(
+        id_vars=ORGANISM_COLUMN,
+        value_vars=y_input.columns,
+        var_name="Antibiotic",
+        value_name="AMR_Result",
+    )
+    counts = (
+        long_df.dropna(subset=["AMR_Result"])
+        .groupby([ORGANISM_COLUMN, "Antibiotic", "AMR_Result"])
+        .size()
+        .reset_index(name="count")
+    )
+
+    return counts
 
 
 def compute_stacked_rf(
@@ -403,8 +430,15 @@ def compute_stacked_rf(
 
 if __name__ == "__main__":
 
+    logfile = "Evaluation/run.log"
+
+    # Create log directory if it does not exist
+    log_dir = os.path.dirname(logfile)
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
+
     setup_logging(
-        logfile="run.log",
+        logfile=logfile,
         console_level=config.LOGGING_LEVEL,
         file_level=logging.DEBUG,
     )
