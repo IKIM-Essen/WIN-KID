@@ -2,6 +2,7 @@
 # Licensed under the MIT License
 # This file may be copied, modified, and distributed under the terms of the MIT License.
 
+import logging
 from execution_modes import ExecutionMode
 from split_strategies import SplitStrategy
 
@@ -12,3 +13,8 @@ NUMBER_OF_FOLDS = 5
 TEST_SIZE = 0.2
 SPLIT_STRATEGY = SplitStrategy.STRATIFY
 EXECUTION_MODE = ExecutionMode.PREDICT_AND_SAVE
+MIN_SAMPLE_NUMBER = 15
+LOGGING_LEVEL = logging.INFO
+KMERE = False
+FASTA_DIR = ""
+RETRAIN_W2V = False  # Set to True to retrain model
