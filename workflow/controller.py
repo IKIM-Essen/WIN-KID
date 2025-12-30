@@ -25,6 +25,7 @@ from constants import (
 
 from log import setup_logging
 
+ANTIBIOTIC_COLUMN = "Antibiotic"
 logger = logging.getLogger(__name__)
 
 
@@ -72,6 +73,7 @@ def process(dataset_list_input):
             per_organism_results,
             y_test_count_results,
             y_train_count_results,
+            per_organism_count,
         ) = run_stacked_rf(dataset_list_input, preprocessed_data_input)
 
     elif config.STACK_MODEL and config.CROSS_VALIDATE:
@@ -80,6 +82,7 @@ def process(dataset_list_input):
             per_organism_results,
             y_test_count_results,
             y_train_count_results,
+            per_organism_count,
         ) = run_stacked_rf_cv(preprocessed_data_input)
 
     else:
@@ -91,6 +94,7 @@ def process(dataset_list_input):
         utils.evaluation_to_csv(rf_results, y_test_count_results, y_train_count_results)
         if config.STACK_MODEL:
             utils.feature_importance_to_csv(rf_results)
+            per_organism_count.to_csv("Evaluation/Per_Organism_Evaluation_count.csv")
     logger.info("--- %s seconds for ML---", (time.time() - start_time))
 
 
@@ -229,6 +233,10 @@ def run_stacked_rf(dataset_list_input, preprocessed_data_input):
     )
     X_train, X_test, y_train, y_test = stacked_rf.split_stacked_rf(X, y)
 
+    count_per_organism = merge_count_per_org(
+        preprocessed_data_input, X_train, X_test, y_train, y_test
+    )
+
     # Run first and second layer
     # fmt: off
     (
@@ -264,11 +272,22 @@ def run_stacked_rf(dataset_list_input, preprocessed_data_input):
         utils.display_results(rf_results[0])
         utils.feature_importance_to_csv(rf_results)
 
-    return rf_results, per_organism_results, y_test_count_results, y_train_count_results
+    return (
+        rf_results,
+        per_organism_results,
+        y_test_count_results,
+        y_train_count_results,
+        count_per_organism,
+    )
 
 
 def run_stacked_rf_cv(preprocessed_data_input):
-    rf_results, y_test_count_results, y_train_count_results = [], [], []
+    rf_results, y_test_count_results, y_train_count_results, count_per_org_list = (
+        [],
+        [],
+        [],
+        [],
+    )
     per_organism_results = {}
     fold_per_organism_results = defaultdict(list)
     # Prepare for first layer
@@ -286,17 +305,11 @@ def run_stacked_rf_cv(preprocessed_data_input):
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
-        # TODO: Fully implement counts per org
-        counts_test = count_per_org(
-            X_test, y_test, preprocessed_data_input.organism_mapping
+        count_per_org_list.append(
+            merge_count_per_org(
+                preprocessed_data_input, X_train, X_test, y_train, y_test
+            )
         )
-        counts_train = count_per_org(
-            X_train, y_train, preprocessed_data_input.organism_mapping
-        )
-        print("counts_test")
-        print(counts_test)
-        print("counts_train")
-        print(counts_train)
 
         (
             y_train_count,
@@ -325,7 +338,47 @@ def run_stacked_rf_cv(preprocessed_data_input):
             per_target_results
         )
 
-    return rf_results, per_organism_results, y_test_count_results, y_train_count_results
+    count_per_org_combined = pd.concat(count_per_org_list, ignore_index=True)
+    count_cols = [
+        c
+        for c in count_per_org_combined.columns
+        if c not in [ORGANISM_COLUMN, ANTIBIOTIC_COLUMN]
+    ]
+    per_org_count_averaged = count_per_org_combined.groupby(
+        [ORGANISM_COLUMN, ANTIBIOTIC_COLUMN], as_index=False
+    )[count_cols].mean()
+
+    return (
+        rf_results,
+        per_organism_results,
+        y_test_count_results,
+        y_train_count_results,
+        per_org_count_averaged,
+    )
+
+
+def merge_count_per_org(preprocessed_data_input, X_train, X_test, y_train, y_test):
+    counts_test = count_per_org(
+        X_test, y_test, preprocessed_data_input.organism_mapping
+    )
+    counts_train = count_per_org(
+        X_train, y_train, preprocessed_data_input.organism_mapping
+    )
+
+    train_renamed = counts_train.rename(
+        columns={c: f"Train_Count_{c}" for c in RESISTANCE_MAPPING}
+    )
+    test_renamed = counts_test.rename(
+        columns={c: f"Test_Count_{c}" for c in RESISTANCE_MAPPING}
+    )
+
+    merged_amr = test_renamed.merge(
+        train_renamed,
+        on=[ORGANISM_COLUMN, ANTIBIOTIC_COLUMN],
+        how="inner",
+    )
+
+    return merged_amr
 
 
 def count_per_org(X_input, y_input, organism_mapping):
@@ -334,26 +387,26 @@ def count_per_org(X_input, y_input, organism_mapping):
     long_df = count.melt(
         id_vars=ORGANISM_COLUMN,
         value_vars=y_input.columns,
-        var_name="Antibiotic",
+        var_name=ANTIBIOTIC_COLUMN,
         value_name="AMR_Result",
     )
     inv_map = {v: k for k, v in RESISTANCE_MAPPING.items()}
     long_df["AMR_Result"] = long_df["AMR_Result"].map(inv_map)
     counts = (
         long_df.dropna(subset=["AMR_Result"])
-        .groupby([ORGANISM_COLUMN, "Antibiotic", "AMR_Result"])
+        .groupby([ORGANISM_COLUMN, ANTIBIOTIC_COLUMN, "AMR_Result"])
         .size()
         .reset_index(name="count")
     )
     amr_table = counts.pivot_table(
-        index=[ORGANISM_COLUMN, "Antibiotic"],
+        index=[ORGANISM_COLUMN, ANTIBIOTIC_COLUMN],
         columns="AMR_Result",
         values="count",
         fill_value=0,
     ).reset_index()
 
     amr_table = amr_table[
-        [ORGANISM_COLUMN, "Antibiotic"] + list(RESISTANCE_MAPPING.keys())
+        [ORGANISM_COLUMN, ANTIBIOTIC_COLUMN] + list(RESISTANCE_MAPPING.keys())
     ]
     amr_table[ORGANISM_COLUMN] = amr_table[ORGANISM_COLUMN].map(organism_mapping)
 
