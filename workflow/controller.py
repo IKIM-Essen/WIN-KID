@@ -20,6 +20,7 @@ from constants import (
     MODEL_FOLDER,
     ORGANISM_COLUMN,
     STACKED_RF_SETTINGS,
+    RESISTANCE_MAPPING,
 )
 
 from log import setup_logging
@@ -286,8 +287,12 @@ def run_stacked_rf_cv(preprocessed_data_input):
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
         # TODO: Fully implement counts per org
-        counts_test = count_per_org(X_test, y_test)
-        counts_train = count_per_org(X_train, y_train)
+        counts_test = count_per_org(
+            X_test, y_test, preprocessed_data_input.organism_mapping
+        )
+        counts_train = count_per_org(
+            X_train, y_train, preprocessed_data_input.organism_mapping
+        )
         print("counts_test")
         print(counts_test)
         print("counts_train")
@@ -323,7 +328,7 @@ def run_stacked_rf_cv(preprocessed_data_input):
     return rf_results, per_organism_results, y_test_count_results, y_train_count_results
 
 
-def count_per_org(X_input, y_input):
+def count_per_org(X_input, y_input, organism_mapping):
     count = y_input.copy()
     count[ORGANISM_COLUMN] = X_input[ORGANISM_COLUMN]
     long_df = count.melt(
@@ -332,14 +337,27 @@ def count_per_org(X_input, y_input):
         var_name="Antibiotic",
         value_name="AMR_Result",
     )
+    inv_map = {v: k for k, v in RESISTANCE_MAPPING.items()}
+    long_df["AMR_Result"] = long_df["AMR_Result"].map(inv_map)
     counts = (
         long_df.dropna(subset=["AMR_Result"])
         .groupby([ORGANISM_COLUMN, "Antibiotic", "AMR_Result"])
         .size()
         .reset_index(name="count")
     )
+    amr_table = counts.pivot_table(
+        index=[ORGANISM_COLUMN, "Antibiotic"],
+        columns="AMR_Result",
+        values="count",
+        fill_value=0,
+    ).reset_index()
 
-    return counts
+    amr_table = amr_table[
+        [ORGANISM_COLUMN, "Antibiotic"] + list(RESISTANCE_MAPPING.keys())
+    ]
+    amr_table[ORGANISM_COLUMN] = amr_table[ORGANISM_COLUMN].map(organism_mapping)
+
+    return amr_table
 
 
 def compute_stacked_rf(
