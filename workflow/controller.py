@@ -405,9 +405,12 @@ def count_per_org(X_input, y_input, organism_mapping):
         fill_value=0,
     ).reset_index()
 
-    amr_table = amr_table[
-        [ORGANISM_COLUMN, ANTIBIOTIC_COLUMN] + list(RESISTANCE_MAPPING.keys())
-    ]
+    expected_cols = list(RESISTANCE_MAPPING.keys())
+    amr_table = amr_table.reindex(
+        columns=[ORGANISM_COLUMN, ANTIBIOTIC_COLUMN] + expected_cols,
+        fill_value=0,
+    )
+
     amr_table[ORGANISM_COLUMN] = amr_table[ORGANISM_COLUMN].map(organism_mapping)
 
     return amr_table
