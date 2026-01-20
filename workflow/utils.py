@@ -155,7 +155,16 @@ def calc_major_errors(y_test_col, y_pred_col):
 def evaluate_per_organism(y_pred, y_true, organism_codes, y_score, target_name):
     results = {}
 
-    df = pd.DataFrame({"organism": organism_codes, "y_true": y_true, "y_pred": y_pred})
+
+    organism_codes = np.asarray(organism_codes).ravel()
+    y_true = np.asarray(y_true).ravel()
+    y_pred = np.asarray(y_pred).ravel()
+
+    df = pd.DataFrame({
+        "organism": organism_codes,
+        "y_true": y_true,
+        "y_pred": y_pred
+    })    
 
     for i in range(y_score.shape[1]):
         df[f"proba_class_{i}"] = y_score[:, i]

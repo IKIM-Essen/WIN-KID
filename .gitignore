@@ -8,3 +8,9 @@
 #Output
 /output/*
 workflow/__pycache__/preprocessing.cpython-*.pyc
+slurm-run.sh
+workflow/__pycache__/classic_rf.cpython-*.pyc
+workflow/__pycache__/execution_modes.cpython-*.pyc
+workflow/__pycache__/*.pyc
+logs/*
+run.log

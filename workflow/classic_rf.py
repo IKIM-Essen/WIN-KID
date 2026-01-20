@@ -32,11 +32,12 @@ def filter_preprocessed_data(merged_filtered_input, col):
 
 def split_train_test(merged_filtered_input, X, y):
     if config.SPLIT_STRATEGY.name == SplitStrategy.STRATIFY.name:
-        X_train, X_test, y_train, y_test = train_test_split(
+        X_train, X_test, y_train, y_test = train_test_split( # uses randomness internally which is not set to seed 42 here, so i'll add it
             X,
             y,
             test_size=config.TEST_SIZE,  # Not splitting further, just rebalancing
             stratify=X[ORGANISM_COLUMN],
+            random_state=42,
         )
     elif config.SPLIT_STRATEGY.name == SplitStrategy.RANDOM.name:
         X_train, X_test, y_train, y_test = train_test_split(
