@@ -187,7 +187,9 @@ def filter_merged_input(preprocessed_data, min_sample_number):
         ]
         updated_value_counts = merged_filtered_input[col_name].value_counts()
 
-        if len(updated_value_counts) <= 2:
+        # Remove NaN values from counter
+        updated_value_counts = updated_value_counts.drop(labels=0, errors="ignore")
+        if len(updated_value_counts) < 2:
             merged_filtered_input = merged_filtered_input.drop(col_name, axis=1)
             logger.warning(
                 "%s removed because only one class is left after filtering",
@@ -355,9 +357,28 @@ class DataLoader:
             for f in os.listdir((MODEL_FOLDER + "second_layer"))
             if f.endswith(".pkl")
         ]
+
+        # Harmonise target antibiotics
+        input_phenotype.columns = [
+            (
+                col
+                if col == ID_COLUMN or col == ORGANISM_COLUMN or col.endswith("_AB")
+                else f"{col}_AB"
+            )
+            for col in input_phenotype.columns
+        ]
         for col in names:
             if col not in input_phenotype.columns:
                 input_phenotype[col] = 0
+        for col in input_phenotype.columns:
+            if col not in names and col != ID_COLUMN:
+                input_phenotype.drop(columns=[col])
+
+        # Encode target values as specific ints
+        for col in input_phenotype.columns[2:]:
+            input_phenotype[col] = (
+                input_phenotype[col].map(RESISTANCE_MAPPING).fillna(-1).astype(int)
+            )
 
         # Encode Organism Code
         organism_cat = input_phenotype[ORGANISM_COLUMN].astype("category")
