@@ -404,10 +404,12 @@ class DataLoader:
                     fasta_ids,
                     FASTA_DIR,
                     W2V_SETTINGS,
-                    n_samples=W2V_SETTINGS.tuning_trials
+                    n_samples=W2V_SETTINGS.tuning_trials,
                 )
 
-                logger.info("Generate aggregated k-mer embeddings using best tuned model...")
+                logger.info(
+                    "Generate aggregated k-mer embeddings using best tuned model..."
+                )
                 embedding_df = encode_all_samples(fasta_ids, FASTA_DIR, w2v_model)
 
             else:
@@ -415,7 +417,9 @@ class DataLoader:
 
             if embedding_df is not None:
                 logger.info(f" Embedding DataFrame shape: {embedding_df.shape}")
-                logger.info(f" Embedding columns: {embedding_df.columns.tolist()[:5]}...")
+                logger.info(
+                    f" Embedding columns: {embedding_df.columns.tolist()[:5]}..."
+                )
 
                 logger.info(
                     f"Add {embedding_df.shape[1]-1} k-mer embeddings to feature columns ..."
@@ -426,7 +430,9 @@ class DataLoader:
                 # Remove rows without Kmer-Embeddings
                 num_before = len(self.merged_input)
                 self.merged_input = self.merged_input.dropna(
-                    subset=[col for col in embedding_df.columns if col.startswith("kmer_")]
+                    subset=[
+                        col for col in embedding_df.columns if col.startswith("kmer_")
+                    ]
                 )
                 num_after = len(self.merged_input)
 
@@ -451,7 +457,7 @@ class DataLoader:
         logger.info(f"Total features (excluding targets): {len(feature_cols_merged)}")
         logger.info(f"Total targets: {num_phenotype_cols - 2}")
         logger.info(f"Feature column sample: {feature_cols_merged} ")
-        
+
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
             names,
@@ -535,10 +541,12 @@ class DataLoader:
                     fasta_ids,
                     FASTA_DIR,
                     W2V_SETTINGS,
-                    n_samples=W2V_SETTINGS.tuning_trials
+                    n_samples=W2V_SETTINGS.tuning_trials,
                 )
 
-                logger.info("Generate aggregated k-mer embeddings using best tuned model...")
+                logger.info(
+                    "Generate aggregated k-mer embeddings using best tuned model..."
+                )
                 embedding_df = encode_all_samples(fasta_ids, FASTA_DIR, w2v_model)
 
             else:
@@ -546,7 +554,9 @@ class DataLoader:
 
             if embedding_df is not None:
                 logger.info(f" Embedding DataFrame shape: {embedding_df.shape}")
-                logger.info(f" Embedding columns: {embedding_df.columns.tolist()[:5]}...")
+                logger.info(
+                    f" Embedding columns: {embedding_df.columns.tolist()[:5]}..."
+                )
 
                 logger.info(
                     f"Add {embedding_df.shape[1]-1} k-mer embeddings to feature columns ..."
@@ -557,7 +567,9 @@ class DataLoader:
                 # Remove rows without Kmer-Embeddings
                 num_before = len(self.merged_input)
                 self.merged_input = self.merged_input.dropna(
-                    subset=[col for col in embedding_df.columns if col.startswith("kmer_")]
+                    subset=[
+                        col for col in embedding_df.columns if col.startswith("kmer_")
+                    ]
                 )
                 num_after = len(self.merged_input)
 

@@ -202,7 +202,7 @@ def prepare_second_layer_data(
         on=ID_COLUMN,
         how="left",
     )
-    y_proba_train = y_proba_train.sort_values(ID_COLUMN) # CV folds reorder rows, reset_index() destroys original ordering, merges may reorder rows differently run-to-run, therefore sort_values
+    y_proba_train = y_proba_train.sort_values(ID_COLUMN)
 
     X_proba_train = proba_train_joined.merge(
         merged_filtered_input[[ID_COLUMN, ORGANISM_COLUMN]],
@@ -219,7 +219,7 @@ def prepare_second_layer_data(
         how="left",
     )
     y_proba_test = y_proba_test.sort_values(ID_COLUMN)
-    
+
     X_proba_test = proba_test_joined.merge(
         merged_filtered_input[[ID_COLUMN, ORGANISM_COLUMN]],
         on=ID_COLUMN,
@@ -228,14 +228,16 @@ def prepare_second_layer_data(
     X_proba_test = X_proba_test.sort_values(ID_COLUMN)
     X_proba_test = X_proba_test.drop(columns=[ID_COLUMN])
 
-
-    organism_test = pd.merge(
-        proba_test_joined[[ID_COLUMN]],
-        merged_filtered_input[[ID_COLUMN, ORGANISM_COLUMN]],
-        on=ID_COLUMN,
-        how="left",
-    ).sort_values(proba_test_joined[ID_COLUMN].name).reset_index(drop=True)
-   
+    organism_test = (
+        pd.merge(
+            proba_test_joined[[ID_COLUMN]],
+            merged_filtered_input[[ID_COLUMN, ORGANISM_COLUMN]],
+            on=ID_COLUMN,
+            how="left",
+        )
+        .sort_values(proba_test_joined[ID_COLUMN].name)
+        .reset_index(drop=True)
+    )
 
     return y_proba_train, X_proba_train, y_proba_test, X_proba_test, organism_test
 
@@ -315,23 +317,32 @@ def run_first_layer(
     return proba_train_joined, proba_test_joined
 
 
-# da hier kein hyperparametertuning o.ä stattfindet wäre eventuel sein sich über die folds hinweg deterministisch anpassender seed besser um overfitting zu reduzieren
-
-def compute_oof_predictions(rf_settings, n_splits, target, y_train_target, X_train_target, X_test_target):
+def compute_oof_predictions(
+    rf_settings, n_splits, target, y_train_target, X_train_target, X_test_target
+):
     proba_train_target = pd.DataFrame([])
     proba_test_list = []
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     run_counter = 0
 
     # Füge bei sehr kleinen Trainingsdaten zusätzliche Zeilen hinzu
-    if (config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
-        or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE) \
-       and len(X_train_target) < 5:
+    if (
+        config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
+        or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
+    ) and len(X_train_target) < 5:
 
-        X_first_row_repeated = pd.concat([X_train_target.iloc[[0]]] * 4, ignore_index=True)
-        X_train_target = pd.concat([X_first_row_repeated, X_train_target], ignore_index=True)
-        y_first_row_repeated = pd.concat([y_train_target.iloc[[0]]] * 4, ignore_index=True)
-        y_train_target = pd.concat([y_first_row_repeated, y_train_target], ignore_index=True)
+        X_first_row_repeated = pd.concat(
+            [X_train_target.iloc[[0]]] * 4, ignore_index=True
+        )
+        X_train_target = pd.concat(
+            [X_first_row_repeated, X_train_target], ignore_index=True
+        )
+        y_first_row_repeated = pd.concat(
+            [y_train_target.iloc[[0]]] * 4, ignore_index=True
+        )
+        y_train_target = pd.concat(
+            [y_first_row_repeated, y_train_target], ignore_index=True
+        )
 
     for train_idx, valid_idx in skf.split(X_train_target, y_train_target):
         run_counter = run_counter + 1
@@ -340,7 +351,6 @@ def compute_oof_predictions(rf_settings, n_splits, target, y_train_target, X_tra
         X_val_target_id = X_val[ID_COLUMN]
         X_val = X_val.drop(ID_COLUMN, axis=1)
         X_tr = X_tr.drop(ID_COLUMN, axis=1)
-    
 
         # Trainiere RandomForest und erhalte Fold-Predictions
         (fold_val_pred, fold_test_pred) = run_layer_one_random_forest(
@@ -358,7 +368,6 @@ def compute_oof_predictions(rf_settings, n_splits, target, y_train_target, X_tra
             )
         proba_test_list.append(fold_test_pred)
 
-
     return proba_train_target, proba_test_list
 
 
@@ -369,7 +378,7 @@ def split_sets_for_stacked(X, y):
             y,
             test_size=config.TEST_SIZE,  # Not splitting further, just rebalancing
             stratify=X[ORGANISM_COLUMN],
-            random_state=42,    #random state was missing
+            random_state=42,
         )
     elif config.SPLIT_STRATEGY.name == SplitStrategy.RANDOM.name:
         X_train, X_test, y_train, y_test = train_test_split(

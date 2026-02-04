@@ -12,6 +12,7 @@ class ExecutionMode(Enum):
     TRAIN_TEST = "TRAIN_TEST"
     TUNE_HYPERPARAMETER = "tune_hyperparameter"
 
+
 class W2VMode(Enum):
     TRAIN_W2V = "TRAIN_W2V"
     TUNE_W2V = "TUNE_W2V"

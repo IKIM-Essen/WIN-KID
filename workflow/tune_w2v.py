@@ -1,16 +1,13 @@
-
 import os
 import random
 import logging
 import numpy as np
-from kmers import (
-    train_word2vec_model_streaming,
-    encode_all_samples
-)
+from kmers import train_word2vec_model_streaming, encode_all_samples
 from sklearn.model_selection import ParameterGrid, ParameterSampler
 from copy import deepcopy
 
 logger = logging.getLogger(__name__)
+
 
 def evaluate_w2v_model(model, val_ids, fasta_dir):
     """
@@ -28,11 +25,7 @@ def evaluate_w2v_model(model, val_ids, fasta_dir):
 
 
 def tune_word2vec(
-    all_fasta_ids,
-    fasta_dir,
-    W2V_SETTINGS,
-    n_samples=10,
-    use_random_search=True
+    all_fasta_ids, fasta_dir, W2V_SETTINGS, n_samples=10, use_random_search=True
 ):
     logger.info("🔍 Starting Word2Vec hyperparameter tuning...")
 
@@ -52,7 +45,9 @@ def tune_word2vec(
     }
 
     if use_random_search:
-        configs = list(ParameterSampler(search_space, n_iter=n_samples, random_state=42))
+        configs = list(
+            ParameterSampler(search_space, n_iter=n_samples, random_state=42)
+        )
     else:
         configs = list(ParameterGrid(search_space))
 

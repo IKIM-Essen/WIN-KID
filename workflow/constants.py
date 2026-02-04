@@ -77,16 +77,17 @@ class w2vSettings:
     negative: int
     tuning_trials: int
 
+
 W2V_SETTINGS = w2vSettings(
-    k_size = 8,
-    vec_size = 40,
-    w2v_epochs = 5,
-    include_position = True,
-    train_subset_size = 1000,
-    window = 5,
-    batch_size = 300,
-    min_count = 1,
-    sg = 0,
-    negative = 5,
-    tuning_trials = 10,
+    k_size=8,
+    vec_size=40,
+    w2v_epochs=5,
+    include_position=True,
+    train_subset_size=1000,
+    window=5,
+    batch_size=300,
+    min_count=1,
+    sg=0,
+    negative=5,
+    tuning_trials=10,
 )

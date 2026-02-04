@@ -103,7 +103,9 @@ def train_word2vec_model_streaming(
 
     for i in range(0, len(all_fasta_ids), W2V_SETTINGS.batch_size):
         batch_ids = all_fasta_ids[i : i + W2V_SETTINGS.batch_size]
-        logger.info(f"Training batch {i//W2V_SETTINGS.batch_size + 1} ({len(batch_ids)} files)")
+        logger.info(
+            f"Training batch {i//W2V_SETTINGS.batch_size + 1} ({len(batch_ids)} files)"
+        )
         log_memory("Before training batch:")
 
         corpus = KmerCorpus(batch_ids, fasta_dir, k=W2V_SETTINGS.k_size)
