@@ -406,7 +406,9 @@ def save_prediction_results(dataset_input, preprocessed_input, rf_results_input)
     pred_df = pd.DataFrame(pred_dict)
 
     inv_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
-    pred_df = pred_df.replace(inv_mapping)
+    for col in pred_df.columns:
+        pred_df[col] = pred_df[col].map(inv_mapping).fillna(pred_df[col])
+    #pred_df = pred_df.replace(inv_mapping)
 
     pred_df[ID_COLUMN] = preprocessed_input.merged_input[ID_COLUMN]
     cols = [ID_COLUMN] + [col for col in pred_df.columns if col != ID_COLUMN]
