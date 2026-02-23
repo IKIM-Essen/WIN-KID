@@ -6,7 +6,7 @@ import cloudpickle
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
-from sklearn.ensemble import RandomForestClassifier
+from imblearn.ensemble import BalancedRandomForestClassifier
 from sklearn.model_selection import StratifiedKFold, train_test_split
 
 from constants import (
@@ -33,7 +33,7 @@ def run_layer_one_random_forest(
     settings_input,
     run_number,
 ):
-    model = RandomForestClassifier(
+    model = BalancedRandomForestClassifier(
         random_state=42,
         n_estimators=settings_input.n_estimators,
         class_weight=settings_input.class_weight,
@@ -362,6 +362,7 @@ def split_sets_for_stacked(X, y):
             y,
             test_size=config.TEST_SIZE,  # Not splitting further, just rebalancing
             stratify=X[ORGANISM_COLUMN],
+            random_state=42,
         )
     elif config.SPLIT_STRATEGY.name == SplitStrategy.RANDOM.name:
         X_train, X_test, y_train, y_test = train_test_split(

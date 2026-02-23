@@ -11,7 +11,7 @@ import numpy as np
 from execution_modes import ExecutionMode
 import cloudpickle
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
-from sklearn.ensemble import RandomForestClassifier
+from imblearn.ensemble import BalancedRandomForestClassifier
 from sklearn.cluster import KMeans
 
 
@@ -37,6 +37,7 @@ def split_train_test(merged_filtered_input, X, y):
             y,
             test_size=config.TEST_SIZE,  # Not splitting further, just rebalancing
             stratify=X[ORGANISM_COLUMN],
+            random_state=42,
         )
     elif config.SPLIT_STRATEGY.name == SplitStrategy.RANDOM.name:
         X_train, X_test, y_train, y_test = train_test_split(
@@ -72,7 +73,7 @@ def run_random_forest(
     target_input,
     settings_input,
 ):
-    model = RandomForestClassifier(
+    model = BalancedRandomForestClassifier(
         random_state=42,
         n_estimators=settings_input.n_estimators,
         class_weight=settings_input.class_weight,
