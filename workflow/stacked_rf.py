@@ -325,7 +325,6 @@ def compute_oof_predictions(
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     run_counter = 0
 
-    # Füge bei sehr kleinen Trainingsdaten zusätzliche Zeilen hinzu
     if (
         config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE
         or config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE
@@ -352,14 +351,14 @@ def compute_oof_predictions(
         X_val = X_val.drop(ID_COLUMN, axis=1)
         X_tr = X_tr.drop(ID_COLUMN, axis=1)
 
-        # Trainiere RandomForest und erhalte Fold-Predictions
+        # Train model and get OOF predictions for validation and test set
         (fold_val_pred, fold_test_pred) = run_layer_one_random_forest(
             X_tr, y_tr, X_val, y_val, X_test_target, target, rf_settings, run_counter
         )
 
         fold_val_pred[ID_COLUMN] = X_val_target_id.reset_index(drop=True)
 
-        # OOF Predictions sammeln
+        # collect OOF Predictions
         if proba_train_target.empty:
             proba_train_target = fold_val_pred
         else:

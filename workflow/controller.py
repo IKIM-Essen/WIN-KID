@@ -3,9 +3,10 @@ from collections import Counter, defaultdict
 from datetime import datetime
 import time
 import logging
-
+import numpy as np
 import pandas as pd
-
+from sklearn.model_selection import ParameterSampler
+from copy import deepcopy
 import os
 import config
 import preprocessing
@@ -14,60 +15,162 @@ import stacked_rf
 import constants
 import utils
 import shutil
-from execution_modes import ExecutionMode
+from execution_modes import ExecutionMode, W2VMode
 from constants import (
     CLASSIC_RF_SETTINGS,
     MODEL_FOLDER,
     ORGANISM_COLUMN,
     STACKED_RF_SETTINGS,
     RESISTANCE_MAPPING,
+    W2V_SETTINGS,
 )
 
 from log import setup_logging
 
+setup_logging(logfile="logs/pipeline.log", tuning_logfile="logs/w2v_tuning.log")
 ANTIBIOTIC_COLUMN = "Antibiotic"
 logger = logging.getLogger(__name__)
+tuning_logger = logging.getLogger("w2v_tuning")
 
 
-# TODO: Add Hyperparameter tuning
+def tune_w2v_via_stacked_rf(dataset_list_input, n_iter=5, random_state=42):
+    """
+    Tune Word2Vec hyperparameters based on final stacked Random Forest CV performance.
+    """
+
+    logger.info(
+        "🔍 Starting task-driven Word2Vec hyperparameter tuning (Stacked RF based)"
+    )
+
+    # --- Define search space ---
+    search_space = {
+        "vec_size": [50, 100, 200],
+        "window": [5, 10, 20],
+        "negative": [5, 10, 20],
+        "sg": [0, 1],
+        "min_count": [1, 2, 5],
+    }
+
+    configs = list(
+        ParameterSampler(search_space, n_iter=n_iter, random_state=random_state)
+    )
+
+    tuning_logger.info(f"🔎 Evaluating {len(configs)} Word2Vec configurations")
+
+    best_score = -np.inf
+    best_cfg = None
+
+    # Store original settings to restore later
+    original_settings = deepcopy(W2V_SETTINGS)
+
+    for idx, cfg in enumerate(configs):
+        tuning_logger.info(f"\n⚙️  Configuration {idx+1}/{len(configs)}: {cfg}")
+
+        # --- Apply config temporarily ---
+        tuned_settings = deepcopy(original_settings)
+        for k, v in cfg.items():
+            setattr(tuned_settings, k, v)
+
+        try:
+            # --- Re-run preprocessing with new W2V config ---
+            data_loader = preprocessing.DataLoader()
+            preprocessed_data = data_loader.get_preprocessed_data(
+                dataset_list_input, tuned_settings
+            )
+
+            # --- Run stacked RF cross-validation ---
+            (
+                rf_results,
+                _,
+                _,
+                _,
+                _,
+            ) = run_stacked_rf_cv(preprocessed_data)
+
+            # --- Compute global macro-F1 score ---
+            fold_scores = []
+
+            for fold in rf_results:
+                for target, result in fold.items():
+
+                    if hasattr(result, "f1") and isinstance(result.f1, dict):
+                        class_f1_scores = list(result.f1.values())
+
+                        # Avoid empty dict
+                        if len(class_f1_scores) > 0:
+                            macro_f1 = float(np.mean(class_f1_scores))
+                            fold_scores.append(macro_f1)
+                        else:
+                            tuning_logger.warning(f"Empty F1 dict for target {target}")
+                    else:
+                        tuning_logger.warning(f"No valid F1 found for target {target}")
+
+            if not fold_scores:
+                tuning_logger.warning(
+                    "No valid F1 scores collected — skipping configuration"
+                )
+                continue
+
+            mean_score = float(np.mean(fold_scores))
+
+            tuning_logger.info(f"   → Mean CV Macro-F1: {mean_score:.4f}")
+
+            if mean_score > best_score:
+                best_score = mean_score
+                best_cfg = cfg
+                tuning_logger.info("   🏆 New best configuration found!")
+
+        except Exception as e:
+            tuning_logger.exception(f"❌ Configuration failed due to error: {e}")
+            continue
+
+    if best_cfg is None:
+        raise RuntimeError("No valid Word2Vec configuration found during tuning.")
+
+    tuning_logger.info("\n======================================")
+    tuning_logger.info(f"🏆 Best W2V configuration: {best_cfg}")
+    tuning_logger.info(f"🏆 Best CV Macro-F1: {best_score:.4f}")
+    tuning_logger.info("======================================\n")
+    logger.info(
+        "Finished task-driven Word2Vec hyperparameter tuning (Stacked RF based)"
+    )
+
+    return best_cfg
+
+
 def process(dataset_list_input):
+
+    if config.W2V_MODE == W2VMode.TUNE_W2V:
+        best_cfg = tune_w2v_via_stacked_rf(dataset_list_input, n_iter=5)
+
+        # Apply best configuration permanently
+        for k, v in best_cfg.items():
+            setattr(W2V_SETTINGS, k, v)
+
+        logger.info("🔁 Re-running full pipeline with best W2V configuration")
 
     # Preprocessing
     data_loader = preprocessing.DataLoader()
     if config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_SAVE:
         preprocessed_data_input = data_loader.get_genotype_data_for_prediction(
-            dataset_list_input
+            dataset_list_input, W2V_SETTINGS
         )
     elif config.EXECUTION_MODE == ExecutionMode.PREDICT_AND_EVALUATE:
         preprocessed_data_input = data_loader.get_genotype_data_for_prediction(
-            dataset_list_input
+            dataset_list_input, W2V_SETTINGS
         )
     else:
-        preprocessed_data_input = data_loader.get_preprocessed_data(dataset_list_input)
+        preprocessed_data_input = data_loader.get_preprocessed_data(
+            dataset_list_input, W2V_SETTINGS
+        )
         preprocessed_data_input = preprocessing.filter_merged_input(
             preprocessed_data_input, config.MIN_SAMPLE_NUMBER
         )
 
     start_time = time.time()
     # Compute
-    if not config.STACK_MODEL and not config.CROSS_VALIDATE:
-        (
-            rf_results,
-            per_organism_results,
-            y_test_count_results,
-            y_train_count_results,
-        ) = run_classic_rf(preprocessed_data_input)
-        utils.display_results(rf_results[0])
 
-    elif not config.STACK_MODEL and config.CROSS_VALIDATE:
-        (
-            rf_results,
-            per_organism_results,
-            y_test_count_results,
-            y_train_count_results,
-        ) = run_classic_rf_cv(preprocessed_data_input)
-
-    elif config.STACK_MODEL and not config.CROSS_VALIDATE:
+    if config.STACK_MODEL and not config.CROSS_VALIDATE:
         (
             rf_results,
             per_organism_results,
@@ -96,129 +199,6 @@ def process(dataset_list_input):
             utils.feature_importance_to_csv(rf_results)
             per_organism_count.to_csv("Evaluation/Per_Organism_Evaluation_count.csv")
     logger.info("--- %s seconds for ML---", (time.time() - start_time))
-
-
-def run_classic_rf(preprocessed_data_input):
-    y_test_count_result, y_train_count_result, rf_result = ({}, {}, {})
-    per_organism_results = {}
-
-    for col in preprocessed_data_input.target_cols:
-        # Filter and prepare data
-        merged_filtered_input = preprocessed_data_input.merged_input
-        merged_filtered_input = classic_rf.filter_preprocessed_data(
-            merged_filtered_input, col
-        )
-        # Split data
-        y_test, y_train, X_test, X_train = classic_rf.split_train_test(
-            merged_filtered_input,
-            merged_filtered_input[preprocessed_data_input.feature_cols],
-            merged_filtered_input[col],
-        )
-
-        y_test_count_result[col] = Counter(y_test)
-        y_train_count_result[col] = Counter(y_train)
-
-        # Train and predict
-        single_result = classic_rf.run_random_forest(
-            X_train,
-            y_train,
-            X_test,
-            y_test,
-            col,
-            constants.CLASSIC_RF_SETTINGS,
-        )
-        rf_result[col] = single_result
-
-        # Arrange and evaluate results
-        organism_test = merged_filtered_input.loc[y_test.index, ORGANISM_COLUMN]
-        per_organism_results[col] = utils.evaluate_per_organism(
-            single_result.y_pred, y_test, organism_test, single_result.y_score, col
-        )
-
-    return (
-        [rf_result],
-        per_organism_results,
-        [y_test_count_result],
-        [y_train_count_result],
-    )
-
-
-def run_classic_rf_cv(preprocessed_data_input):
-    rf_results_return, y_test_count_results_return, y_train_count_results_return = (
-        [],
-        [],
-        [],
-    )
-    per_organism_results_return = {}
-
-    for col in preprocessed_data_input.target_cols:
-        # Filter and prepare data
-        merged_filtered_input = preprocessed_data_input.merged_input
-        merged_filtered_input = classic_rf.filter_preprocessed_data(
-            merged_filtered_input, col
-        )
-        X = merged_filtered_input[preprocessed_data_input.feature_cols]
-        y = merged_filtered_input[col]
-
-        # Cross-validation splits
-        split_iterator = classic_rf.get_split_iterator(
-            X,
-            merged_filtered_input[ORGANISM_COLUMN],
-        )
-        fold_per_organism_results = defaultdict(list)
-
-        skipped_fold_counter = 0
-        # Iterate over folds
-        for fold_idx, (train_idx, test_idx) in enumerate(split_iterator):
-            X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
-            y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-
-            if set(y_train.unique()) != set(y_test.unique()):
-                skipped_fold_counter = +1
-                continue
-
-            # Train and predict
-            result = classic_rf.run_random_forest(
-                X_train,
-                y_train,
-                X_test,
-                y_test,
-                col,
-                constants.CLASSIC_RF_SETTINGS,
-            )
-
-            # Add overall results
-            if len(rf_results_return) <= fold_idx:
-                rf_results_return.append({})
-                y_test_count_results_return.append({})
-                y_train_count_results_return.append({})
-            (rf_results_return[fold_idx])[col] = result
-            (y_test_count_results_return[fold_idx])[col] = y_test.value_counts()
-            (y_train_count_results_return[fold_idx])[col] = y_train.value_counts()
-
-            # Add results per organism
-            organism_test = merged_filtered_input.iloc[test_idx][ORGANISM_COLUMN]
-            per_fold_result = utils.evaluate_per_organism(
-                result.y_pred, y_test, organism_test, result.y_score, col
-            )
-            fold_per_organism_results[col].append(per_fold_result)
-
-        if skipped_fold_counter > 0:
-            logger.warning(
-                "Skipped fold for %s %s times: y_train and y_test have different classes.",
-                col,
-                skipped_fold_counter,
-            )
-        per_organism_results_return[col] = utils.average_per_organism_results(
-            fold_per_organism_results[col]
-        )
-
-    return (
-        rf_results_return,
-        per_organism_results_return,
-        y_test_count_results_return,
-        y_train_count_results_return,
-    )
 
 
 def run_stacked_rf(dataset_list_input, preprocessed_data_input):

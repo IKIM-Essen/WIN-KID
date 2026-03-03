@@ -1,9 +1,11 @@
 import logging
 import sys
+import os
 
 
 def setup_logging(
     logfile="pipeline.log",
+    tuning_logfile=None,
     console_level=logging.INFO,
     file_level=logging.DEBUG,
 ):
@@ -18,7 +20,7 @@ def setup_logging(
     ch.setLevel(console_level)
     ch.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
 
-    # ---- File ----
+    # ---- Main File ----
     fh = logging.FileHandler(logfile, mode="a")
     fh.setLevel(file_level)
     fh.setFormatter(
@@ -27,3 +29,18 @@ def setup_logging(
 
     logger.addHandler(ch)
     logger.addHandler(fh)
+
+    # ---- Optional Tuning File ----
+    if tuning_logfile is not None:
+        os.makedirs(os.path.dirname(tuning_logfile), exist_ok=True)
+
+        tuning_handler = logging.FileHandler(tuning_logfile, mode="a")
+        tuning_handler.setLevel(file_level)
+        tuning_handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        )
+
+        # Only accept records from w2v_tuning logger
+        tuning_handler.addFilter(lambda record: record.name == "w2v_tuning")
+
+        logger.addHandler(tuning_handler)

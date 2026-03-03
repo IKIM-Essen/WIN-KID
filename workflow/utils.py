@@ -154,10 +154,6 @@ def calc_major_errors(y_test_col, y_pred_col):
 
 def evaluate_per_organism(y_pred, y_true, organism_codes, y_score, target_name):
     results = {}
-
-    organism_codes = np.asarray(organism_codes).ravel()
-    y_true = np.asarray(y_true).ravel()
-    y_pred = np.asarray(y_pred).ravel()
     df = pd.DataFrame({"organism": organism_codes, "y_true": y_true, "y_pred": y_pred})
 
     for i in range(y_score.shape[1]):
@@ -406,8 +402,7 @@ def save_prediction_results(dataset_input, preprocessed_input, rf_results_input)
     pred_df = pd.DataFrame(pred_dict)
 
     inv_mapping = {v: k for k, v in RESISTANCE_MAPPING.items()}
-    for col in pred_df.columns:
-        pred_df[col] = pred_df[col].map(inv_mapping).fillna(pred_df[col])
+    pred_df = pred_df.replace(inv_mapping)
     pred_df[ID_COLUMN] = preprocessed_input.merged_input[ID_COLUMN]
     cols = [ID_COLUMN] + [col for col in pred_df.columns if col != ID_COLUMN]
     pred_df = pred_df[cols]
