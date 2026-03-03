@@ -27,7 +27,6 @@ from constants import (
 
 from log import setup_logging
 
-setup_logging(logfile="logs/pipeline.log", tuning_logfile="logs/w2v_tuning.log")
 ANTIBIOTIC_COLUMN = "Antibiotic"
 logger = logging.getLogger(__name__)
 tuning_logger = logging.getLogger("w2v_tuning")

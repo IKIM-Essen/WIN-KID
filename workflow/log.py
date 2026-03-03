@@ -21,6 +21,9 @@ def setup_logging(
     ch.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
 
     # ---- Main File ----
+    log_dir = os.path.dirname(logfile)
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
     fh = logging.FileHandler(logfile, mode="a")
     fh.setLevel(file_level)
     fh.setFormatter(
