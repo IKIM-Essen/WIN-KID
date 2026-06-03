@@ -7,7 +7,6 @@ from execution_modes import ExecutionMode
 from execution_modes import W2VMode
 from split_strategies import SplitStrategy
 
-
 STACK_MODEL = True
 CROSS_VALIDATE = False
 NUMBER_OF_FOLDS = 5

@@ -16,3 +16,6 @@ class ExecutionMode(Enum):
 class W2VMode(Enum):
     TRAIN_W2V = "TRAIN_W2V"
     TUNE_W2V = "TUNE_W2V"
+
+
+# load w2V, off,

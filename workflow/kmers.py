@@ -85,9 +85,9 @@ def train_word2vec_model_streaming(
         min_count=w2v_settings.min_count,  # all 'words' with frequency < min_count are ignored do we want that?
         workers=workers,
         sg=w2v_settings.sg,  # CBOW (lower memory). switching to skip-gram (sg=1)?
-        sample=1e-4,
+        sample=w2v_settings.sample,
         negative=w2v_settings.negative,
-        seed=42,
+        seed=w2v_settings.seed,
     )
     # hs=1 to use herachical softmax?
     # negative=int -> If > 0, negative sampling will be used, the int for negative specifies how many "noise words" should be drown.use?
@@ -95,7 +95,7 @@ def train_word2vec_model_streaming(
     logger.info("📦 Building vocabulary...")
     log_memory("Before vocab build:")
     model.build_vocab(
-        KmerCorpus(all_fasta_ids, fasta_dir, k=w2v_settings.k_size), progress_per=1000
+        KmerCorpus(all_fasta_ids, fasta_dir, k=w2v_settings.k_size), progress_per=10000
     )
     log_memory("After vocab build:")
     logger.info(f"✅ Vocab size: {len(model.wv)} k-mers")
@@ -137,7 +137,7 @@ def encode_sample(sample_id, fasta_dir, model, w2v_settings):
                 if set(kmer).issubset({"A", "C", "G", "T"}) and kmer in model.wv:
                     vec = model.wv[kmer]
 
-                    if W2V_SETTINGS.include_position:
+                    if w2v_settings.include_position:
                         rel_pos = i / len(seq)
                         vec = np.concatenate((vec, [rel_pos]))
 

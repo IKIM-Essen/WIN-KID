@@ -16,7 +16,8 @@ from constants import ID_COLUMN
 from constants import ORGANISM_COLUMN
 from constants import MODEL_FOLDER
 from constants import W2V_MODEL_PATH
-from config import EXECUTION_MODE, KMERE, FASTA_DIR, RETRAIN_W2V
+from constants import W2V_SETTINGS
+from config import EXECUTION_MODE, KMERE, FASTA_DIR, RETRAIN_W2V, W2V_MODE
 from execution_modes import ExecutionMode
 import random
 from kmers import train_word2vec_model_streaming, encode_all_samples, load_w2v_model
@@ -24,7 +25,7 @@ from kmers import train_word2vec_model_streaming, encode_all_samples, load_w2v_m
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 GFF_DIR = "resources/genotype"
-MIN_SAMPLES_PER_ORG = 70
+MIN_SAMPLES_PER_ORG = 10
 
 logger = logging.getLogger(__name__)
 
@@ -166,47 +167,141 @@ def find_similar_columns(df, threshold=90):
 
 
 def filter_merged_input(preprocessed_data, min_sample_number):
-    merged_filtered_input = preprocessed_data.merged_input
 
-    # Remove classes and ABs that rarely occur
-    for col_name in preprocessed_data.target_cols:
-        value_counts = merged_filtered_input[col_name].value_counts()
+    merged_filtered_input = preprocessed_data.merged_input.copy()
+
+    print("\n" + "=" * 80)
+    print("[DEBUG] START FILTERING")
+    print("=" * 80)
+
+    print(f"[DEBUG] Initial dataframe shape: {merged_filtered_input.shape}")
+    print(f"[DEBUG] Initial target count: {len(preprocessed_data.target_cols)}")
+
+    print("\n[DEBUG] Initial target distributions (10 examples):")
+    for col in preprocessed_data.target_cols[:10]:
+        print(f"  {col}:")
+        print(merged_filtered_input[col].value_counts(dropna=False))
+
+    # ------------------------------------------------------------------
+    # Iterate through targets
+    # ------------------------------------------------------------------
+    for idx, col_name in enumerate(preprocessed_data.target_cols):
+
+        print("\n" + "-" * 80)
+        print(f"[DEBUG] Processing target {idx+1}/{len(preprocessed_data.target_cols)}")
+        print(f"[DEBUG] Column: {col_name}")
+        print("-" * 80)
+
+        before_shape = merged_filtered_input.shape[0]
+
+        value_counts = merged_filtered_input[col_name].value_counts(dropna=False)
+
+        print("[DEBUG] Value counts BEFORE filtering:")
+        print(value_counts)
+
         low_freq_values = value_counts[value_counts < min_sample_number].index
 
-        if len(list(low_freq_values)) > 0:
-            logger.warning(
-                "Removed values for column %s: %s",
-                col_name,
-                list(low_freq_values),
-            )
+        print(f"[DEBUG] min_sample_number = {min_sample_number}")
+        print(f"[DEBUG] Low frequency values: {list(low_freq_values)}")
 
+        if len(low_freq_values) > 0:
+
+            rows_to_remove = merged_filtered_input[
+                merged_filtered_input[col_name].isin(low_freq_values)
+            ]
+
+            print(f"[DEBUG] Rows to remove: {len(rows_to_remove)}")
+
+            # Show sample rows
+            print("[DEBUG] Example rows being removed:")
+            print(rows_to_remove[[col_name]].head(10))
+        # ------------------------------------------------------------------
+        # FILTER
+        # ------------------------------------------------------------------
         merged_filtered_input = merged_filtered_input[
             ~merged_filtered_input[col_name].isin(low_freq_values)
         ]
-        updated_value_counts = merged_filtered_input[col_name].value_counts()
+
+        after_shape = merged_filtered_input.shape[0]
+
+        print(f"[DEBUG] Shape before: {before_shape}")
+        print(f"[DEBUG] Shape after : {after_shape}")
+        print(f"[DEBUG] Removed rows: {before_shape - after_shape}")
+
+        updated_value_counts = merged_filtered_input[col_name].value_counts(
+            dropna=False
+        )
 
         # Remove NaN values from counter
         updated_value_counts = updated_value_counts.drop(labels=0, errors="ignore")
+
+        print(f"[DEBUG] Remaining unique labels: {len(updated_value_counts)}")
+
+        # ------------------------------------------------------------------
+        # REMOVE TARGET IF ONLY ONE CLASS LEFT
+        # ------------------------------------------------------------------
         if len(updated_value_counts) < 2:
+
+            print(f"[DEBUG] DROPPING TARGET: {col_name}")
+
             merged_filtered_input = merged_filtered_input.drop(col_name, axis=1)
+
             logger.warning(
                 "%s removed because only one class is left after filtering",
                 col_name,
             )
+
             preprocessed_data.target_cols = preprocessed_data.target_cols.difference(
                 [col_name]
             )
-    # Remove full NaN rows
+
+    print("\n" + "=" * 80)
+    print("[DEBUG] REMOVING FULL-ZERO ROWS")
+    print("=" * 80)
+
+    print(f"[DEBUG] Shape before zero-row removal: {merged_filtered_input.shape}")
+
     mask = (merged_filtered_input[preprocessed_data.target_cols] != 0).any(axis=1)
+
+    removed_zero_rows = (~mask).sum()
+
+    print(f"[DEBUG] Rows with all-zero targets: {removed_zero_rows}")
+
+    if removed_zero_rows > 0:
+        print("[DEBUG] Example all-zero rows:")
+        print(merged_filtered_input.loc[~mask].head(10))
+
     merged_filtered_input = merged_filtered_input[mask]
 
+    print(f"[DEBUG] Final dataframe shape: {merged_filtered_input.shape}")
+
+    # ----------------------------------------------------------------------
+    # FINAL SUMMARY
+    # ----------------------------------------------------------------------
+    print("\n" + "=" * 80)
+    print("[DEBUG] FINAL SUMMARY")
+    print("=" * 80)
+
+    print(f"[DEBUG] Remaining targets: {len(preprocessed_data.target_cols)}")
+
+    print("[DEBUG] Remaining target names:")
+    print(list(preprocessed_data.target_cols))
+
+    if ORGANISM_COLUMN in merged_filtered_input.columns:
+        print("\n[DEBUG] Organism distribution:")
+        print(merged_filtered_input[ORGANISM_COLUMN].value_counts())
+
     preprocessed_data.merged_input = merged_filtered_input
+
     logger.info(
         "Number of samples after sample number filtering: %s",
         len(preprocessed_data.merged_input),
     )
+
     logger.info(preprocessed_data.merged_input[ORGANISM_COLUMN].value_counts())
+
     os.makedirs("Evaluation", exist_ok=True)
+
     preprocessed_data.merged_input[ID_COLUMN].to_csv(
         "Evaluation/samples_used.csv", index=False
     )
@@ -224,20 +319,52 @@ class DataLoader:
             return feature_cols_merged
 
         fasta_ids = self.merged_input[ID_COLUMN].unique().tolist()
+
+        missing = [
+            sid
+            for sid in fasta_ids
+            if not os.path.exists(os.path.join(FASTA_DIR, f"{sid}.fna.gz"))
+        ]
+
+        logger.info(f"Missing FASTA files: {len(missing)} / {len(fasta_ids)}")
+        logger.info(f"Total FASTA IDs available: {len(fasta_ids)}")
+        logger.info(f"Sample FASTA IDs: {fasta_ids[:5]}")
         logger.info("W2V Mode: TRAIN_W2V")
 
         # Load or train model
-        if os.path.exists(W2V_MODEL_PATH) and not RETRAIN_W2V:
+        if (
+            os.path.exists(W2V_MODEL_PATH)
+            and not RETRAIN_W2V
+            and not W2V_MODE == "TUNE_W2V"
+        ):
             logger.info("📥 Loading existing Word2Vec model...")
             w2v_model = load_w2v_model(W2V_MODEL_PATH)
+
+            eval_ids = fasta_ids
         else:
             logger.info("🧪 Training new Word2Vec model...")
-            train_ids = random.sample(
-                fasta_ids, min(W2v_settings.train_subset_size, len(fasta_ids))
-            )
-            logger.info(
-                f"Train Word2Vec on {len(train_ids)} FASTA files using streaming..."
-            )
+
+            if W2V_MODE == "TUNE_W2V":
+                random.seed(W2v_settings.seed)
+                subset_size = max(1, int(len(fasta_ids) * 0.2))
+                train_ids = random.sample(fasta_ids, min(subset_size, len(fasta_ids)))
+
+                # use SAME subset for evaluation
+                eval_ids = train_ids
+
+                logger.info(f"⚡ Tuning mode: using {len(train_ids)} samples (20%)")
+
+            else:
+                train_ids = random.sample(
+                    fasta_ids, min(W2v_settings.train_subset_size, len(fasta_ids))
+                )
+
+                eval_ids = fasta_ids
+
+                logger.info(
+                    f"Train Word2Vec on {len(train_ids)} FASTA files using streaming..."
+                )
+
             w2v_model = train_word2vec_model_streaming(
                 train_ids,
                 FASTA_DIR,
@@ -245,24 +372,87 @@ class DataLoader:
                 save_path=W2V_MODEL_PATH,
             )
 
+        if W2V_MODE == "TUNE_W2V":
+            logger.info("⚡ Filtering dataset to subset for tuning")
+            self.merged_input = self.merged_input[
+                self.merged_input[ID_COLUMN].isin(eval_ids)
+            ]
+
         logger.info("Generate aggregated k-mer embeddings...")
-        embedding_df = encode_all_samples(fasta_ids, FASTA_DIR, w2v_model, W2v_settings)
+        embedding_df = encode_all_samples(eval_ids, FASTA_DIR, w2v_model, W2v_settings)
 
         if embedding_df is None:
             logger.warning("No k-mer embeddings generated.")
 
+        logger.info("==== DEBUG: EMBEDDING_DF ====")
+        logger.info(f"Shape: {embedding_df.shape}")
+        logger.info(f"First row:\n{embedding_df.head(1)}")
+
+        # Check ID overlap
+        logger.info(f"Unique embedding IDs: {embedding_df[ID_COLUMN].nunique()}")
+        logger.info(
+            f"Unique merged_input IDs (before merge): {self.merged_input[ID_COLUMN].nunique()}"
+        )
+
+        intersection = set(embedding_df[ID_COLUMN]) & set(self.merged_input[ID_COLUMN])
+        logger.info(f"ID intersection size: {len(intersection)}")
+
+        if len(intersection) == 0:
+            raise ValueError("No matching IDs between embeddings and merged_input!")
+
         logger.info(f"Embedding DataFrame shape: {embedding_df.shape}")
+
+        kmer_cols = [col for col in embedding_df.columns if col.startswith("kmer_")]
+
+        if not kmer_cols:
+            raise ValueError("No k-mer embedding columns found in embedding_df")
+
+        logger.info("==== DEBUG: KMER COLS (FROM EMBEDDING_DF) ====")
+        logger.info(f"Detected kmer_cols count: {len(kmer_cols)}")
+        logger.info(f"Sample kmer_cols: {kmer_cols[:10]}")
 
         # Merge embeddings
         self.merged_input = pd.merge(
             self.merged_input, embedding_df, on=ID_COLUMN, how="left"
         )
 
+        logger.info("==== DEBUG: AFTER MERGE ====")
+        logger.info(f"Merged shape: {self.merged_input.shape}")
+        logger.info(f"Merged columns sample: {self.merged_input.columns.tolist()}")
+
+        # Check if kmer columns exist
+        existing_kmers = [col for col in kmer_cols if col in self.merged_input.columns]
+        missing_kmers = [
+            col for col in kmer_cols if col not in self.merged_input.columns
+        ]
+
+        logger.info(f"Existing kmer cols: {len(existing_kmers)}")
+        logger.info(f"Missing kmer cols: {len(missing_kmers)}")
+
+        if missing_kmers:
+            logger.error(f"Missing kmer columns (first 10): {missing_kmers[:10]}")
+
+        if existing_kmers:
+            nan_counts = self.merged_input[existing_kmers].isna().sum().sum()
+            logger.info(f"Total NaNs in kmer columns: {nan_counts}")
+
+            logger.info("Sample kmer values:")
+            logger.info(self.merged_input[existing_kmers].head(3))
+
         # Remove rows without embeddings
         num_before = len(self.merged_input)
         kmer_cols = [col for col in embedding_df.columns if col.startswith("kmer_")]
 
-        self.merged_input = self.merged_input.dropna(subset=kmer_cols)
+        logger.info("==== DEBUG: BEFORE DROPNA ====")
+        logger.info(f"Trying to dropna on {len(kmer_cols)} columns")
+
+        try:
+            self.merged_input = self.merged_input.dropna(subset=kmer_cols)
+        except Exception as e:
+            logger.error("DROPNA FAILED")
+            logger.error(f"Error: {e}")
+            logger.error(f"kmer_cols (first 10): {kmer_cols[:10]}")
+            raise
         num_after = len(self.merged_input)
 
         logger.info(
@@ -391,6 +581,7 @@ class DataLoader:
         # Load allowed features
         features = pd.read_csv("resources/settings/FeatureList.csv", header=None)
         all_features = features[0].tolist()
+        all_features = [f for f in all_features if not f.startswith("kmer_")]
 
         # Always keep Sample_ID_IfH
         if "Sample_ID_IfH" not in all_features:
@@ -452,6 +643,24 @@ class DataLoader:
             feature_cols_merged, W2v_settings
         )
 
+        # --- enforce feature alignment ---
+        expected_features = pd.read_csv(
+            "resources/settings/FeatureList.csv", header=None
+        )[0].tolist()
+        expected_features = [f for f in expected_features if not f.startswith("kmer_")]
+        kmer_cols = [
+            col for col in self.merged_input.columns if col.startswith("kmer_")
+        ]
+        final_features = expected_features + kmer_cols
+        target_cols = [col for col in self.merged_input.columns if col.endswith("_AB")]
+        final_columns = [ID_COLUMN] + target_cols + final_features
+
+        self.merged_input = self.merged_input.reindex(
+            columns=final_columns, fill_value=0
+        )
+        # update feature list used downstream
+        feature_cols_merged = final_features
+
         logger.info(
             f"✅ Final merged_input shape after k-mers: {self.merged_input.shape}"
         )
@@ -469,7 +678,6 @@ class DataLoader:
         logger.info(
             "Total number of samples: %s", str(len(preprocessed_data.merged_input))
         )
-        logger.info("Number of features: %s", str(len(preprocessed_data.feature_cols)))
         return preprocessed_data
 
     def get_preprocessed_data(self, dataset_list, W2v_settings):
@@ -515,6 +723,24 @@ class DataLoader:
             feature_cols_merged, W2v_settings
         )
 
+        # --- enforce feature alignment ---
+        expected_features = pd.read_csv(
+            "resources/settings/FeatureList.csv", header=None
+        )[0].tolist()
+        expected_features = [f for f in expected_features if not f.startswith("kmer_")]
+        kmer_cols = [
+            col for col in self.merged_input.columns if col.startswith("kmer_")
+        ]
+        final_features = expected_features + kmer_cols
+        target_cols = [col for col in self.merged_input.columns if col.endswith("_AB")]
+        final_columns = [ID_COLUMN] + target_cols + final_features
+
+        self.merged_input = self.merged_input.reindex(
+            columns=final_columns, fill_value=0
+        )
+        # update feature list used downstream
+        feature_cols_merged = final_features
+
         logger.info(
             f"✅ Final merged_input shape after k-mers: {self.merged_input.shape}"
         )
@@ -525,7 +751,7 @@ class DataLoader:
 
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,
-            self.merged_input.columns[2:num_phenotype_cols],
+            [col for col in self.merged_input.columns if col.endswith("_AB")],
             feature_cols_merged,
             organism_mapping=organism_mapping,
         )
@@ -537,7 +763,6 @@ class DataLoader:
         logger.info(
             "Total number of samples: %s", str(len(preprocessed_data.merged_input))
         )
-        logger.info("Number of features: %s", str(len(preprocessed_data.feature_cols)))
         return preprocessed_data
 
 

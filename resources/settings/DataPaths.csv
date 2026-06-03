@@ -1,6 +1,2 @@
 DataSetName,PathToCsv,PathToGff
-Retrospective_Dec22-Jul24_all-species,/groups/ds/Win-KID/UKM_Sciebo/Retrospective_Dec22-Jul24_all-species/retrospective_MHK_cleaned_dublicates_1025interpreted.csv,/groups/ds/Win-KID/UKM_Sciebo/Retrospective_Dec22-Jul24_all-species/gff_card_401
-Prospective_Aug24-Dec24,/groups/ds/Win-KID/UKM_Sciebo/Prospective_Aug24-Dec24/MHKs_prospective_Aug24-Dec24_1025interpreted.csv,/groups/ds/Win-KID/UKM_Sciebo/Prospective_Aug24-Dec24/gff_card_401
-Prospective_Jan25,/groups/ds/Win-KID/UKM_Sciebo/Prospective_Jan25/MHKs_prospective_Jan25_1025interpreted.csv,/groups/ds/Win-KID/UKM_Sciebo/Prospective_Jan25/gff_card_401
-Prospective_Feb25,/groups/ds/Win-KID/UKM_Sciebo/Prospective_Feb25/MHKs_prospective_Feb25_1025interpreted.csv,/groups/ds/Win-KID/UKM_Sciebo/Prospective_Feb25/gff_card_401
-Prospective_Mar25,/groups/ds/Win-KID/UKM_Sciebo/Prospective_Mar25/MHKs_prospective_Mar25_1025interpreted.csv,/groups/ds/Win-KID/UKM_Sciebo/Prospective_Mar25/gff_card_401
+test_set,/groups/ds/Win-KID/Paper_1/sorted_samples_test.csv,/groups/ds/Win-KID/BVBRC/vitek_ii_cleaned/gff_card_401/

@@ -352,7 +352,7 @@ def compute_oof_predictions(
         X_tr = X_tr.drop(ID_COLUMN, axis=1)
 
         # Train model and get OOF predictions for validation and test set
-        (fold_val_pred, fold_test_pred) = run_layer_one_random_forest(
+        fold_val_pred, fold_test_pred = run_layer_one_random_forest(
             X_tr, y_tr, X_val, y_val, X_test_target, target, rf_settings, run_counter
         )
 

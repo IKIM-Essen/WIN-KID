@@ -9,9 +9,7 @@ TRANSLATIONS_PATH = "resources/settings/translations.csv"
 IGNORE_PATH = "resources/settings/ignore.csv"
 INPUT_EUCAST_FOLDER = "resources/eucast_files/"
 MODEL_FOLDER = "rf_models/"
-W2V_MODEL_PATH = (
-    "/groups/ds/Win-KID/development/WIN-KID/WIN-KID/rf_models/w2v_model/w2v_model.bin"
-)
+W2V_MODEL_PATH = "w2v_models/w2v_model.bin"
 
 
 GFF_COLUMNS = [
@@ -76,18 +74,22 @@ class w2vSettings:
     sg: int
     negative: int
     tuning_trials: int
+    sample: float
+    seed: int
 
 
 W2V_SETTINGS = w2vSettings(
     k_size=8,
-    vec_size=40,
-    w2v_epochs=5,
-    include_position=True,
+    vec_size=50,
+    w2v_epochs=3,
+    include_position=False,
     train_subset_size=1000,
-    window=5,
+    window=8,
     batch_size=300,
-    min_count=1,
+    min_count=2,
     sg=0,
     negative=5,
     tuning_trials=10,
+    sample=1e-4,
+    seed=42,
 )
