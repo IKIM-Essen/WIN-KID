@@ -14,3 +14,4 @@ workflow/__pycache__/execution_modes.cpython-*.pyc
 workflow/__pycache__/*.pyc
 logs/*
 run.log
+/Evaluation/*
