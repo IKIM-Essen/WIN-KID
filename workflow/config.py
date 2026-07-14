@@ -6,6 +6,7 @@ import logging
 from execution_modes import ExecutionMode
 from execution_modes import W2VMode
 from split_strategies import SplitStrategy
+from execution_modes import FeatureMode
 
 STACK_MODEL = True
 CROSS_VALIDATE = False
@@ -19,3 +20,6 @@ KMERE = False
 W2V_MODE = W2VMode.TRAIN_W2V
 FASTA_DIR = ""
 RETRAIN_W2V = False  # Set to True to retrain model
+FEATURE_MODE = FeatureMode.CARD_AND_W2V
+USE_PCA = True
+PCA_COMPONENTS = 20

@@ -32,6 +32,40 @@ logger = logging.getLogger(__name__)
 tuning_logger = logging.getLogger("w2v_tuning")
 
 
+def log_run_configuration():
+    logger.info("")
+    logger.info("=" * 70)
+    logger.info("RUN CONFIGURATION")
+    logger.info("=" * 70)
+
+    logger.info(f"Execution mode : {config.EXECUTION_MODE.value}")
+    logger.info(f"Feature mode   : {config.FEATURE_MODE.value}")
+    logger.info(f"Stack model    : {config.STACK_MODEL}")
+    logger.info(f"Cross validate : {config.CROSS_VALIDATE}")
+    logger.info(f"PCA : {config.USE_PCA}")
+    logger.info(f"PCA components : {config.PCA_COMPONENTS}")
+
+    logger.info("")
+    logger.info("Word2Vec settings")
+    logger.info(f"  k-mer size        : {W2V_SETTINGS.k_size}")
+    logger.info(f"  vector size       : {W2V_SETTINGS.vec_size}")
+    logger.info(f"  window            : {W2V_SETTINGS.window}")
+    logger.info(f"  skip-gram (sg)    : {W2V_SETTINGS.sg}")
+    logger.info(f"  negative samples  : {W2V_SETTINGS.negative}")
+    logger.info(f"  min_count         : {W2V_SETTINGS.min_count}")
+    logger.info(f"  epochs            : {W2V_SETTINGS.w2v_epochs}")
+    logger.info(f"  include_position  : {W2V_SETTINGS.include_position}")
+
+    logger.info("")
+    logger.info("Random Forest settings")
+    logger.info(f"  n_estimators      : {CLASSIC_RF_SETTINGS.n_estimators}")
+    logger.info(f"  max_depth         : {CLASSIC_RF_SETTINGS.max_depth}")
+    logger.info(f"  max_features      : {CLASSIC_RF_SETTINGS.max_features}")
+
+    logger.info("=" * 70)
+    logger.info("")
+
+
 def tune_w2v_via_stacked_rf(dataset_list_input, n_iter=5, random_state=42):
     """
     Tune Word2Vec hyperparameters based on final stacked Random Forest CV performance.
@@ -138,6 +172,8 @@ def tune_w2v_via_stacked_rf(dataset_list_input, n_iter=5, random_state=42):
 
 
 def process(dataset_list_input):
+
+    log_run_configuration()
 
     if config.W2V_MODE == W2VMode.TUNE_W2V:
         best_cfg = tune_w2v_via_stacked_rf(dataset_list_input, n_iter=5)
@@ -483,7 +519,9 @@ def compute_stacked_rf(
 
 if __name__ == "__main__":
 
-    logfile = "Evaluation/run.log"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    logfile = f"Evaluation/logs/run_{timestamp}.log"
 
     # Create log directory if it does not exist
     log_dir = os.path.dirname(logfile)

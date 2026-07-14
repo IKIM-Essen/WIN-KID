@@ -18,4 +18,10 @@ class W2VMode(Enum):
     TUNE_W2V = "TUNE_W2V"
 
 
+class FeatureMode(Enum):
+    CARD_ONLY = "card_only"
+    CARD_AND_W2V = "card_and_w2v"
+    W2V_ONLY = "w2v_only"
+
+
 # load w2V, off,

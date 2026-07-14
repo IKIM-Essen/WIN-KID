@@ -17,9 +17,19 @@ from constants import ORGANISM_COLUMN
 from constants import MODEL_FOLDER
 from constants import W2V_MODEL_PATH
 from constants import W2V_SETTINGS
-from config import EXECUTION_MODE, KMERE, FASTA_DIR, RETRAIN_W2V, W2V_MODE
-from execution_modes import ExecutionMode
+from config import (
+    EXECUTION_MODE,
+    KMERE,
+    FASTA_DIR,
+    RETRAIN_W2V,
+    W2V_MODE,
+    FEATURE_MODE,
+    USE_PCA,
+    PCA_COMPONENTS,
+)
+from execution_modes import ExecutionMode, FeatureMode
 import random
+from sklearn.decomposition import PCA
 from kmers import train_word2vec_model_streaming, encode_all_samples, load_w2v_model
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
@@ -313,6 +323,85 @@ class DataLoader:
     def __init__(self):
         self.merged_input = None
 
+    def _apply_pca_to_kmers(self, feature_cols_merged):
+        if not USE_PCA:
+            return feature_cols_merged
+
+        kmer_cols = [c for c in feature_cols_merged if c.startswith("kmer_")]
+
+        if len(kmer_cols) == 0:
+            return feature_cols_merged
+
+        logger.info(f"Running PCA on {len(kmer_cols)} k-mer features")
+
+        pca = PCA(n_components=min(PCA_COMPONENTS, len(kmer_cols)), random_state=42)
+
+        transformed = pca.fit_transform(self.merged_input[kmer_cols])
+
+        pca_cols = [f"kmer_{i}_pca" for i in range(transformed.shape[1])]
+
+        logger.info(f"KMER features after PCA selected: {len(pca_cols)}")
+
+        pca_df = pd.DataFrame(
+            transformed, columns=pca_cols, index=self.merged_input.index
+        )
+
+        self.merged_input = pd.concat(
+            [self.merged_input.drop(columns=kmer_cols), pca_df], axis=1
+        )
+
+        logger.info(
+            f"PCA explained variance: " f"{pca.explained_variance_ratio_.sum():.3f}"
+        )
+
+        feature_cols_merged = [c for c in feature_cols_merged if c not in kmer_cols]
+
+        feature_cols_merged += pca_cols
+
+        return feature_cols_merged
+
+    def _select_features_by_mode(self, feature_cols):
+        # Decide which features are used by the model.
+
+        kmer_cols = [c for c in feature_cols if c.startswith("kmer_")]
+
+        card_cols = [
+            c
+            for c in feature_cols
+            if not c.startswith("kmer_") and c != ORGANISM_COLUMN
+        ]
+
+        if FEATURE_MODE == FeatureMode.CARD_ONLY:
+
+            selected = card_cols + [ORGANISM_COLUMN]
+
+        elif FEATURE_MODE == FeatureMode.W2V_ONLY:
+
+            selected = kmer_cols + [ORGANISM_COLUMN]
+
+        elif FEATURE_MODE == FeatureMode.CARD_AND_W2V:
+
+            selected = card_cols + kmer_cols + [ORGANISM_COLUMN]
+
+        else:
+            raise ValueError(f"Unsupported feature mode: {FEATURE_MODE}")
+
+        logger.info(f"Feature mode: {FEATURE_MODE.value}")
+
+        logger.info(f"CARD features selected: {len(card_cols)}")
+
+        logger.info(f"KMER features selected: {len(kmer_cols)}")
+
+        logger.info(f"Total selected features: {len(selected)}")
+
+        return selected
+
+    def _get_saved_feature_list(self):
+        return pd.read_csv(
+            "resources/settings/FeatureList.csv",
+            header=None,
+        )[0].tolist()
+
     def _add_kmer_embeddings(self, feature_cols_merged, W2v_settings):
         if not KMERE:
             logger.info("KMERE disabled - skipping k-mer embedding step.")
@@ -329,7 +418,7 @@ class DataLoader:
         logger.info(f"Missing FASTA files: {len(missing)} / {len(fasta_ids)}")
         logger.info(f"Total FASTA IDs available: {len(fasta_ids)}")
         logger.info(f"Sample FASTA IDs: {fasta_ids[:5]}")
-        logger.info("W2V Mode: TRAIN_W2V")
+        logger.info(f"W2V Mode: {W2V_MODE.value}")
 
         # Load or train model
         if (
@@ -643,23 +732,23 @@ class DataLoader:
             feature_cols_merged, W2v_settings
         )
 
-        # --- enforce feature alignment ---
-        expected_features = pd.read_csv(
-            "resources/settings/FeatureList.csv", header=None
-        )[0].tolist()
-        expected_features = [f for f in expected_features if not f.startswith("kmer_")]
-        kmer_cols = [
-            col for col in self.merged_input.columns if col.startswith("kmer_")
-        ]
-        final_features = expected_features + kmer_cols
+        feature_cols_merged = self._apply_pca_to_kmers(feature_cols_merged)
+
+        feature_cols_merged = self._select_features_by_mode(feature_cols_merged)
+
+        # Align prediction data to the exact feature set used during training
+
+        saved_features = self._get_saved_feature_list()
+
         target_cols = [col for col in self.merged_input.columns if col.endswith("_AB")]
-        final_columns = [ID_COLUMN] + target_cols + final_features
+
+        final_columns = [ID_COLUMN] + target_cols + saved_features
 
         self.merged_input = self.merged_input.reindex(
             columns=final_columns, fill_value=0
         )
-        # update feature list used downstream
-        feature_cols_merged = final_features
+
+        feature_cols_merged = saved_features
 
         logger.info(
             f"✅ Final merged_input shape after k-mers: {self.merged_input.shape}"
@@ -723,23 +812,19 @@ class DataLoader:
             feature_cols_merged, W2v_settings
         )
 
-        # --- enforce feature alignment ---
-        expected_features = pd.read_csv(
-            "resources/settings/FeatureList.csv", header=None
-        )[0].tolist()
-        expected_features = [f for f in expected_features if not f.startswith("kmer_")]
-        kmer_cols = [
-            col for col in self.merged_input.columns if col.startswith("kmer_")
-        ]
-        final_features = expected_features + kmer_cols
+        feature_cols_merged = self._apply_pca_to_kmers(feature_cols_merged)
+
+        feature_cols_merged = self._select_features_by_mode(feature_cols_merged)
+
+        # Use exactly the features generated by preprocessing
+
         target_cols = [col for col in self.merged_input.columns if col.endswith("_AB")]
-        final_columns = [ID_COLUMN] + target_cols + final_features
+
+        final_columns = [ID_COLUMN] + target_cols + feature_cols_merged
 
         self.merged_input = self.merged_input.reindex(
             columns=final_columns, fill_value=0
         )
-        # update feature list used downstream
-        feature_cols_merged = final_features
 
         logger.info(
             f"✅ Final merged_input shape after k-mers: {self.merged_input.shape}"
@@ -748,6 +833,14 @@ class DataLoader:
         logger.info(f"Total features (excluding targets): {len(feature_cols_merged)}")
         logger.info(f"Total targets: {num_phenotype_cols - 2}")
         logger.info(f"Feature column sample: {feature_cols_merged} ")
+        logger.info(
+            f"CARD features: "
+            f"{sum(not c.startswith('kmer_') and c != ORGANISM_COLUMN for c in feature_cols_merged)}"
+        )
+        logger.info(
+            f"KMER features: "
+            f"{sum(c.startswith('kmer_') for c in feature_cols_merged)}"
+        )
 
         preprocessed_data = PreprocessedDataDTO(
             self.merged_input,

@@ -12,38 +12,42 @@ def setup_logging(
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
-    if logger.handlers:
-        return
+    if logger.hasHandlers():
+        logger.handlers.clear()
+
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
     # ---- Console ----
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(console_level)
-    ch.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+    ch.setFormatter(formatter)
 
-    # ---- Main File ----
-    log_dir = os.path.dirname(logfile)
-    if log_dir:
-        os.makedirs(log_dir, exist_ok=True)
-    fh = logging.FileHandler(logfile, mode="a")
+    # ---------- Main log ----------
+    os.makedirs(os.path.dirname(logfile), exist_ok=True)
+
+    fh = logging.FileHandler(logfile, mode="w")
     fh.setLevel(file_level)
-    fh.setFormatter(
-        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    )
+    fh.setFormatter(formatter)
 
     logger.addHandler(ch)
     logger.addHandler(fh)
 
-    # ---- Optional Tuning File ----
-    if tuning_logfile is not None:
+    # ---------- Optional tuning log ----------
+    if tuning_logfile:
+
         os.makedirs(os.path.dirname(tuning_logfile), exist_ok=True)
 
-        tuning_handler = logging.FileHandler(tuning_logfile, mode="a")
-        tuning_handler.setLevel(file_level)
-        tuning_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        tuning_handler = logging.FileHandler(
+            tuning_logfile,
+            mode="w",
         )
 
-        # Only accept records from w2v_tuning logger
+        tuning_handler.setLevel(file_level)
+        tuning_handler.setFormatter(formatter)
+
         tuning_handler.addFilter(lambda record: record.name == "w2v_tuning")
 
         logger.addHandler(tuning_handler)
