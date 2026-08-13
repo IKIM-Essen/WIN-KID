@@ -23,3 +23,5 @@ RETRAIN_W2V = False  # Set to True to retrain model
 FEATURE_MODE = FeatureMode.CARD_AND_W2V
 USE_PCA = True
 PCA_COMPONENTS = 20
+CONCAT_CONTIGS = True
+MAX_CONTIGS = 100

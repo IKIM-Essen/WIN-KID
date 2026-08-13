@@ -9,6 +9,8 @@ from Bio import SeqIO
 from constants import ID_COLUMN
 from constants import W2V_SETTINGS
 import logging
+import joblib
+from config import CONCAT_CONTIGS, MAX_CONTIGS
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,21 @@ def load_w2v_model(model_path):
     model = Word2Vec.load(model_path)
     logger.info(f"📥 Loaded Word2Vec model from: {model_path}")
     return model
+
+
+def save_pca_model(pca, output_path):
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    joblib.dump(pca, output_path)
+    logger.info(f"💾 Saved PCA model to: {output_path}")
+
+
+def load_pca_model(path):
+    if not os.path.exists(path):
+        raise FileNotFoundError(path)
+
+    pca = joblib.load(path)
+    logger.info(f"📥 Loaded PCA model from: {path}")
+    return pca
 
 
 class KmerCorpus:
@@ -124,9 +141,8 @@ def encode_sample(sample_id, fasta_dir, model, w2v_settings):
     if not os.path.exists(fpath):
         logger.warning(f"❌ Missing FASTA during encoding: {fpath}")
         return None
-    sample_sum = None
-    sample_count = 0
     open_func = gzip.open if fpath.endswith(".gz") else open
+    contig_vectors = []
     with open_func(fpath, "rt") as handle:
         for record in SeqIO.parse(handle, "fasta"):
             seq = str(record.seq).upper()
@@ -149,14 +165,57 @@ def encode_sample(sample_id, fasta_dir, model, w2v_settings):
 
             if contig_count > 0:
                 contig_mean = contig_sum / contig_count
-                if sample_sum is None:
-                    sample_sum = contig_mean
-                else:
-                    sample_sum += contig_mean
-                sample_count += 1
-    if sample_count == 0:
+
+                contig_vectors.append(
+                    (len(seq), contig_mean)  # contig length  # embedding
+                )
+    if len(contig_vectors) == 0:
         return None
-    return sample_id, (sample_sum / sample_count)
+
+    ###################################################################
+    # OLD METHOD
+    ###################################################################
+
+    if not CONCAT_CONTIGS:
+
+        vectors = [vec for _, vec in contig_vectors]
+
+        sample_vec = np.mean(vectors, axis=0)
+
+        return sample_id, sample_vec
+
+    ###################################################################
+    # NEW METHOD
+    ###################################################################
+
+    contig_vectors.sort(
+        key=lambda x: x[0],
+        reverse=True,
+    )
+
+    vectors = [vec for _, vec in contig_vectors[:MAX_CONTIGS]]
+
+    embedding_size = len(vectors[0])
+
+    while len(vectors) < MAX_CONTIGS:
+
+        vectors.append(
+            np.zeros(
+                embedding_size,
+                dtype=np.float32,
+            )
+        )
+
+    sample_vec = np.concatenate(vectors)
+
+    if CONCAT_CONTIGS:
+        logger.info(
+            f"Using concatenated contig embeddings " f"(max contigs={MAX_CONTIGS})"
+        )
+    else:
+        logger.info("Using mean embedding per sample")
+
+    return sample_id, sample_vec
 
 
 def encode_all_samples(fasta_ids, fasta_dir, model, w2v_settings):
@@ -166,9 +225,9 @@ def encode_all_samples(fasta_ids, fasta_dir, model, w2v_settings):
     for sid in fasta_ids:
         result = encode_sample(sid, fasta_dir, model, w2v_settings)
         if result:
-            sample_id, mean_vec = result
+            sample_id, sample_vec = result
             all_ids.append(sample_id)
-            all_vecs.append(mean_vec)
+            all_vecs.append(sample_vec)
         else:
             skipped += 1
     logger.info(
@@ -179,6 +238,4 @@ def encode_all_samples(fasta_ids, fasta_dir, model, w2v_settings):
     cols = [f"kmer_{i}" for i in range(len(all_vecs[0]))]
     df = pd.DataFrame(all_vecs, columns=cols)
     df[ID_COLUMN] = all_ids
-    scaler = MinMaxScaler()
-    df[cols] = scaler.fit_transform(df[cols])
     return df

@@ -17,6 +17,7 @@ from constants import ORGANISM_COLUMN
 from constants import MODEL_FOLDER
 from constants import W2V_MODEL_PATH
 from constants import W2V_SETTINGS
+from constants import PCA_MODEL_PATH
 from config import (
     EXECUTION_MODE,
     KMERE,
@@ -30,7 +31,13 @@ from config import (
 from execution_modes import ExecutionMode, FeatureMode
 import random
 from sklearn.decomposition import PCA
-from kmers import train_word2vec_model_streaming, encode_all_samples, load_w2v_model
+from kmers import (
+    train_word2vec_model_streaming,
+    encode_all_samples,
+    load_w2v_model,
+    load_pca_model,
+    save_pca_model,
+)
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
@@ -336,7 +343,24 @@ class DataLoader:
 
         pca = PCA(n_components=min(PCA_COMPONENTS, len(kmer_cols)), random_state=42)
 
-        transformed = pca.fit_transform(self.merged_input[kmer_cols])
+        if EXECUTION_MODE == ExecutionMode.SAVE_TRAINED or (
+            EXECUTION_MODE == ExecutionMode.TRAIN_TEST
+        ):
+
+            pca = PCA(
+                n_components=min(PCA_COMPONENTS, len(kmer_cols)),
+                random_state=42,
+            )
+
+            transformed = pca.fit_transform(self.merged_input[kmer_cols])
+
+            save_pca_model(pca, PCA_MODEL_PATH)
+
+        else:
+
+            pca = load_pca_model(PCA_MODEL_PATH)
+
+            transformed = pca.transform(self.merged_input[kmer_cols])
 
         pca_cols = [f"kmer_{i}_pca" for i in range(transformed.shape[1])]
 

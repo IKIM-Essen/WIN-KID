@@ -10,6 +10,7 @@ IGNORE_PATH = "resources/settings/ignore.csv"
 INPUT_EUCAST_FOLDER = "resources/eucast_files/"
 MODEL_FOLDER = "rf_models/"
 W2V_MODEL_PATH = "w2v_models/w2v_model.bin"
+PCA_MODEL_PATH = "pca_models/pca_model.joblib"
 
 
 GFF_COLUMNS = [
@@ -84,9 +85,9 @@ W2V_SETTINGS = w2vSettings(
     w2v_epochs=3,
     include_position=False,
     train_subset_size=1000,
-    window=8,
+    window=15,
     batch_size=300,
-    min_count=2,
+    min_count=8,
     sg=0,
     negative=5,
     tuning_trials=10,

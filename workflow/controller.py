@@ -78,10 +78,10 @@ def tune_w2v_via_stacked_rf(dataset_list_input, n_iter=5, random_state=42):
     # --- Define search space ---
     search_space = {
         "vec_size": [50, 100, 200],
-        "window": [5, 10, 20],
-        "negative": [5, 10, 20],
+        "window": [5, 15, 25],
+        "negative": [5, 15, 25],
         "sg": [0, 1],
-        "min_count": [1, 2, 5],
+        "min_count": [2, 5, 8],
     }
 
     configs = list(
